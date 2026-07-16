@@ -54,7 +54,3 @@ Together these answer three questions no current tool answers in one place: wher
 | 2 — MLP | Months 8–12 | Prediction-vs-reality dashboard, cohort comparison, churn-risk scoring, trend alerts, Slack/Jira auto-ticketing, configurable/savable personas. |
 | 3 — Beta | Months 13–16 | Multi-tenant architecture, workspace roles, SOC2-track security, 10–20 pilot companies (Malaysian startup ecosystem beachhead), case studies. |
 | 4 — Final release / Monetization | Month 17+ | Tiered SaaS subscription, Figma plugin (self-serve persona audits), enterprise digital-twin engagements, freemium floor. |
-
-## Why This Project
-
-Each phase forces a new competency — multimodal agents, graph analytics, streaming pipelines, multi-tenant SaaS, billing, B2B sales — while building on existing experience, so progress never stalls on pure unknowns. It's a horizontal B2B SaaS product with zero overlap with unrelated core products, and a natural companion to a UX analytics background: domain intuition from the day job, a lab for the side project. Worst case, it's a strong AI-for-UX portfolio piece; best case, the calibration loop is a real company.
