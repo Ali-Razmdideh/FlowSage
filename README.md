@@ -49,8 +49,8 @@ Together these answer three questions no current tool answers in one place: wher
 
 | Phase | Timeline | Goal |
 |---|---|---|
-| 0 — Hobby / Soft launch | Months 1–3 | Two standalone scripts: screenshot-sequence persona walkthrough → markdown friction report, and event-log → Neo4j journey graph with funnel visualization. Open-sourced. |
-| 1 — MVP | Months 4–7 | Single web app: Figma/screenshot upload → persona panel → friction report; simple event stream → funnel view with friction nodes and LLM explanations. Single-tenant, manual onboarding. |
-| 2 — MLP | Months 8–12 | Prediction-vs-reality dashboard, cohort comparison, churn-risk scoring, trend alerts, Slack/Jira auto-ticketing, configurable/savable personas. |
-| 3 — Beta | Months 13–16 | Multi-tenant architecture, workspace roles, SOC2-track security, 10–20 pilot companies (Malaysian startup ecosystem beachhead), case studies. |
-| 4 — Final release / Monetization | Month 17+ | Tiered SaaS subscription, Figma plugin (self-serve persona audits), enterprise digital-twin engagements, freemium floor. |
+| 0 — Hobby / Soft launch | Jul 16–18, 2026 | Two standalone scripts: screenshot-sequence persona walkthrough → markdown friction report, and event-log → Neo4j journey graph with funnel visualization. Open-sourced. |
+| 1 — MVP | Jul 19–21, 2026 | Single web app: Figma/screenshot upload → persona panel → friction report; simple event stream → funnel view with friction nodes and LLM explanations. Single-tenant, manual onboarding. |
+| 2 — MLP | Jul 22–24, 2026 | Prediction-vs-reality dashboard, cohort comparison, churn-risk scoring, trend alerts, Slack/Jira auto-ticketing, configurable/savable personas. |
+| 3 — Beta | Jul 25–27, 2026 | Multi-tenant architecture, workspace roles, SOC2-track security, 10–20 pilot companies (Malaysian startup ecosystem beachhead), case studies. |
+| 4 — Final release / Monetization | Jul 28–31, 2026 | Tiered SaaS subscription, Figma plugin (self-serve persona audits), enterprise digital-twin engagements, freemium floor. |
