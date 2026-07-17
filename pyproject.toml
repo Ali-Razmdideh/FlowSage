@@ -2,6 +2,7 @@
 members = [
     "scripts/flowsage-predict",
     "scripts/flowsage-graph",
+    "backend",
 ]
 
 [tool.black]

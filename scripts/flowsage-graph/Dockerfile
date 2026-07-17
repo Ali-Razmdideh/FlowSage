@@ -15,5 +15,9 @@ COPY scripts/flowsage-predict ./scripts/flowsage-predict
 
 RUN uv sync --frozen --no-dev --package flowsage-graph
 
+RUN useradd --create-home --uid 1000 appuser
 WORKDIR /data
+RUN chown appuser:appuser /data
+USER appuser
+
 ENTRYPOINT ["/workspace/.venv/bin/flowsage-graph"]

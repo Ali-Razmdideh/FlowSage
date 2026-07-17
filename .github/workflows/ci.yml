@@ -15,6 +15,7 @@ jobs:
         package:
           - scripts/flowsage-predict
           - scripts/flowsage-graph
+          - backend
     steps:
       - uses: actions/checkout@v4
 
