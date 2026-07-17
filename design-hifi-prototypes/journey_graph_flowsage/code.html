@@ -1,0 +1,375 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>FlowSage | Observational Journey Graph</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Serif:wght@700&amp;family=Public+Sans:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Noto+Serif:wght@100..900&amp;family=Public+Sans:wght@100..900&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "outline-variant": "#c3c6d5",
+                        "on-tertiary": "#ffffff",
+                        "inverse-surface": "#303031",
+                        "surface-bright": "#faf9fa",
+                        "surface-container-low": "#f5f3f4",
+                        "surface-tint": "#2259bf",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed": "#f9e37a",
+                        "primary-fixed": "#d9e2ff",
+                        "inverse-primary": "#b1c5ff",
+                        "on-background": "#1b1c1d",
+                        "primary-fixed-dim": "#b1c5ff",
+                        "on-surface-variant": "#434653",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#dcc661",
+                        "on-error-container": "#93000a",
+                        "background": "#faf9fa",
+                        "error": "#ba1a1a",
+                        "on-surface": "#1b1c1d",
+                        "on-tertiary-fixed-variant": "#524600",
+                        "on-tertiary-container": "#4a3f00",
+                        "on-error": "#ffffff",
+                        "primary-container": "#3366cc",
+                        "surface-dim": "#dbdadb",
+                        "on-secondary-fixed-variant": "#42474b",
+                        "on-tertiary-fixed": "#211b00",
+                        "on-primary-fixed-variant": "#00419d",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#e7ebff",
+                        "on-secondary-fixed": "#171c20",
+                        "tertiary": "#6d5e00",
+                        "surface-variant": "#e3e2e3",
+                        "on-secondary-container": "#606569",
+                        "surface-container-highest": "#e3e2e3",
+                        "surface-container": "#efedee",
+                        "surface-container-high": "#e9e8e9",
+                        "secondary-fixed": "#dfe3e8",
+                        "secondary": "#5a5f63",
+                        "primary": "#094cb2",
+                        "surface": "#faf9fa",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#dfe3e8",
+                        "on-primary-fixed": "#001946",
+                        "tertiary-container": "#bfab49",
+                        "secondary-fixed-dim": "#c2c7cc",
+                        "inverse-on-surface": "#f2f0f1",
+                        "outline": "#737784"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Noto Serif"],
+                        "display": ["Noto Serif"],
+                        "body": ["Inter"],
+                        "label": ["Public Sans"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .friction-pulse {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(186, 26, 26, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(186, 26, 26, 0); }
+        }
+        .graph-bg {
+            background-image: radial-gradient(circle at 2px 2px, #e3e2e3 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+        .node-edge {
+            stroke-dasharray: 5;
+            animation: dash 20s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -1000; }
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-background overflow-hidden h-screen w-screen flex flex-col">
+<!-- Header (Based on Shared Component Integrity) -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-outline-variant bg-surface px-6 py-3 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-on-background">
+<div class="size-6 text-primary">
+<svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M24 45.8096C19.6865 45.8096 15.4698 44.5305 11.8832 42.134C8.29667 39.7376 5.50128 36.3314 3.85056 32.3462C2.19985 28.361 1.76794 23.9758 2.60947 19.7452C3.451 15.5145 5.52816 11.6284 8.57829 8.5783C11.6284 5.52817 15.5145 3.45101 19.7452 2.60948C23.9758 1.76795 28.361 2.19986 32.3462 3.85057C36.3314 5.50129 39.7376 8.29668 42.134 11.8833C44.5305 15.4698 45.8096 19.6865 45.8096 24L24 24L24 45.8096Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-on-background text-xl font-headline font-bold leading-tight tracking-[-0.015em]">FlowSage</h2>
+</div>
+<div class="h-6 w-px bg-outline-variant"></div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="text-sm font-label font-medium">Project:</span>
+<span class="text-sm font-label font-bold text-on-surface">E-Commerce Checkout v2.4</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="bg-cover bg-center rounded-full size-8 border border-outline-variant" data-alt="A professional headshot of a female data scientist with glasses, looking warmly at the camera, high-key studio lighting, minimalist modern office background, soft depth of field." style="background-image: url(&quot;https://lh3.googleusercontent.com/aida-public/AB6AXuCdixUBKwNL1wmaGgQ3kXNtWmpdX7W13egMhuCv6zEUk7m6VZsHFDc4PGvQ_Vc_ds0fC9xUq7lSw3UFHa1c2GBXeQOSeT5-2BBHjIHq22iztHObP7ThhXUcTPMXfiHmsr4zrObzdzx_iVHafBBsVCxV4UCd4bi3eQB8clPw3Qt92unZzfkausuaNJjMr2IItUNOsSsK9PFv6OcXhIFB72ic0ov8dXDquDghSrxzQZWlOrSwW_MDCuOSDsEbZDgwSQWcdhFYRIuefWo7&quot;)"></div>
+</div>
+</header>
+<!-- Main Workspace -->
+<main class="flex-1 relative overflow-hidden flex">
+<!-- Graph Canvas Area -->
+<div class="flex-1 relative bg-surface-bright graph-bg overflow-hidden cursor-grab active:cursor-grabbing" id="graph-container">
+<webgl-shader class="absolute inset-0 pointer-events-none opacity-40" src="{{DATA:ANIMATION:ANIMATION_1}}"></webgl-shader>
+<!-- SVG Overlay for Edges/Nodes -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none">
+<!-- Example Path 1: Landing -> Product -->
+<path class="node-edge" d="M 200,300 C 350,300 350,200 500,200" fill="none" opacity="0.4" stroke="#094cb2" stroke-width="8"></path>
+<!-- Example Path 2: Product -> Cart -->
+<path class="node-edge" d="M 500,200 C 650,200 650,400 800,400" fill="none" opacity="0.6" stroke="#094cb2" stroke-width="12"></path>
+<!-- Example Path 3: Cart -> Checkout (Friction) -->
+<path class="node-edge" d="M 800,400 C 950,400 950,550 1100,550" fill="none" opacity="0.8" stroke="#ba1a1a" stroke-dasharray="8 4" stroke-width="4"></path>
+<!-- Example Path 4: Drop Off -->
+<path d="M 1100,550 L 1250,700" fill="none" opacity="0.4" stroke="#ba1a1a" stroke-width="2"></path>
+</svg>
+<!-- Floating Nodes -->
+<div class="absolute inset-0">
+<!-- Node: Landing Page -->
+<div class="absolute top-[280px] left-[160px] flex flex-col items-center gap-2 pointer-events-auto">
+<div class="size-20 rounded-full bg-white border-4 border-primary-fixed shadow-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform group">
+<span class="material-symbols-outlined text-primary text-3xl">home</span>
+<div class="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">94%</div>
+</div>
+<span class="text-xs font-label font-bold text-on-surface bg-white/80 backdrop-blur-sm px-2 py-1 rounded">Landing_Main</span>
+</div>
+<!-- Node: Product Details -->
+<div class="absolute top-[160px] left-[460px] flex flex-col items-center gap-2 pointer-events-auto">
+<div class="size-20 rounded-full bg-white border-4 border-primary-fixed shadow-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">shopping_bag</span>
+<div class="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">76%</div>
+</div>
+<span class="text-xs font-label font-bold text-on-surface bg-white/80 backdrop-blur-sm px-2 py-1 rounded">Product_View_PDP</span>
+</div>
+<!-- Node: Cart Page -->
+<div class="absolute top-[360px] left-[760px] flex flex-col items-center gap-2 pointer-events-auto">
+<div class="size-20 rounded-full bg-white border-4 border-primary-fixed shadow-xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">shopping_cart</span>
+<div class="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">42%</div>
+</div>
+<span class="text-xs font-label font-bold text-on-surface bg-white/80 backdrop-blur-sm px-2 py-1 rounded">Cart_Summary</span>
+</div>
+<!-- Friction Node: Checkout Final -->
+<div class="absolute top-[510px] left-[1060px] flex flex-col items-center gap-2 pointer-events-auto" id="friction-node">
+<div class="size-24 rounded-full bg-error-container border-4 border-error shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 transition-transform friction-pulse z-10 border-solid">
+<span class="material-symbols-outlined text-error text-4xl" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div class="absolute -top-3 -right-3 bg-error text-white text-[12px] font-bold px-2 py-1 rounded-full shadow-lg animate-bounce">12% Success</div>
+</div>
+<span class="text-sm font-label font-extrabold text-error bg-error-container/90 backdrop-blur-sm px-3 py-1 rounded border border-error/20">Checkout_Final_Payment</span>
+</div>
+</div>
+<!-- Zoom/Pan Controls -->
+<div class="absolute bottom-6 right-6 flex flex-col gap-2">
+<button class="bg-white border border-outline-variant size-10 rounded shadow-lg flex items-center justify-center hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">add</span>
+</button>
+<button class="bg-white border border-outline-variant size-10 rounded shadow-lg flex items-center justify-center hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<button class="bg-white border border-outline-variant size-10 rounded shadow-lg flex items-center justify-center hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">center_focus_strong</span>
+</button>
+</div>
+</div>
+<!-- Floating Control Bar -->
+<div class="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-white/90 backdrop-blur-md px-6 py-3 rounded-full border border-outline-variant shadow-2xl z-40">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">group</span>
+<select class="bg-transparent border-none focus:ring-0 text-sm font-label font-bold pr-8">
+<option>Cohort: Paid Users</option>
+<option>Cohort: Free Trial</option>
+<option>Cohort: New Leads</option>
+<option>Cohort: Churned Risk</option>
+</select>
+</div>
+<div class="w-px h-6 bg-outline-variant"></div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">calendar_today</span>
+<select class="bg-transparent border-none focus:ring-0 text-sm font-label font-bold pr-8">
+<option>Last 7 Days</option>
+<option>Last 30 Days</option>
+<option>Q3 FY24</option>
+</select>
+</div>
+<div class="w-px h-6 bg-outline-variant"></div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">devices</span>
+<select class="bg-transparent border-none focus:ring-0 text-sm font-label font-bold pr-8">
+<option>Mobile Only</option>
+<option>Desktop Only</option>
+<option>Omnichannel</option>
+</select>
+</div>
+<div class="ml-2">
+<button class="bg-primary text-white text-sm font-bold px-4 py-2 rounded-full hover:bg-primary/90 transition-shadow shadow-md">Apply Filters</button>
+</div>
+</div>
+<!-- Side Overlay (Node Intelligence) -->
+<aside class="w-[400px] bg-white border-l border-outline-variant shadow-[-10px_0_30px_rgba(0,0,0,0.05)] z-50 flex flex-col translate-x-0 transition-transform duration-500" id="node-overlay">
+<div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded bg-error-container flex items-center justify-center">
+<span class="material-symbols-outlined text-error">analytics</span>
+</div>
+<div>
+<h3 class="text-on-background font-bold text-base">Node Intelligence</h3>
+<p class="text-on-surface-variant text-xs">Analysis of Checkout_Final</p>
+</div>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-on-surface" id="close-overlay">close</button>
+</div>
+<div class="flex-1 overflow-y-auto">
+<!-- Friction Analysis Section -->
+<div class="p-6 space-y-6">
+<div class="bg-error-container/20 border border-error/10 p-4 rounded-xl">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-error text-xl" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<h4 class="text-error font-bold text-sm uppercase tracking-wider">AI Insight</h4>
+</div>
+<p class="text-on-surface text-sm leading-relaxed">
+<strong class="text-on-surface font-bold">72% of users backtrack here.</strong> This behavior is strongly correlated with a misleading "Back" button affordance that inadvertently <span class="bg-error/10 text-error px-1 rounded">resets the entire form state</span>. Users expect a simple navigation change but encounter data loss, triggering a high volume of "Rage Clicks" on the shipping method selector.
+                        </p>
+</div>
+<div class="space-y-4">
+<h4 class="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Key Metrics</h4>
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-surface-container p-3 rounded-lg border border-outline-variant">
+<span class="block text-[10px] text-on-surface-variant uppercase font-bold">Drop-off Rate</span>
+<span class="text-2xl font-bold text-error">88.4%</span>
+</div>
+<div class="bg-surface-container p-3 rounded-lg border border-outline-variant">
+<span class="block text-[10px] text-on-surface-variant uppercase font-bold">Avg. Time on Node</span>
+<span class="text-2xl font-bold text-on-surface">0:14s</span>
+</div>
+</div>
+</div>
+<!-- Recommendations -->
+<div class="space-y-4 pt-2">
+<h4 class="text-on-surface-variant font-bold text-xs uppercase tracking-widest">Re-engagement Recommendations</h4>
+<!-- Recommendation Item 1 -->
+<div class="group border border-outline-variant p-4 rounded-xl hover:border-primary transition-colors cursor-pointer bg-white">
+<div class="flex items-start gap-3">
+<div class="bg-primary-fixed size-8 rounded flex items-center justify-center text-primary font-bold">1</div>
+<div class="flex-1">
+<h5 class="text-on-surface font-bold text-sm">Persist Form State in Local Storage</h5>
+<p class="text-on-surface-variant text-xs mt-1">Prevents data loss during accidental navigation. Expected conversion lift: +14%</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">arrow_forward</span>
+</div>
+</div>
+<!-- Recommendation Item 2 -->
+<div class="group border border-outline-variant p-4 rounded-xl hover:border-primary transition-colors cursor-pointer bg-white">
+<div class="flex items-start gap-3">
+<div class="bg-primary-fixed size-8 rounded flex items-center justify-center text-primary font-bold">2</div>
+<div class="flex-1">
+<h5 class="text-on-surface font-bold text-sm">Deploy Churn-Alert Email Flow</h5>
+<p class="text-on-surface-variant text-xs mt-1">Trigger personalized "Forgotten Cart" email with 10% coupon for users dropping here.</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">arrow_forward</span>
+</div>
+</div>
+<!-- Recommendation Item 3 -->
+<div class="group border border-outline-variant p-4 rounded-xl hover:border-primary transition-colors cursor-pointer bg-white">
+<div class="flex items-start gap-3">
+<div class="bg-primary-fixed size-8 rounded flex items-center justify-center text-primary font-bold">3</div>
+<div class="flex-1">
+<h5 class="text-on-surface font-bold text-sm">AB Test: Single-Page Checkout</h5>
+<p class="text-on-surface-variant text-xs mt-1">Eliminate navigation steps entirely to reduce friction correlation.</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-outline-variant bg-surface">
+<button class="w-full bg-primary text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-shadow">
+<span class="material-symbols-outlined">send</span>
+                    Export to Engineering Ticket
+                </button>
+</div>
+</aside>
+</main>
+<!-- Footer Stats -->
+<footer class="h-10 bg-surface-container-highest border-t border-outline-variant px-6 flex items-center justify-between z-50">
+<div class="flex gap-4 items-center">
+<span class="text-[10px] font-bold text-on-secondary-fixed uppercase tracking-tighter">Total Events: 1,240,912</span>
+<div class="w-px h-4 bg-outline-variant"></div>
+<span class="text-[10px] font-bold text-on-secondary-fixed uppercase tracking-tighter">Latency: 42ms</span>
+<div class="w-px h-4 bg-outline-variant"></div>
+<span class="text-[10px] font-bold text-on-secondary-fixed uppercase tracking-tighter">Graph Engine: Neo4j AuraDB</span>
+</div>
+<div class="flex items-center gap-1">
+<div class="size-2 rounded-full bg-emerald-500 animate-pulse"></div>
+<span class="text-[10px] font-bold text-on-secondary-fixed">LIVE DATA CONNECTED</span>
+</div>
+</footer>
+<script>
+        // Simple micro-interactions
+        const overlay = document.getElementById('node-overlay');
+        const closeBtn = document.getElementById('close-overlay');
+        const frictionNode = document.getElementById('friction-node');
+
+        closeBtn.addEventListener('click', () => {
+            overlay.classList.add('translate-x-full');
+        });
+
+        frictionNode.addEventListener('click', () => {
+            overlay.classList.remove('translate-x-full');
+        });
+
+        // Draggable Graph Simulation
+        const graphContainer = document.getElementById('graph-container');
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        graphContainer.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.pageX - graphContainer.offsetLeft;
+            startY = e.pageY - graphContainer.offsetTop;
+            scrollLeft = graphContainer.scrollLeft;
+            scrollTop = graphContainer.scrollTop;
+        });
+
+        graphContainer.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        graphContainer.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        graphContainer.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.pageX - graphContainer.offsetLeft;
+            const y = e.pageY - graphContainer.offsetTop;
+            const walkX = (x - startX) * 1.5;
+            const walkY = (y - startY) * 1.5;
+            // Note: This is visual representation of panning
+            // For a real canvas we'd update transforms
+        });
+    </script>
+</body></html>

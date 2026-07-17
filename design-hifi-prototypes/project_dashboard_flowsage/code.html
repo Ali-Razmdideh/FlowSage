@@ -1,0 +1,398 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>FlowSage Project Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Serif:wght@400;700&amp;family=Public+Sans:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-error-container": "#93000a",
+                    "on-surface-variant": "#434653",
+                    "error-container": "#ffdad6",
+                    "tertiary-fixed-dim": "#dcc661",
+                    "primary-fixed-dim": "#b1c5ff",
+                    "on-background": "#1b1c1d",
+                    "on-tertiary-fixed-variant": "#524600",
+                    "on-surface": "#1b1c1d",
+                    "error": "#ba1a1a",
+                    "background": "#faf9fa",
+                    "surface-tint": "#2259bf",
+                    "surface-container-low": "#f5f3f4",
+                    "inverse-surface": "#303031",
+                    "surface-bright": "#faf9fa",
+                    "on-tertiary": "#ffffff",
+                    "outline-variant": "#c3c6d5",
+                    "tertiary-fixed": "#f9e37a",
+                    "primary-fixed": "#d9e2ff",
+                    "inverse-primary": "#b1c5ff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface": "#faf9fa",
+                    "on-primary": "#ffffff",
+                    "secondary-fixed": "#dfe3e8",
+                    "secondary": "#5a5f63",
+                    "primary": "#094cb2",
+                    "outline": "#737784",
+                    "secondary-fixed-dim": "#c2c7cc",
+                    "inverse-on-surface": "#f2f0f1",
+                    "tertiary-container": "#bfab49",
+                    "on-primary-fixed": "#001946",
+                    "secondary-container": "#dfe3e8",
+                    "on-secondary-fixed": "#171c20",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#e7ebff",
+                    "tertiary": "#6d5e00",
+                    "surface-variant": "#e3e2e3",
+                    "on-tertiary-fixed": "#211b00",
+                    "on-primary-fixed-variant": "#00419d",
+                    "surface-dim": "#dbdadb",
+                    "on-secondary-fixed-variant": "#42474b",
+                    "on-tertiary-container": "#4a3f00",
+                    "primary-container": "#3366cc",
+                    "on-error": "#ffffff",
+                    "surface-container-high": "#e9e8e9",
+                    "surface-container": "#efedee",
+                    "surface-container-highest": "#e3e2e3",
+                    "on-secondary-container": "#606569"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif", "serif"],
+                    "display": ["Noto Serif", "serif"],
+                    "body": ["Inter", "sans-serif"],
+                    "label": ["Public Sans", "sans-serif"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        /* Essential base styles */
+        body { font-family: 'Inter', sans-serif; background-color: #faf9fa; color: #1b1c1d; }
+        h1, h2, h3, h4, h5, h6, .font-headline, .font-display { font-family: 'Noto Serif', serif; }
+        .font-label { font-family: 'Public Sans', sans-serif; }
+        
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #dbdadb; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #c3c6d5; }
+        
+        /* Ghost borders (per design system) */
+        .ghost-border { border: 1px solid rgba(195, 198, 213, 0.15); }
+        .ghost-border-b { border-bottom: 1px solid rgba(195, 198, 213, 0.15); }
+    </style>
+</head>
+<body class="bg-background text-on-background flex h-screen overflow-hidden">
+<!-- SideNavBar (from JSON) -->
+<nav class="hidden md:flex h-screen w-72 flex-col left-0 top-0 fixed bg-surface-container-low text-primary font-body text-sm tracking-wide z-40 border-r border-outline-variant/15">
+<div class="flex flex-col p-6 space-y-2 h-full">
+<div class="mb-8">
+<div class="font-headline text-xl text-primary font-bold">Research Alpha</div>
+<div class="text-on-surface-variant text-xs mt-1">Global UX Intelligence</div>
+</div>
+<button class="bg-gradient-to-r from-primary to-primary-container text-on-primary font-medium py-3 px-4 rounded-xl mb-6 shadow-sm hover:opacity-90 transition-opacity flex items-center justify-center space-x-2 w-full">
+<span class="material-symbols-outlined text-sm">add</span>
+<span>New Simulation</span>
+</button>
+<div class="flex-1 space-y-2">
+<!-- Predictive Engine (Active - implied by dashboard content) -->
+<a class="flex items-center space-x-3 px-4 py-3 bg-primary-container/20 text-primary font-medium rounded-xl hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<span>Predictive Engine</span>
+</a>
+<!-- Journey Graph (Inactive) -->
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:text-primary transition-colors duration-200 hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">timeline</span>
+<span>Journey Graph</span>
+</a>
+<!-- Calibration (Inactive) -->
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:text-primary transition-colors duration-200 hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">tune</span>
+<span>Calibration</span>
+</a>
+<!-- Settings (Inactive) -->
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:text-primary transition-colors duration-200 hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</div>
+<div class="mt-auto space-y-2 pt-6 ghost-border-b border-t border-outline-variant/15">
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:text-primary transition-colors duration-200 hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">contact_support</span>
+<span>Support</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:text-primary transition-colors duration-200 hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Archive</span>
+</a>
+</div>
+<div class="mt-4 flex items-center space-x-3 px-4 py-2">
+<div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="A small, professional portrait photograph of a project manager with short dark hair, wearing a dark blazer, set against a clean, light gray studio background. Soft, diffused lighting highlights facial features. The image conveys authority and approachability in a premium corporate setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBD7sXHQhjcEB3KizQ3JdCFDScksAhqnv5t4ZWc_QvGfvIOPeDcQcdnX4B1tV6QS4fX_FU0DWQ7Hd1Je1OlTV_vZvzSZbOvC428LEmgdZLqrCT9P-XZgd6mKg0j3sUFJpcuUiUT8yfmje-0PcjM3B4qzoj1_ODgmqkppgWGeT1xfdmpgCd9nuh5I9fp3vjHC5HuAOpvkzS9GqMizbrFCWFuE-weqJ0e-G1PNXDkaQNHk-lzuOc0BZUwQN6T7IU4HTzqsc35qXJIjXq2">
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-on-surface truncate">Admin User</p>
+<p class="text-xs text-on-surface-variant truncate">Workspace Owner</p>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col md:ml-72 w-full bg-background h-screen overflow-hidden">
+<!-- TopNavBar (from JSON, simplified for desktop context as sidebar takes primary nav duties, but keeping brand/actions) -->
+<header class="flex justify-between items-center px-8 py-4 w-full border-b border-outline-variant/15 bg-surface-container-lowest/80 backdrop-blur-md text-primary font-display font-medium text-lg leading-relaxed docked full-width top-0 sticky z-30">
+<div class="flex items-center space-x-6">
+<!-- Mobile menu toggle (visible only on small screens) -->
+<button class="md:hidden text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="font-headline text-2xl font-bold tracking-tight text-primary">FlowSage</div>
+<!-- Search Bar (on_left) -->
+<div class="hidden lg:flex items-center bg-surface-container-low rounded-full px-4 py-2 w-64 focus-within:ring-1 focus-within:ring-primary transition-shadow ghost-border">
+<span class="material-symbols-outlined text-on-surface-variant text-sm mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm font-body text-on-surface w-full placeholder:text-on-surface-variant/70 p-0" placeholder="Search insights..." type="text">
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="bg-surface-container-high text-primary font-medium py-2 px-4 rounded-xl text-sm hover:bg-surface-dim transition-colors ml-2">
+                    Sync Events
+                </button>
+</div>
+</header>
+<!-- Scrollable Dashboard Canvas -->
+<main class="flex-1 overflow-y-auto p-8 lg:p-12">
+<div class="max-w-6xl mx-auto space-y-12">
+<!-- Header Section -->
+<div>
+<h1 class="text-4xl font-headline text-on-surface mb-2">Executive Summary</h1>
+<p class="text-on-surface-variant font-body">Real-time friction analysis and predictive persona calibration.</p>
+</div>
+<!-- KPI Cards (Bento style row) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col justify-between ghost-border shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label text-xs uppercase tracking-widest text-on-surface-variant">Global Friction Index</span>
+<span class="material-symbols-outlined text-outline">trending_down</span>
+</div>
+<div class="flex items-baseline space-x-2">
+<span class="text-5xl font-headline text-on-surface">62</span>
+<span class="text-lg text-on-surface-variant font-body">/100</span>
+</div>
+<div class="mt-2 flex items-center text-sm font-medium text-primary">
+<span class="material-symbols-outlined text-sm mr-1">arrow_downward</span>
+                            4% trend
+                        </div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col justify-between ghost-border shadow-[0_2px_10px_rgba(0,0,0,0.02)] relative overflow-hidden">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-tertiary-container/10 rounded-full blur-xl"></div>
+<div class="flex justify-between items-start mb-4 relative z-10">
+<span class="font-label text-xs uppercase tracking-widest text-on-surface-variant">Persona Calibration</span>
+<span class="material-symbols-outlined text-tertiary-fixed-dim">verified</span>
+</div>
+<div class="flex items-baseline space-x-2 relative z-10">
+<span class="text-5xl font-headline text-on-surface">88<span class="text-3xl">%</span></span>
+</div>
+<div class="mt-2 text-sm text-on-surface-variant font-body relative z-10">
+                            Accuracy across models
+                        </div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col justify-between ghost-border shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+<div class="flex justify-between items-start mb-4">
+<span class="font-label text-xs uppercase tracking-widest text-on-surface-variant">Active Coverage</span>
+<span class="material-symbols-outlined text-outline">account_tree</span>
+</div>
+<div class="flex items-baseline space-x-2">
+<span class="text-5xl font-headline text-on-surface">14</span>
+</div>
+<div class="mt-2 text-sm text-on-surface-variant font-body">
+                            Simulated flows running
+                        </div>
+</div>
+</div>
+<!-- Main Chart & Sidebar Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Chart Area (Spans 2 columns) -->
+<div class="lg:col-span-2 space-y-6">
+<div class="bg-surface-container-lowest p-8 rounded-xl ghost-border shadow-[0_2px_10px_rgba(0,0,0,0.02)] h-[400px] flex flex-col">
+<div class="flex justify-between items-center mb-6 border-b border-outline-variant/15 pb-4">
+<h2 class="text-xl font-headline text-on-surface">Friction Trends vs. Calibration Score</h2>
+<div class="flex space-x-2">
+<span class="text-xs font-label uppercase tracking-wider text-on-surface-variant bg-surface px-2 py-1 rounded">30 Days</span>
+</div>
+</div>
+<!-- Placeholder for actual chart implementation. Using a highly stylized CSS representation -->
+<div class="flex-1 relative flex items-end justify-between px-4 pb-8 mt-4 border-l border-b border-outline-variant/20">
+<!-- Y Axis Labels -->
+<div class="absolute -left-6 bottom-4 text-xs text-on-surface-variant">0</div>
+<div class="absolute -left-8 top-1/2 text-xs text-on-surface-variant">50</div>
+<div class="absolute -left-8 top-0 text-xs text-on-surface-variant">100</div>
+<!-- Decorative Grid lines -->
+<div class="absolute left-0 right-0 top-1/2 border-t border-dashed border-outline-variant/20 w-full z-0"></div>
+<div class="absolute left-0 right-0 top-0 border-t border-dashed border-outline-variant/20 w-full z-0"></div>
+<!-- Bar/Line approximations (Visual only) -->
+<div class="w-8 bg-surface-dim/50 h-1/4 rounded-t relative z-10 hover:bg-primary-container/30 transition-colors group">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 text-xs font-label bg-inverse-surface text-inverse-on-surface px-2 py-1 rounded transition-opacity">Week 1</div>
+</div>
+<div class="w-8 bg-surface-dim/50 h-1/3 rounded-t relative z-10 hover:bg-primary-container/30 transition-colors"></div>
+<div class="w-8 bg-surface-dim/50 h-1/2 rounded-t relative z-10 hover:bg-primary-container/30 transition-colors"></div>
+<div class="w-8 bg-surface-dim/50 h-2/3 rounded-t relative z-10 hover:bg-primary-container/30 transition-colors"></div>
+<div class="w-8 bg-surface-dim/50 h-3/4 rounded-t relative z-10 hover:bg-primary-container/30 transition-colors"></div>
+<div class="w-8 bg-surface-dim/50 h-[85%] rounded-t relative z-10 hover:bg-primary-container/30 transition-colors"></div>
+<div class="w-8 bg-primary/80 h-3/4 rounded-t relative z-10 shadow-[0_0_15px_rgba(9,76,178,0.3)]"></div>
+<!-- Overlay Line approximation -->
+<svg class="absolute inset-0 h-full w-full pointer-events-none z-20" preserveAspectRatio="none" viewBox="0 0 100 100">
+<path d="M0,80 Q20,60 40,50 T80,30 T100,20" fill="none" stroke="#dcc661" stroke-dasharray="4,2" stroke-width="2"></path>
+<circle cx="80" cy="30" fill="#6d5e00" r="2"></circle>
+<circle cx="100" cy="20" fill="#6d5e00" r="2"></circle>
+</svg>
+</div>
+<div class="flex justify-center space-x-6 mt-4">
+<div class="flex items-center text-xs text-on-surface-variant font-label"><div class="w-3 h-3 bg-primary/80 rounded mr-2"></div> Friction Index</div>
+<div class="flex items-center text-xs text-on-surface-variant font-label"><div class="w-3 h-0.5 bg-tertiary-fixed-dim mr-2"></div> Calibration Score</div>
+</div>
+</div>
+<!-- Top Friction Nodes List -->
+<div class="bg-surface-container-lowest p-8 rounded-xl ghost-border shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+<div class="flex justify-between items-center mb-6 border-b border-outline-variant/15 pb-4">
+<h2 class="text-xl font-headline text-on-surface">Top Friction Nodes</h2>
+<div class="bg-surface-container flex p-1 rounded-lg">
+<button class="px-3 py-1 text-xs font-medium bg-surface-container-lowest rounded shadow-sm text-primary">Predicted</button>
+<button class="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface">Observed</button>
+</div>
+</div>
+<div class="space-y-4">
+<!-- Node Item -->
+<div class="flex items-center justify-between p-4 bg-surface rounded-lg hover:bg-surface-container transition-colors group">
+<div class="flex items-center space-x-4">
+<div class="w-10 h-10 bg-error-container text-on-error-container rounded-full flex items-center justify-center font-headline font-bold text-sm">
+                                            01
+                                        </div>
+<div>
+<h4 class="font-medium text-on-surface font-body">Checkout Payment Gateway</h4>
+<p class="text-xs text-on-surface-variant">High drop-off detected on validation</p>
+</div>
+</div>
+<div class="text-right">
+<div class="text-error font-medium">32% Drop-off</div>
+<div class="text-xs text-on-surface-variant mt-1 group-hover:text-primary cursor-pointer transition-colors">View Analysis →</div>
+</div>
+</div>
+<!-- Node Item -->
+<div class="flex items-center justify-between p-4 bg-surface rounded-lg hover:bg-surface-container transition-colors group">
+<div class="flex items-center space-x-4">
+<div class="w-10 h-10 bg-surface-variant text-on-surface-variant rounded-full flex items-center justify-center font-headline font-bold text-sm">
+                                            02
+                                        </div>
+<div>
+<h4 class="font-medium text-on-surface font-body">User Profile Onboarding</h4>
+<p class="text-xs text-on-surface-variant">Friction at step 3 (Avatar Upload)</p>
+</div>
+</div>
+<div class="text-right">
+<div class="text-on-surface font-medium">18% Drop-off</div>
+<div class="text-xs text-on-surface-variant mt-1 group-hover:text-primary cursor-pointer transition-colors">View Analysis →</div>
+</div>
+</div>
+<!-- Node Item -->
+<div class="flex items-center justify-between p-4 bg-surface rounded-lg hover:bg-surface-container transition-colors group">
+<div class="flex items-center space-x-4">
+<div class="w-10 h-10 bg-surface-variant text-on-surface-variant rounded-full flex items-center justify-center font-headline font-bold text-sm">
+                                            03
+                                        </div>
+<div>
+<h4 class="font-medium text-on-surface font-body">Password Reset Flow</h4>
+<p class="text-xs text-on-surface-variant">Timeout during email verification</p>
+</div>
+</div>
+<div class="text-right">
+<div class="text-on-surface font-medium">12% Drop-off</div>
+<div class="text-xs text-on-surface-variant mt-1 group-hover:text-primary cursor-pointer transition-colors">View Analysis →</div>
+</div>
+</div>
+</div>
+<button class="w-full mt-6 py-3 text-sm font-medium text-primary hover:underline font-label">View All Nodes</button>
+</div>
+</div>
+<!-- Persona Insights Panel (Right Column) -->
+<div class="lg:col-span-1">
+<div class="bg-surface-container-lowest p-6 rounded-xl ghost-border shadow-[0_2px_10px_rgba(0,0,0,0.02)] h-full">
+<h2 class="text-xl font-headline text-on-surface mb-6 border-b border-outline-variant/15 pb-4">Persona Insights</h2>
+<div class="space-y-6">
+<!-- Persona 1 -->
+<div class="bg-surface p-5 rounded-lg border border-outline-variant/10">
+<div class="flex items-center space-x-3 mb-3">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-surface-container-lowest">
+<img alt="Novice Mobile Persona" class="w-full h-full object-cover" data-alt="A stylized, minimalist 3D avatar of a casual mobile user, depicted with abstract geometric shapes in soft blue and white tones against a light background, conveying a 'Novice' persona in a professional UI context." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBC6OSak6lnqgJ5P4SztahxvdwY_OKvJItbSRoxg7eEWak6Jiy9SMJn4uECXsqImqn6t2Ozl3hYmD3ac1IBFBhewuEk1DNaju0DVXn80dGVWE59LR7jSjBN4NdPz0FlTJ8nk61Gn364noTiU0lifNm9Ab9Zil-TnZeJ_VG3G4-dPrWgv9z5Tpei8SCIzXF4JcyMnqql9jUzkMn8bdTmCoN1ucyzja1_ngbZtcNeUIVs53wU489VAJ-_WEdkULv3GoN-F9hDmANPKOw8">
+</div>
+<div>
+<h3 class="font-medium text-on-surface">Novice - Mobile</h3>
+<div class="flex items-center text-xs text-tertiary">
+<span class="material-symbols-outlined text-xs mr-1">bolt</span>
+                                                Highly Active
+                                            </div>
+</div>
+</div>
+<p class="text-sm text-on-surface-variant font-body leading-relaxed mb-4">
+                                        Struggling significantly with nested navigation patterns. Recommendation: Flatten menu hierarchy for viewport widths &lt; 400px.
+                                    </p>
+<div class="flex space-x-2">
+<span class="px-2 py-1 bg-primary-container/10 text-primary text-[10px] uppercase tracking-wider rounded font-label">Nav Issues</span>
+<span class="px-2 py-1 bg-surface-variant text-on-surface-variant text-[10px] uppercase tracking-wider rounded font-label">Mobile</span>
+</div>
+</div>
+<!-- Persona 2 -->
+<div class="bg-surface p-5 rounded-lg border border-outline-variant/10">
+<div class="flex items-center space-x-3 mb-3">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-surface-container-lowest">
+<img alt="Power User Desktop Persona" class="w-full h-full object-cover" data-alt="A sleek, sophisticated 3D avatar representing a 'Power User' desktop persona. The avatar features sharp lines and metallic accents, set against a pristine, well-lit white studio backdrop, reflecting an advanced and efficient user type." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCncHGQGsJloApS1--NaWpHo7XYhti22WumKOm2yV9TQqJ9vCP0qWJIBu6p8R2qiAaXdGEuy4iB9bRBF_S_-XC0JQWqWyFGyX8ynzrC8KoycpF0MXJKe7wQXmY5X1R_UQdywdCkwMnOHX2v2IHJ8DZP_TIS0aynJSxJGMBzvIar9_6oTYGpj-8WVB3J4-XxSHboKWRi14RuTzr1XeI0V-JpsczxSz01CDYYwJt4GS0iPyKQBlC7MFAPhaa_JuPRymCtKhSaYa-GFjRq">
+</div>
+<div>
+<h3 class="font-medium text-on-surface">Power User - Desktop</h3>
+<div class="flex items-center text-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-xs mr-1">check_circle</span>
+                                                Calibrated
+                                            </div>
+</div>
+</div>
+<p class="text-sm text-on-surface-variant font-body leading-relaxed mb-4">
+                                        Flow completion time is 40% faster than average. Primarily utilizing keyboard shortcuts established in recent build.
+                                    </p>
+<div class="flex space-x-2">
+<span class="px-2 py-1 bg-secondary-container/30 text-on-secondary-container text-[10px] uppercase tracking-wider rounded font-label">Efficiency</span>
+<span class="px-2 py-1 bg-surface-variant text-on-surface-variant text-[10px] uppercase tracking-wider rounded font-label">Desktop</span>
+</div>
+</div>
+<button class="w-full py-2 text-sm text-on-surface-variant hover:text-primary transition-colors flex items-center justify-center space-x-1">
+<span class="material-symbols-outlined text-sm">tune</span>
+<span>Manage Personas</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html><html lang="en" class="light"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Inter:wght@400;500;600&amp;family=Public+Sans:wght@300;400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#dfe3e8",
+                        "on-secondary": "#ffffff",
+                        "primary": "#094cb2",
+                        "outline": "#737784",
+                        "on-secondary-fixed": "#171c20",
+                        "on-secondary-fixed-variant": "#42474b",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#c2c7cc",
+                        "tertiary-container": "#bfab49",
+                        "tertiary": "#6d5e00",
+                        "primary-container": "#3366cc",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#dcc661",
+                        "outline-variant": "#c3c6d5",
+                        "on-error-container": "#93000a",
+                        "background": "#faf9fa",
+                        "surface-container-highest": "#e3e2e3",
+                        "primary-fixed-dim": "#b1c5ff",
+                        "surface": "#faf9fa",
+                        "on-primary-fixed": "#001946",
+                        "on-primary-container": "#e7ebff",
+                        "surface-variant": "#e3e2e3",
+                        "surface-dim": "#dbdadb",
+                        "on-primary-fixed-variant": "#00419d",
+                        "on-tertiary-container": "#4a3f00",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1d",
+                        "secondary-container": "#dfe3e8",
+                        "on-surface": "#1b1c1d",
+                        "inverse-surface": "#303031",
+                        "inverse-on-surface": "#f2f0f1",
+                        "error": "#ba1a1a",
+                        "surface-tint": "#2259bf",
+                        "secondary": "#5a5f63",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#434653",
+                        "inverse-primary": "#b1c5ff",
+                        "surface-bright": "#faf9fa",
+                        "surface-container-low": "#f5f3f4",
+                        "on-tertiary-fixed": "#211b00",
+                        "tertiary-fixed": "#f9e37a",
+                        "surface-container-high": "#e9e8e9",
+                        "on-tertiary-fixed-variant": "#524600",
+                        "on-secondary-container": "#606569",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#efedee",
+                        "primary-fixed": "#d9e2ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "display": ["Noto Serif"],
+                        "body": ["Inter"],
+                        "label": ["Public Sans"]
+                    }
+                }
+            }
+        }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-background text-on-background min-h-screen flex overflow-hidden">
+<!-- SideNavBar (Authority: JSON) -->
+<aside class="bg-surface-container-low h-screen w-72 flex flex-col left-0 top-0 fixed border-r border-outline-variant/15 z-50">
+<div class="flex flex-col p-6 space-y-2 h-full">
+<div class="font-headline text-xl text-primary mb-8 flex items-center gap-3">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-sm">filter_vintage</span>
+</div>
+<span>FlowSage</span>
+</div>
+<div class="flex items-center gap-4 mb-8 p-3 bg-surface-container/50 rounded-xl">
+<img class="w-10 h-10 rounded-full object-cover" data-alt="A sophisticated abstract workspace avatar representing a high-end research facility. The image uses soft blue and muted gold tones with a clean, circular composition. The lighting is diffused and atmospheric, emphasizing a professional and academic environment in a modern minimalist style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBX9dOKlmMbX-dGeV5DdGFbn1sk9Bm3sVS5mp5N0pSxPH-IufhRzmUFs7Hejnhx5QCLjVWhtYlFJIvMu2LJy-t4Q974OiwePmV2aYeiLmxa6F3ufhCU1hxq-SvaUzqQoVcLXpQJLpcT7Vnv5cufJyKUKKdc4G1oSIoqlvO_b6DvRJ4wLR2UG6wxGhWm6hFYRd6LOgfa2U_vjWXwJtho8bGG18Gg-NkbwcfnyvTUHkoNQJAmLpfUV9Lg1b3jsDfICu-p7DFI6zDaIUhI">
+<div class="flex flex-col overflow-hidden">
+<span class="font-medium text-on-surface text-sm truncate">Research Alpha</span>
+<span class="label-text text-xs text-on-surface-variant truncate">Global UX Intelligence</span>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Predictive Engine -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-body text-sm tracking-wide">Predictive Engine</span>
+</a>
+<!-- Journey Graph (Active State) -->
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container/20 text-primary font-medium rounded-xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">timeline</span>
+<span class="font-body text-sm tracking-wide">Journey Graph</span>
+</a>
+<!-- Calibration -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">tune</span>
+<span class="font-body text-sm tracking-wide">Calibration</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body text-sm tracking-wide">Settings</span>
+</a>
+</nav>
+<button class="hero-gradient text-on-primary py-3 px-4 rounded-xl flex items-center justify-center gap-2 mb-6 shadow-lg shadow-primary/10 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-lg">add</span>
+<span class="font-medium text-sm">New Simulation</span>
+</button>
+<div class="pt-4 border-t border-outline-variant/15 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/30 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-lg">contact_support</span>
+<span class="label-text text-xs">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/30 transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined text-lg">inventory_2</span>
+<span class="label-text text-xs">Archive</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-72 flex flex-col h-screen overflow-hidden relative">
+<!-- TopNavBar (Authority: JSON) -->
+<header class="bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-50 flex justify-between items-center px-8 py-4 w-full border-b border-outline-variant/15">
+<div class="flex items-center gap-6">
+<div class="flex items-center bg-surface-container/50 px-4 py-2 rounded-full border border-outline-variant/15">
+<span class="material-symbols-outlined text-on-surface-variant mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-64 placeholder-on-surface-variant" placeholder="Search events..." type="text">
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-8 mr-4">
+<a class="text-on-surface-variant font-body hover:text-primary transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1" href="#">Analytics</a>
+<a class="text-on-surface-variant font-body hover:text-primary transition-colors duration-200" href="#">Models</a>
+</div>
+<div class="flex items-center gap-3 border-l border-outline-variant/15 pl-6">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button class="ml-2 flex items-center gap-2 bg-primary/5 hover:bg-primary/10 text-primary px-4 py-2 rounded-full transition-all active:opacity-80">
+<span class="material-symbols-outlined text-sm">sync</span>
+<span class="text-sm font-medium">Sync Events</span>
+</button>
+<div class="ml-4">
+<img class="w-8 h-8 rounded-full object-cover" data-alt="A professional user profile headshot for a software engineer. The individual has a neutral expression, dressed in a minimal, high-end navy blazer. The lighting is crisp and editorial, shot against a soft grey background with high clarity. The overall aesthetic is clean, academic, and modern." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWVauDc1wnlRadNVGlmqWSJo09mXgCpV556HU08wI5CPZU-R9aXSvAIksp8mna2qSGcn401g3msn4DzLYFd7roW3iDbrgOcUdFHEs2d2FgxQmx6Ymm0gmjlx42D14A_a1Zn0yGbupm1J1hYtsIcfrT5_Bl3X9og4-M_0rgM43DOlJ_UWHGueM47-ik-4NnUT_KrEmKGCef3EkOyu_AW1XOWNo666_ClcCtC9XHY0gACfG6FeUnKnsOnpbWz7fnCbg-tzOPB3NTVQas">
+</div>
+</div>
+</div>
+</header>
+<!-- Canvas Area / Empty State -->
+<div class="flex-1 flex flex-col items-center justify-center relative p-12 overflow-hidden">
+<!-- Grid Background Overlay -->
+<div class="absolute inset-0 grid-bg opacity-40 pointer-events-none"></div>
+<!-- Atmospheric Gradient Glows -->
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px] pointer-events-none"></div>
+<div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-tertiary/5 rounded-full blur-[100px] pointer-events-none"></div>
+<!-- Content Card -->
+<div class="relative z-10 max-w-2xl w-full text-center space-y-8">
+<!-- Abstract Illustration Area -->
+<div class="flex justify-center mb-4">
+<div class="relative w-48 h-48">
+<!-- Custom SVG Illustration built via script for animation -->
+<div class="w-full h-full flex items-center justify-center" id="illustration-container">
+<svg class="w-full h-full opacity-60" viewBox="0 0 200 200">
+<!-- Background rings -->
+<circle cx="100" cy="100" fill="none" r="80" stroke="#094cb2" stroke-dasharray="2 4" stroke-width="0.5"></circle>
+<circle cx="100" cy="100" fill="none" r="50" stroke="#094cb2" stroke-dasharray="1 3" stroke-width="0.5"></circle>
+<!-- Nodes -->
+<g id="nodes">
+<circle class="animate-pulse" cx="100" cy="100" fill="#094cb2" r="4"></circle>
+<circle cx="60" cy="80" fill="#c3c6d5" r="3"></circle>
+<circle cx="140" cy="120" fill="#c3c6d5" r="3"></circle>
+<circle cx="130" cy="60" fill="#c3c6d5" r="2.5"></circle>
+<circle cx="70" cy="140" fill="#c3c6d5" r="2.5"></circle>
+</g>
+<!-- Connection Lines -->
+<g id="lines" opacity="0.3">
+<line stroke="#094cb2" stroke-width="1" x1="100" x2="60" y1="100" y2="80"></line>
+<line stroke="#094cb2" stroke-width="1" x1="100" x2="140" y1="100" y2="120"></line>
+<line stroke="#094cb2" stroke-width="1" x1="100" x2="130" y1="100" y2="60"></line>
+<line stroke="#094cb2" stroke-width="1" x1="100" x2="70" y1="100" y2="140"></line>
+</g>
+</svg>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<h2 class="text-4xl font-headline tracking-tight text-on-surface">Awaiting Event Ingestion</h2>
+<p class="text-on-surface-variant font-body text-lg leading-relaxed max-w-lg mx-auto">
+                        The temporal journey graph will materialize once the SDK or webhook integration starts receiving user streams. Initialize your first node to begin intelligence mapping.
+                    </p>
+</div>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+<button class="hero-gradient text-on-primary px-8 py-3.5 rounded-full font-medium flex items-center gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all">
+<span class="material-symbols-outlined">terminal</span>
+                        View Setup Guide
+                    </button>
+<button class="bg-surface-container-high text-primary px-8 py-3.5 rounded-full font-medium flex items-center gap-2 hover:bg-surface-container-highest transition-all active:scale-95">
+<span class="material-symbols-outlined">database</span>
+                        Import Sample Data
+                    </button>
+</div>
+<!-- Technical Metadata / Badge -->
+<div class="pt-12 flex items-center justify-center gap-8">
+<div class="flex flex-col items-center gap-1 opacity-60">
+<span class="label-text text-[10px] uppercase tracking-widest text-outline">Listener Status</span>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-xs font-mono">STANDBY_READY</span>
+</div>
+</div>
+<div class="w-px h-8 bg-outline-variant/30"></div>
+<div class="flex flex-col items-center gap-1 opacity-60">
+<span class="label-text text-[10px] uppercase tracking-widest text-outline">Network Zone</span>
+<span class="text-xs font-mono">FLOWSAGE_US_EAST_01</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Sticky Floating Info (Alexandria Style) -->
+<div class="absolute bottom-8 right-8 z-20">
+<div class="glass-panel p-4 rounded-xl border border-outline-variant/15 flex items-center gap-4 shadow-sm">
+<div class="p-2 bg-tertiary/10 text-tertiary rounded-lg">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<div class="text-left">
+<p class="text-xs font-medium text-on-surface">Did you know?</p>
+<p class="text-[11px] text-on-surface-variant max-w-[180px]">FlowSage graphs can handle up to 2 million concurrent events per project workspace.</p>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Micro-interactions for the illustration nodes
+        const nodesContainer = document.getElementById('nodes');
+        const linesContainer = document.getElementById('lines');
+
+        if (nodesContainer && linesContainer) {
+            document.addEventListener('mousemove', (e) => {
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                const moveX = (e.clientX - centerX) / 50;
+                const moveY = (e.clientY - centerY) / 50;
+
+                nodesContainer.style.transform = `translate(${moveX}px, ${moveY}px)`;
+                linesContainer.style.transform = `translate(${moveX * 0.5}px, ${moveY * 0.5}px)`;
+            });
+        }
+    </script>
+</body></html>

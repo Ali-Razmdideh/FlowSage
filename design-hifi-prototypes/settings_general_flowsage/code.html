@@ -1,0 +1,338 @@
+<!DOCTYPE html><html lang="en" class="light"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Inter:wght@400;500;600&amp;family=Public+Sans:wght@300;400;500;600&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed": "#d9e2ff",
+                    "on-primary": "#ffffff",
+                    "surface-variant": "#e3e2e3",
+                    "on-primary-fixed": "#001946",
+                    "background": "#faf9fa",
+                    "inverse-on-surface": "#f2f0f1",
+                    "error-container": "#ffdad6",
+                    "on-primary-container": "#e7ebff",
+                    "secondary-fixed-dim": "#c2c7cc",
+                    "on-tertiary-fixed-variant": "#524600",
+                    "on-secondary-container": "#606569",
+                    "on-secondary-fixed": "#171c20",
+                    "on-error": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#bfab49",
+                    "secondary-container": "#dfe3e8",
+                    "on-surface": "#1b1c1d",
+                    "surface-container-high": "#e9e8e9",
+                    "on-tertiary-fixed": "#211b00",
+                    "error": "#ba1a1a",
+                    "secondary": "#5a5f63",
+                    "surface-container-low": "#f5f3f4",
+                    "surface-bright": "#faf9fa",
+                    "secondary-fixed": "#dfe3e8",
+                    "surface-tint": "#2259bf",
+                    "surface-container": "#efedee",
+                    "inverse-primary": "#b1c5ff",
+                    "primary-fixed-dim": "#b1c5ff",
+                    "on-tertiary-container": "#4a3f00",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#f9e37a",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-highest": "#e3e2e3",
+                    "outline": "#737784",
+                    "inverse-surface": "#303031",
+                    "tertiary-fixed-dim": "#dcc661",
+                    "primary": "#094cb2",
+                    "on-surface-variant": "#434653",
+                    "tertiary": "#6d5e00",
+                    "on-error-container": "#93000a",
+                    "surface-dim": "#dbdadb",
+                    "on-background": "#1b1c1d",
+                    "outline-variant": "#c3c6d5",
+                    "on-primary-fixed-variant": "#00419d",
+                    "surface": "#faf9fa",
+                    "primary-container": "#3366cc",
+                    "on-secondary-fixed-variant": "#42474b"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Noto Serif"],
+                    "display": ["Noto Serif"],
+                    "body": ["Inter"],
+                    "label": ["Public Sans"]
+            }
+          },
+        },
+      }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="flex min-h-screen bg-background">
+<!-- SIDE NAV BAR (Shared Component) -->
+<aside class="h-screen w-72 flex flex-col sticky top-0 left-0 bg-surface-container-low dark:bg-surface-dim shadow-none z-50">
+<div class="flex flex-col h-full py-8 px-6 space-y-8">
+<!-- Brand Section -->
+<div class="flex items-center gap-4 px-2">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;" data-original-icon="psychology">psychology</span>
+</div>
+<div>
+<h1 class="font-headline text-2xl font-bold text-on-surface dark:text-surface-bright leading-tight">FlowSage</h1>
+<p class="font-label text-[10px] uppercase tracking-[0.2em] text-outline">Enterprise Intelligence</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<nav class="flex-1 space-y-1">
+<a href="#" class="flex items-center gap-3 px-4 py-3 bg-secondary-container dark:bg-on-secondary-fixed-variant text-on-secondary-container dark:text-on-primary-fixed rounded-full transition-all duration-300">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body text-label-sm font-medium tracking-wide">General</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+<span class="font-body text-label-sm font-medium tracking-wide">Integrations</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body text-label-sm font-medium tracking-wide">Team Access</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-outline-variant hover:text-primary dark:hover:text-primary-fixed hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined" data-icon="psychology" data-original-icon="psychology">psychology</span>
+<span class="font-body text-label-sm font-medium tracking-wide">Model Calibration</span>
+</a>
+</nav>
+<!-- Bottom CTA and Footer Nav -->
+<div class="pt-6 border-t border-outline-variant/10 space-y-6">
+<button class="w-full py-3 bg-gradient-to-r from-primary to-primary-container text-white font-label font-medium rounded-xl hover:opacity-90 transition-all active:scale-95">
+                    Upgrade Plan
+                </button>
+<div class="space-y-1">
+<a href="#" class="flex items-center gap-3 px-4 py-2 text-on-surface-variant text-sm hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="font-label">Documentation</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-2 text-on-surface-variant text-sm hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+<span class="font-label">Support</span>
+</a>
+</div>
+</div>
+</div>
+</aside>
+<!-- MAIN CONTENT CANVAS -->
+<main class="flex-1 flex flex-col min-w-0 bg-background overflow-y-auto no-scrollbar">
+<!-- TOP APP BAR (Shared Component) -->
+<header class="w-full h-16 sticky top-0 z-40 bg-surface-container-lowest/80 dark:bg-surface-container-lowest/80 backdrop-blur-xl">
+<div class="flex justify-between items-center px-12 h-full w-full">
+<div class="flex items-center gap-8">
+<span class="font-headline font-semibold text-on-surface text-lg">FlowSage Workspace</span>
+<nav class="hidden lg:flex items-center gap-6">
+<a href="#" class="text-on-surface-variant hover:text-on-surface transition-colors font-label text-sm">Dashboard</a>
+<a href="#" class="text-on-surface-variant hover:text-on-surface transition-colors font-label text-sm">Analytics</a>
+<a href="#" class="text-on-surface-variant hover:text-on-surface transition-colors font-label text-sm">Reports</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+<input type="text" placeholder="Search parameters..." class="pl-10 pr-4 py-1.5 bg-surface-container text-sm rounded-full border-none focus:ring-2 focus:ring-primary/20 w-64">
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+<button class="px-6 py-2 bg-primary text-white rounded-full font-label text-sm font-semibold hover:bg-primary-container transition-all">
+                            Save Changes
+                        </button>
+</div>
+</div>
+</div>
+</header>
+<!-- SETTINGS PAGE CONTENT -->
+<div class="px-12 py-12 max-w-6xl mx-auto w-full">
+<!-- Editorial Header -->
+<header class="mb-16">
+<h2 class="serif-heading text-5xl font-bold text-on-surface mb-4 tracking-tight">General Settings</h2>
+<p class="text-on-surface-variant font-body text-lg leading-relaxed max-w-2xl">
+                    Configure the core identity and metadata of your workspace. These attributes define how FlowSage represents your organization's intellectual assets.
+                </p>
+</header>
+<!-- Settings Sections - Bento Grid Style -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+<!-- Project Identity Card -->
+<section class="md:col-span-8 bg-surface-container-lowest p-10 rounded-2xl ghost-border space-y-10">
+<div class="space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="serif-heading text-2xl font-semibold">Workspace Identity</h3>
+<span class="font-label text-xs uppercase tracking-widest text-tertiary font-bold px-3 py-1 bg-tertiary-fixed rounded-full">Primary Asset</span>
+</div>
+<div class="space-y-2">
+<label class="font-label text-xs uppercase font-semibold text-outline tracking-wider">Project Name</label>
+<input type="text" value="FlowSage Intelligence Engine" class="w-full text-xl font-headline bg-transparent border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 transition-all">
+</div>
+<div class="space-y-2">
+<label class="font-label text-xs uppercase font-semibold text-outline tracking-wider">Description</label>
+<textarea rows="3" class="w-full font-body text-on-surface-variant bg-transparent border-b border-outline-variant focus:border-primary focus:ring-0 px-0 py-2 resize-none transition-all">An enterprise-grade orchestration layer for semantic intelligence, specializing in model calibration and multi-modal knowledge integration for the 2024 fiscal roadmap.</textarea>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-8 pt-6">
+<div class="space-y-2">
+<label class="font-label text-xs uppercase font-semibold text-outline tracking-wider">Workspace ID</label>
+<div class="flex items-center gap-2 group cursor-pointer">
+<code class="text-sm font-mono text-on-secondary-fixed-variant bg-secondary-container px-2 py-1 rounded">fs-ent-9942-alpha</code>
+<span class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 transition-opacity">content_copy</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="font-label text-xs uppercase font-semibold text-outline tracking-wider">Established</label>
+<p class="text-sm text-on-surface-variant font-medium">October 14, 2023</p>
+</div>
+</div>
+</section>
+<!-- Status & Metadata Card -->
+<section class="md:col-span-4 space-y-8">
+<!-- Thumbnail/Identity Visual -->
+<div class="relative w-full aspect-square rounded-2xl overflow-hidden shadow-2xl group">
+<div class="absolute inset-0 z-10 bg-gradient-to-t from-on-surface/60 to-transparent"></div>
+<img class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" data-alt="A sophisticated editorial photograph of a modern, brutalist architecture building with soft sunlight casting long shadows. The image has a scholarly and premium aesthetic with muted earth tones and deep blue accents, reflecting a sense of high-end curated intelligence and enterprise stability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBORjxhlKYfXfAcyx5hYkwv4sU09HezMK4DNGdh6WAeF3KRHkoKP4Dtf5EAvBgVbNx66VIH5oOkTb__DURySbam_5Odg-xEfO6DOC7hGweN1N5St8mexwNWJKRr4WsfP2c_fW7BOmqq6R8y4HdiK-izM2RN0vojRpxiD98H9RsOozmxz_dsyJX9gqMY-xsZJCRf8z24V1R9MemFwNyXfI_VYGd4_Nn3cY7L_JGAbVDmLXiWy2sFoAmMnYGZqGxmSiwGno7bRBsO08Kn">
+<div class="absolute bottom-6 left-6 z-20">
+<p class="text-white/80 font-label text-[10px] uppercase tracking-widest mb-1">Visual Anchor</p>
+<h4 class="text-white serif-heading text-xl">Workspace Avatar</h4>
+</div>
+<button class="absolute top-4 right-4 z-20 bg-white/20 backdrop-blur-md p-2 rounded-full text-white hover:bg-white/40 transition-colors">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+<!-- Metadata List -->
+<div class="bg-surface-container-high/50 p-8 rounded-2xl ghost-border">
+<h4 class="font-headline font-semibold mb-6">Metadata Indices</h4>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-2 border-b border-outline-variant/10">
+<span class="text-sm font-label text-on-surface-variant">Active Models</span>
+<span class="text-sm font-medium font-body">14</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-outline-variant/10">
+<span class="text-sm font-label text-on-surface-variant">Storage Load</span>
+<span class="text-sm font-medium font-body">2.4 TB</span>
+</div>
+<div class="flex justify-between items-center py-2">
+<span class="text-sm font-label text-on-surface-variant">Global Sync</span>
+<span class="flex items-center gap-1.5 text-xs text-primary font-bold">
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
+                                    ONLINE
+                                </span>
+</div>
+</div>
+</div>
+</section>
+<!-- Advanced Configuration Section -->
+<section class="md:col-span-12 mt-4">
+<div class="flex items-center gap-4 mb-8">
+<hr class="flex-1 border-outline-variant/20">
+<span class="font-label text-xs uppercase tracking-[0.3em] text-outline">Configuration Parameters</span>
+<hr class="flex-1 border-outline-variant/20">
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Privacy Toggle -->
+<div class="p-8 bg-surface-container-lowest rounded-2xl ghost-border group hover:bg-surface-bright transition-all">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined">visibility</span>
+</div>
+<h5 class="serif-heading text-lg font-semibold mb-2">Workspace Privacy</h5>
+<p class="text-sm text-on-surface-variant font-body mb-6 leading-relaxed">Limit workspace visibility to approved team members and authenticated API keys.</p>
+<div class="flex items-center justify-between">
+<span class="text-xs font-label uppercase font-bold text-outline tracking-wider">Restricted Mode</span>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox">
+<div class="w-11 h-6 bg-secondary-container peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+<!-- Regional Focus -->
+<div class="p-8 bg-surface-container-lowest rounded-2xl ghost-border group hover:bg-surface-bright transition-all">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined">language</span>
+</div>
+<h5 class="serif-heading text-lg font-semibold mb-2">Regional Compliance</h5>
+<p class="text-sm text-on-surface-variant font-body mb-6 leading-relaxed">Specify the geographic region for data residency and localized latency optimization.</p>
+<select class="w-full bg-transparent border-b border-outline-variant focus:ring-0 px-0 font-label text-sm text-on-surface">
+<option>North America (US-East)</option>
+<option>Europe (Frankfurt)</option>
+<option>Asia Pacific (Tokyo)</option>
+</select>
+</div>
+<!-- Data Retention -->
+<div class="p-8 bg-surface-container-lowest rounded-2xl ghost-border group hover:bg-surface-bright transition-all">
+<div class="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary mb-6 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined">history</span>
+</div>
+<h5 class="serif-heading text-lg font-semibold mb-2">Retention Policy</h5>
+<p class="text-sm text-on-surface-variant font-body mb-6 leading-relaxed">Determine how long historical training data is archived before permanent purging.</p>
+<div class="flex items-center gap-4">
+<span class="text-sm font-label text-on-surface">365 Days</span>
+<input class="flex-1 accent-primary h-1 bg-secondary-container rounded-full appearance-none cursor-pointer" type="range">
+</div>
+</div>
+</div>
+</section>
+<!-- Danger Zone -->
+<section class="md:col-span-12 mt-12 bg-error-container/20 p-10 rounded-2xl border border-error/10">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+<div>
+<h3 class="serif-heading text-2xl font-semibold text-on-error-container">Archive Workspace</h3>
+<p class="text-on-error-container/80 text-sm max-w-xl mt-1">Archiving will pause all intelligence threads, disconnect integrations, and transition this workspace to a read-only historical state. This action is reversible by an administrator.</p>
+</div>
+<button class="px-8 py-3 bg-error text-white font-label font-bold rounded-xl hover:bg-on-error-container transition-all active:scale-95 self-start md:self-center">
+                            Archive Workspace
+                        </button>
+</div>
+</section>
+</div>
+</div>
+<!-- Footer Decoration -->
+<footer class="py-12 px-12 mt-auto">
+<div class="flex items-center justify-between border-t border-outline-variant/10 pt-8">
+<p class="font-label text-[10px] text-outline uppercase tracking-widest">© 2024 FlowSage Systems. All Intelligence Reserved.</p>
+<div class="flex gap-4">
+<div class="w-1.5 h-1.5 bg-primary/20 rounded-full"></div>
+<div class="w-1.5 h-1.5 bg-primary/20 rounded-full"></div>
+<div class="w-1.5 h-1.5 bg-primary/20 rounded-full"></div>
+</div>
+</div>
+</footer>
+</main>
+<!-- UI Interaction Script -->
+<script>
+        // Micro-interactions for the inputs
+        document.querySelectorAll('input, textarea, select').forEach(element => {
+            element.addEventListener('focus', () => {
+                element.parentElement.classList.add('opacity-100');
+            });
+            element.addEventListener('blur', () => {
+                // Return to normal
+            });
+        });
+
+        // Simple mock for "Save Changes" button
+        const saveBtn = document.querySelector('button:contains("Save Changes")') || document.querySelector('.bg-primary.text-white.rounded-full');
+        saveBtn.addEventListener('click', () => {
+            const originalText = saveBtn.innerText;
+            saveBtn.innerText = 'Syncing...';
+            saveBtn.classList.add('opacity-70');
+            
+            setTimeout(() => {
+                saveBtn.innerText = 'Saved';
+                saveBtn.classList.remove('bg-primary');
+                saveBtn.classList.add('bg-tertiary-container');
+                
+                setTimeout(() => {
+                    saveBtn.innerText = originalText;
+                    saveBtn.classList.remove('bg-tertiary-container', 'opacity-70');
+                    saveBtn.classList.add('bg-primary');
+                }, 2000);
+            }, 1000);
+        });
+    </script>
+</body></html>

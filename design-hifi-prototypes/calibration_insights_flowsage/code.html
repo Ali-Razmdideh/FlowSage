@@ -1,0 +1,347 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>FlowSage Calibration Insights Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Serif:wght@400;600;700;800&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-error-container": "#93000a",
+                    "on-surface-variant": "#434653",
+                    "error-container": "#ffdad6",
+                    "tertiary-fixed-dim": "#dcc661",
+                    "primary-fixed-dim": "#b1c5ff",
+                    "on-background": "#1b1c1d",
+                    "on-tertiary-fixed-variant": "#524600",
+                    "on-surface": "#1b1c1d",
+                    "error": "#ba1a1a",
+                    "background": "#faf9fa",
+                    "surface-tint": "#2259bf",
+                    "surface-container-low": "#f5f3f4",
+                    "inverse-surface": "#303031",
+                    "surface-bright": "#faf9fa",
+                    "on-tertiary": "#ffffff",
+                    "outline-variant": "#c3c6d5",
+                    "tertiary-fixed": "#f9e37a",
+                    "primary-fixed": "#d9e2ff",
+                    "inverse-primary": "#b1c5ff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface": "#faf9fa",
+                    "on-primary": "#ffffff",
+                    "secondary-fixed": "#dfe3e8",
+                    "secondary": "#5a5f63",
+                    "primary": "#094cb2",
+                    "outline": "#737784",
+                    "secondary-fixed-dim": "#c2c7cc",
+                    "inverse-on-surface": "#f2f0f1",
+                    "tertiary-container": "#bfab49",
+                    "on-primary-fixed": "#001946",
+                    "secondary-container": "#dfe3e8",
+                    "on-secondary-fixed": "#171c20",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#e7ebff",
+                    "tertiary": "#6d5e00",
+                    "surface-variant": "#e3e2e3",
+                    "on-tertiary-fixed": "#211b00",
+                    "on-primary-fixed-variant": "#00419d",
+                    "surface-dim": "#dbdadb",
+                    "on-secondary-fixed-variant": "#42474b",
+                    "on-tertiary-container": "#4a3f00",
+                    "primary-container": "#3366cc",
+                    "on-error": "#ffffff",
+                    "surface-container-high": "#e9e8e9",
+                    "surface-container": "#efedee",
+                    "surface-container-highest": "#e3e2e3",
+                    "on-secondary-container": "#606569"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {},
+            "fontFamily": {
+                    "headline": [
+                            "Noto Serif"
+                    ],
+                    "display": [
+                            "Noto Serif"
+                    ],
+                    "body": [
+                            "Inter"
+                    ],
+                    "label": [
+                            "Public Sans"
+                    ]
+            },
+            "fontSize": {}
+    },
+        },
+      }
+    </script>
+<style>
+        body { background-color: #faf9fa; color: #1b1c1d; }
+        .glass-panel {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        .ghost-border { border: 1px solid rgba(195, 198, 213, 0.15); }
+    </style>
+</head>
+<body class="font-body min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="hidden md:flex h-screen w-72 flex-col left-0 top-0 fixed bg-surface-container-low p-6 space-y-2 z-40">
+<div class="mb-8">
+<h1 class="font-headline text-xl text-primary font-bold">Research Alpha</h1>
+<p class="font-label text-sm text-on-surface-variant">Global UX Intelligence</p>
+</div>
+<button class="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary font-label font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity mb-6">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+            New Simulation
+        </button>
+<div class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300 font-body text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined">psychology</span>
+                Predictive Engine
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300 font-body text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined">timeline</span>
+                Journey Graph
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container/20 text-primary font-medium rounded-xl transition-all duration-300 scale-95 active:scale-90 font-body text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined">tune</span>
+                Calibration
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300 font-body text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined">settings</span>
+                Settings
+            </a>
+</div>
+<div class="mt-auto pt-6 border-t ghost-border space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300 font-body text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined">contact_support</span>
+                Support
+            </a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300 font-body text-sm tracking-wide" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                Archive
+            </a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 ml-0 md:ml-72 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="docked full-width top-0 sticky z-50 bg-surface-container-lowest/80 backdrop-blur-md flex justify-between items-center px-8 py-4 w-full border-b border-outline-variant/15">
+<div class="flex items-center gap-6">
+<div class="md:hidden">
+<span class="material-symbols-outlined text-primary cursor-pointer">menu</span>
+</div>
+<h2 class="font-headline text-2xl font-bold tracking-tight text-primary">FlowSage</h2>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden md:flex items-center gap-2 px-4 py-2 bg-surface-container-high text-primary font-label text-sm rounded-xl hover:bg-surface-container-highest transition-colors">
+                    Sync Events
+                </button>
+<div class="flex items-center gap-3 text-on-surface-variant">
+<button class="hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+<div class="h-9 w-9 rounded-full overflow-hidden bg-surface-dim ml-2 cursor-pointer">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="A professional headshot of a diverse user in a well-lit, modern office setting. The lighting is soft and neutral, conveying trust and competence in a high-end corporate environment. The overall tone is clean and optimistic, matching the UI's high-end aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdtsWJDmMMs96-ipSv8UbymsPfb-O9nvcvvd1jx5fj9dUt6bAsj5vIYK5DzyAU5eU2MNBKjATcKqtwRh1enbz0xh-bNu-7oViG9DXqHeX4k33ukzUJg4LEy1ik6YvNJozDXF8QneKyBJsZMb-ZepxNQDv3QPCYNAnAsCQmebMvQWlABqzJicKMvPRxvTnEvRIuSsnaZ98ZZYkRjxxv8mYlk9A2ZZ_3siEAMxTXQQx3CWw8jxAOawKi4YSFDV4NZapq92JSimQJUVB4">
+</div>
+</div>
+</header>
+<!-- Dashboard Canvas -->
+<div class="flex-1 p-8 overflow-y-auto">
+<div class="max-w-7xl mx-auto space-y-8">
+<!-- Page Header -->
+<div class="mb-10">
+<h2 class="font-headline text-4xl font-bold text-on-surface mb-2">Calibration Insights</h2>
+<p class="font-body text-on-surface-variant text-lg max-w-2xl">Reconciling predictive persona models with real-world user telemetry to enhance digital twin accuracy.</p>
+</div>
+<!-- Alert Section -->
+<div class="bg-error-container/40 rounded-xl p-4 flex items-start gap-4 border-l-4 border-error">
+<span class="material-symbols-outlined text-error mt-0.5">warning</span>
+<div>
+<h4 class="font-label font-semibold text-on-background">Calibration Anomaly Detected</h4>
+<p class="font-body text-sm text-on-surface-variant mt-1">Persona <strong>'Low-Patience Mobile'</strong> is miscalibrated for the <strong>'Onboarding'</strong> flow. Suggest retraining on last 7 days of Neo4j event data.</p>
+<button class="mt-3 text-sm font-label font-medium text-error hover:underline flex items-center gap-1">
+                            Initiate Retraining <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Main Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Prediction vs Reality Table (Spans 2 columns) -->
+<div class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-6 ghost-border shadow-sm">
+<h3 class="font-headline text-xl font-bold text-on-surface mb-6 border-b border-surface-dim pb-4">Prediction vs. Reality Mapping</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-left font-body text-sm">
+<thead>
+<tr class="text-on-surface-variant font-label border-b border-surface-dim">
+<th class="py-3 px-4 font-medium">Flow Step</th>
+<th class="py-3 px-4 font-medium">Predicted Friction</th>
+<th class="py-3 px-4 font-medium">Observed Friction</th>
+<th class="py-3 px-4 font-medium">Delta Score</th>
+<th class="py-3 px-4 font-medium text-right">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-surface-container transition-colors hover:bg-surface-container-low/50">
+<td class="py-4 px-4 font-medium text-on-surface">1. Account Creation</td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-surface-container text-on-surface-variant text-xs">Low (0.12)</span></td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-surface-container text-on-surface-variant text-xs">Low (0.15)</span></td>
+<td class="py-4 px-4 text-primary font-mono">+0.03</td>
+<td class="py-4 px-4 text-right"><button class="text-primary hover:underline font-label text-xs">Inspect</button></td>
+</tr>
+<tr class="border-b border-surface-container transition-colors hover:bg-surface-container-low/50 bg-error-container/10">
+<td class="py-4 px-4 font-medium text-on-surface">2. Identity Verification</td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-primary-container/20 text-primary text-xs">Medium (0.45)</span></td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-error-container text-on-error-container text-xs font-semibold">High (0.82)</span></td>
+<td class="py-4 px-4 text-error font-mono font-bold">+0.37</td>
+<td class="py-4 px-4 text-right"><button class="text-primary hover:underline font-label text-xs">Inspect</button></td>
+</tr>
+<tr class="border-b border-surface-container transition-colors hover:bg-surface-container-low/50">
+<td class="py-4 px-4 font-medium text-on-surface">3. Profile Setup</td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-surface-container text-on-surface-variant text-xs">Low (0.20)</span></td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-surface-container text-on-surface-variant text-xs">Low (0.18)</span></td>
+<td class="py-4 px-4 text-secondary font-mono">-0.02</td>
+<td class="py-4 px-4 text-right"><button class="text-primary hover:underline font-label text-xs">Inspect</button></td>
+</tr>
+<tr class="transition-colors hover:bg-surface-container-low/50">
+<td class="py-4 px-4 font-medium text-on-surface">4. First Value Action</td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-primary-container/20 text-primary text-xs">Medium (0.55)</span></td>
+<td class="py-4 px-4"><span class="inline-flex items-center px-2 py-1 rounded bg-surface-container text-on-surface-variant text-xs">Low (0.30)</span></td>
+<td class="py-4 px-4 text-secondary font-mono">-0.25</td>
+<td class="py-4 px-4 text-right"><button class="text-primary hover:underline font-label text-xs">Inspect</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Digital Twin Training Panel -->
+<div class="bg-surface-container-low rounded-xl p-6 ghost-border flex flex-col">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline text-lg font-bold text-on-surface">Digital Twin Training</h3>
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">model_training</span>
+</div>
+<p class="font-body text-xs text-on-surface-variant mb-6">Auto-retraining active personas on recent Neo4j graph event telemetry.</p>
+<div class="space-y-6 flex-1">
+<!-- Persona 1 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-sm font-medium text-on-surface">High-Intent Desktop</span>
+<span class="font-mono text-xs text-tertiary font-bold">94%</span>
+</div>
+<div class="w-full bg-surface-dim rounded-full h-1.5 mb-1 overflow-hidden">
+<div class="bg-tertiary h-1.5 rounded-full" style="width: 94%"></div>
+</div>
+<p class="text-[10px] font-body text-on-surface-variant text-right">Convergence</p>
+</div>
+<!-- Persona 2 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-sm font-medium text-on-surface flex items-center gap-1">
+                                        Low-Patience Mobile
+                                        <span class="material-symbols-outlined text-error text-[14px]">sync_problem</span>
+</span>
+<span class="font-mono text-xs text-primary font-bold">42%</span>
+</div>
+<div class="w-full bg-surface-dim rounded-full h-1.5 mb-1 overflow-hidden">
+<div class="bg-primary h-1.5 rounded-full animate-pulse" style="width: 42%"></div>
+</div>
+<p class="text-[10px] font-body text-on-surface-variant text-right">Behavioral Alignment (Rebuilding)</p>
+</div>
+<!-- Persona 3 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<span class="font-label text-sm font-medium text-on-surface">Exploratory Tablet</span>
+<span class="font-mono text-xs text-tertiary font-bold">88%</span>
+</div>
+<div class="w-full bg-surface-dim rounded-full h-1.5 mb-1 overflow-hidden">
+<div class="bg-tertiary h-1.5 rounded-full" style="width: 88%"></div>
+</div>
+<p class="text-[10px] font-body text-on-surface-variant text-right">Convergence</p>
+</div>
+</div>
+<button class="mt-6 w-full py-2 bg-surface-container-high hover:bg-surface-dim text-on-surface font-label text-sm rounded-lg transition-colors border border-outline-variant/30">
+                            View Knowledge Graph
+                        </button>
+</div>
+</div>
+<!-- Scatter Plot Section -->
+<div class="bg-surface-container-lowest rounded-xl p-6 ghost-border shadow-sm mt-8">
+<div class="flex justify-between items-end mb-8 border-b border-surface-dim pb-4">
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface">Persona Accuracy Mapping</h3>
+<p class="font-body text-sm text-on-surface-variant mt-1">Synthetic persona alignment versus real-world cohort segments.</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<span class="font-label text-xs text-on-surface-variant">Synthetic Models</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full border-2 border-tertiary bg-transparent"></div>
+<span class="font-label text-xs text-on-surface-variant">Observed Cohorts</span>
+</div>
+</div>
+</div>
+<!-- Chart Placeholder Layout -->
+<div class="relative h-80 w-full bg-surface-bright rounded-lg border border-surface-dim p-4 flex items-end justify-start">
+<!-- Y Axis -->
+<div class="absolute left-0 top-0 bottom-0 w-12 border-r border-surface-dim flex flex-col justify-between items-end pr-2 py-4">
+<span class="font-mono text-xs text-on-surface-variant">1.0</span>
+<span class="font-mono text-xs text-on-surface-variant">0.5</span>
+<span class="font-mono text-xs text-on-surface-variant">0.0</span>
+<div class="absolute -left-8 top-1/2 -rotate-90 font-label text-xs text-on-surface-variant whitespace-nowrap">Accuracy Score</div>
+</div>
+<!-- X Axis -->
+<div class="absolute left-12 right-0 bottom-0 h-8 border-t border-surface-dim flex justify-between items-end px-4 pb-1">
+<span class="font-mono text-xs text-on-surface-variant">Low Complexity</span>
+<span class="font-mono text-xs text-on-surface-variant">High Complexity</span>
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label text-xs text-on-surface-variant">Journey Complexity</div>
+</div>
+<!-- Grid Lines -->
+<div class="absolute left-12 right-0 top-0 bottom-8 border-t border-surface-dim/50 opacity-30"></div>
+<div class="absolute left-12 right-0 top-1/2 bottom-8 border-t border-surface-dim/50 opacity-30"></div>
+<div class="absolute left-1/2 right-0 top-0 bottom-8 border-l border-surface-dim/50 opacity-30"></div>
+<!-- Plot Points (Simulated Data) -->
+<div class="absolute left-12 right-0 top-0 bottom-8">
+<!-- Model 1 Aligned -->
+<div class="absolute left-[20%] top-[20%] w-4 h-4 bg-primary rounded-full shadow-sm hover:scale-125 transition-transform cursor-pointer group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs p-2 rounded whitespace-nowrap z-10 font-label">Simple Taskers (92% Match)</div>
+</div>
+<div class="absolute left-[22%] top-[24%] w-5 h-5 border-2 border-tertiary rounded-full bg-transparent"></div>
+<!-- Model 2 Misaligned (Alert) -->
+<div class="absolute left-[70%] top-[60%] w-4 h-4 bg-error rounded-full shadow-sm hover:scale-125 transition-transform cursor-pointer group animate-pulse">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs p-2 rounded whitespace-nowrap z-10 font-label">Low-Patience Mobile (42% Match)</div>
+</div>
+<div class="absolute left-[85%] top-[40%] w-6 h-6 border-2 border-tertiary rounded-full bg-transparent"></div>
+<!-- Connecting Line indicating drift -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;">
+<line opacity="0.5" stroke="#ba1a1a" stroke-dasharray="4" stroke-width="1" x1="70%" x2="85%" y1="60%" y2="40%"></line>
+</svg>
+<!-- Model 3 Aligned -->
+<div class="absolute left-[45%] top-[30%] w-4 h-4 bg-primary rounded-full shadow-sm hover:scale-125 transition-transform cursor-pointer group">
+<div class="hidden group-hover:block absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-xs p-2 rounded whitespace-nowrap z-10 font-label">Mid-Market B2B (85% Match)</div>
+</div>
+<div class="absolute left-[43%] top-[32%] w-5 h-5 border-2 border-tertiary rounded-full bg-transparent"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

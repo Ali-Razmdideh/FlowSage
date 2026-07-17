@@ -1,0 +1,301 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>FlowSage - Predictive Engine: Friction Drill-down</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&amp;family=Inter:wght@400;500;600&amp;family=Public+Sans:wght@500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#dcc661",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed-dim": "#b1c5ff",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#c2c7cc",
+                        "primary-container": "#3366cc",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#dfe3e8",
+                        "inverse-on-surface": "#f2f0f1",
+                        "surface-dim": "#dbdadb",
+                        "outline-variant": "#c3c6d5",
+                        "inverse-surface": "#303031",
+                        "on-secondary-container": "#606569",
+                        "on-error": "#ffffff",
+                        "inverse-primary": "#b1c5ff",
+                        "on-primary-fixed": "#001946",
+                        "on-surface-variant": "#434653",
+                        "surface-bright": "#faf9fa",
+                        "on-secondary-fixed-variant": "#42474b",
+                        "on-tertiary-container": "#4a3f00",
+                        "on-primary-container": "#e7ebff",
+                        "surface-container-highest": "#e3e2e3",
+                        "surface-container-high": "#e9e8e9",
+                        "outline": "#737784",
+                        "tertiary": "#6d5e00",
+                        "on-primary-fixed-variant": "#00419d",
+                        "surface-container-low": "#f5f3f4",
+                        "surface": "#faf9fa",
+                        "secondary-container": "#dfe3e8",
+                        "surface-tint": "#2259bf",
+                        "on-background": "#1b1c1d",
+                        "on-tertiary-fixed-variant": "#524600",
+                        "surface-variant": "#e3e2e3",
+                        "primary": "#094cb2",
+                        "secondary": "#5a5f63",
+                        "on-tertiary-fixed": "#211b00",
+                        "on-tertiary": "#ffffff",
+                        "on-surface": "#1b1c1d",
+                        "tertiary-fixed": "#f9e37a",
+                        "surface-container": "#efedee",
+                        "tertiary-container": "#bfab49",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#171c20",
+                        "on-error-container": "#93000a",
+                        "primary-fixed": "#d9e2ff",
+                        "error": "#ba1a1a",
+                        "background": "#faf9fa"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": [
+                            "Noto Serif"
+                        ],
+                        "display": [
+                            "Noto Serif"
+                        ],
+                        "body": [
+                            "Inter"
+                        ],
+                        "label": [
+                            "Public Sans"
+                        ]
+                    },
+                    "fontSize": {}
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body antialiased min-h-screen flex flex-col md:flex-row overflow-x-hidden selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar (Mobile Only) -->
+<nav class="md:hidden flex justify-between items-center px-8 py-4 w-full border-b border-outline-variant/15 bg-surface-container-lowest/80 backdrop-blur-md full-width top-0 sticky z-50">
+<div class="flex items-center gap-4">
+<span class="font-headline text-2xl font-bold tracking-tight text-primary">FlowSage</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<img alt="User profile" class="w-8 h-8 rounded-full object-cover border border-outline-variant/15" data-alt="A professional headshot of a female UX researcher wearing smart glasses in a modern, brightly lit white office setting. High contrast, sharp focus, editorial photography style. Professional lighting emphasizing clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0Oww0lVVFTfNcnMIGSlS1tIqroP8E3bcQnKpjN_Mf22A5ccAwOevrnBdsnMS_iRntGMxzxBNmptcizG6JaEDzqdPhb0MJwfDlaqPDU_OkqqZu5qt78uTBbhpd8vKGaCfRiN4iw639K_i_LUqPBBY7pY7dYRNmMAWrICKi5DlReMCCI0nSaDsb0Kel5gN1n7I4dCFBd7AFlqbVSAoFnhLbiPwHhKE8EzVMiqqEVIaxhiCCDF3XAd8yTO309Yf-dwxDvW_EnQUYev8j">
+</div>
+</nav>
+<!-- SideNavBar (Desktop) -->
+<nav class="hidden md:flex flex-col p-6 space-y-2 h-screen w-72 left-0 top-0 fixed bg-surface-container-low border-r border-outline-variant/15 z-40">
+<div class="mb-8 px-4 pt-4">
+<span class="font-headline text-xl text-primary block">FlowSage</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-3 mb-6 bg-surface-container-lowest rounded-xl border border-outline-variant/15">
+<img alt="Project Workspace" class="w-10 h-10 rounded-lg object-cover" data-alt="A macro shot of a sleek, brushed aluminum server rack glowing with subtle blue LED lights in a pristine, white data center environment. High-end tech aesthetic, clean lines, and soft ambient lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyiZQdI6Xk82DVSqNCUCJucH8eKhCXrKrTfu1HqqGJGBOapnaybBkKSaysnnuUgMkPyiS__24NXC5IiIf1Zxg_GsdbbW1ed8RkO8DwZtj0j7QYJbhWAos1m1sVRJTguQPpy1pCma2KckkrKSZpq8sZobUcCo9xUQoTV0Wyvo82AGDTVwOuUywhBnvSulxfzN0Yc-VAvVLB-tqzaeQoMUPnBwNMFBbtPkuFoXosVzw2m-wlnRzLs21PF2zFlCuOxtbsQoVgR8g8uLeE">
+<div>
+<h3 class="font-display font-medium text-sm text-on-surface">Research Alpha</h3>
+<p class="font-label text-xs text-on-surface-variant">Global UX Intelligence</p>
+</div>
+</div>
+<div class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container/20 text-primary font-medium rounded-xl transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="psychology">psychology</span>
+<span class="font-body text-sm tracking-wide">Predictive Engine</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="timeline">timeline</span>
+<span class="font-body text-sm tracking-wide">Journey Graph</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="tune">tune</span>
+<span class="font-body text-sm tracking-wide">Calibration</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="settings">settings</span>
+<span class="font-body text-sm tracking-wide">Settings</span>
+</a>
+</div>
+<div class="mt-auto space-y-1 pt-6 border-t border-outline-variant/15">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="contact_support">contact_support</span>
+<span class="font-body text-sm tracking-wide">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl hover:bg-surface-variant/30 transition-all duration-300 scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="inventory_2">inventory_2</span>
+<span class="font-body text-sm tracking-wide">Archive</span>
+</a>
+</div>
+<button class="mt-6 w-full py-3 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-xl font-label font-medium text-sm tracking-wide shadow-sm hover:opacity-90 transition-opacity">
+            New Simulation
+        </button>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-72 min-h-screen bg-surface-container-lowest flex flex-col">
+<!-- Top App Bar (Desktop Contextual) -->
+<header class="hidden md:flex items-center justify-between px-10 py-6 sticky top-0 z-30 bg-surface-container-lowest/90 backdrop-blur-xl">
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors rounded-full p-2 hover:bg-surface-variant/30">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div>
+<h1 class="font-headline text-3xl text-on-surface leading-tight">Friction Drill-down</h1>
+<p class="font-label text-sm text-on-surface-variant mt-1 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-error inline-block"></span>
+                        High Severity Issue Identified
+                    </p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-200 p-2">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="px-5 py-2.5 bg-surface-container-high text-primary font-label font-semibold text-sm rounded-lg hover:bg-surface-variant transition-colors border border-outline-variant/15">
+                    Sync Events
+                </button>
+<img alt="User profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant/15 ml-2" data-alt="A professional headshot of a female UX researcher wearing smart glasses in a modern, brightly lit white office setting. High contrast, sharp focus, editorial photography style. Professional lighting emphasizing clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGHNAh8_ZZDLo4omufw-dq3rD3kQA56RW1g_w_XCAVivIZz3Tqhi2w-02a4PMTPD70R9mU6za4rkB5YhY9ZbqbwYaj6vIiGa6Ug5q9CI1vAG3tUg0Rquu0JALf1YfW64ZMbMcV5vPpjel0YZqbumxknicjErfvHIF2g2kBseEdnUL6E0m3B8Bu66iqO4jl8XlauIQCcWJIeDrP0oBj8Ks1U-U-iMY1ugYQvqi14rgVDULnhfIxSXhnzPO69bJOSZzSfVnPzMsmMJ1V">
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full flex flex-col gap-8">
+<!-- Context Header -->
+<section class="max-w-3xl">
+<h2 class="font-headline text-4xl text-on-surface mb-4 leading-snug">Unclear Error Recovery in Form</h2>
+<p class="font-body text-lg text-on-surface-variant leading-relaxed">
+                    The predictive model indicates a 78% drop-off rate during the final checkout stage due to an ambiguous validation state. Users encounter a systemic failure without clear remediation paths.
+                </p>
+</section>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 mt-4">
+<!-- Left Column: The Evidence (Magnifier View) -->
+<div class="lg:col-span-7 flex flex-col gap-6">
+<!-- Magnifier Card -->
+<div class="bg-surface rounded-2xl border border-outline-variant/15 overflow-hidden flex flex-col">
+<div class="p-4 border-b border-outline-variant/15 bg-surface-container-low flex justify-between items-center">
+<h3 class="font-label font-semibold text-sm text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-lg text-primary" data-icon="zoom_in">zoom_in</span>
+                                Captured UI Artifact
+                            </h3>
+<span class="text-xs font-mono text-on-surface-variant bg-surface-variant px-2 py-1 rounded-md">Timestamp: 14:02:45Z</span>
+</div>
+<div class="relative p-8 bg-surface-bright flex-1 flex items-center justify-center min-h-[400px]">
+<!-- Simulated Zoom Area -->
+<div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-[0_24px_40px_-12px_rgba(27,28,29,0.06)] border border-outline-variant/15 p-6 overflow-hidden">
+<h4 class="font-headline text-xl mb-4">Payment Details</h4>
+<div class="space-y-4">
+<div>
+<label class="block font-label text-xs text-on-surface-variant mb-1">Card Number</label>
+<div class="w-full h-10 bg-surface-container-low rounded-lg border border-error bg-error-container/20 relative">
+<div class="absolute inset-y-0 right-3 flex items-center">
+<span class="material-symbols-outlined text-error" data-icon="error">error</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label text-xs text-on-surface-variant mb-1">Expiry</label>
+<div class="w-full h-10 bg-surface-container-low rounded-lg border border-outline-variant/30"></div>
+</div>
+<div>
+<label class="block font-label text-xs text-on-surface-variant mb-1">CVV</label>
+<div class="w-full h-10 bg-surface-container-low rounded-lg border border-outline-variant/30"></div>
+</div>
+</div>
+</div>
+<!-- The Friction Point Overlay -->
+<div class="absolute top-1/3 -right-4 w-64 p-4 bg-error-container border border-error/20 rounded-xl shadow-lg transform rotate-2">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-error mt-0.5" data-icon="warning">warning</span>
+<div>
+<p class="font-label font-bold text-sm text-on-error-container">Friction Point Detected</p>
+<p class="font-body text-xs text-on-error-container/80 mt-1">Generic red border applied without inline error message explaining the specific format expected.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Rationale & Solution -->
+<div class="lg:col-span-5 flex flex-col gap-6">
+<!-- AI Rationale Card -->
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-[0_8px_30px_-12px_rgba(27,28,29,0.04)]">
+<div class="flex items-center gap-3 mb-5">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed-dim/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+</div>
+<h3 class="font-headline text-xl text-on-surface">Heuristic Analysis</h3>
+</div>
+<div class="space-y-5">
+<div>
+<h4 class="font-label font-semibold text-sm text-on-surface mb-2 flex items-center justify-between">
+<span>Violated: Error Prevention</span>
+<span class="text-xs text-error font-medium bg-error-container/50 px-2 py-0.5 rounded">High Severity</span>
+</h4>
+<p class="font-body text-sm text-on-surface-variant leading-relaxed">
+                                    The system flags the input as invalid but fails to provide a constructive mechanism to recover. According to Nielsen's 9th Heuristic, error messages should be expressed in plain language, precisely indicate the problem, and constructively suggest a solution.
+                                </p>
+</div>
+<div class="h-px w-full bg-outline-variant/15"></div>
+<div>
+<h4 class="font-label font-semibold text-sm text-on-surface mb-2">Persona Impact: "The Rushed Shopper"</h4>
+<p class="font-body text-sm text-on-surface-variant leading-relaxed">
+                                    This persona exhibits low tolerance for cognitive load during checkout. The absence of inline feedback forces them to guess the required format (e.g., spaces vs. no spaces), leading directly to session abandonment.
+                                </p>
+</div>
+</div>
+</div>
+<!-- Suggested Fix Card -->
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/15 p-6 shadow-[0_8px_30px_-12px_rgba(27,28,29,0.04)] flex-1">
+<h3 class="font-headline text-xl text-on-surface mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="build">build</span>
+                            Suggested Remediation
+                        </h3>
+<div class="bg-inverse-surface rounded-xl p-4 overflow-x-auto mb-4">
+<pre class="text-inverse-on-surface font-mono text-xs leading-loose"><code><span class="text-primary-fixed-dim">&lt;div</span> <span class="text-tertiary-fixed-dim">class=</span><span class="text-[#a8c7fa]">"form-group"</span><span class="text-primary-fixed-dim">&gt;</span>
+  <span class="text-primary-fixed-dim">&lt;label</span> <span class="text-tertiary-fixed-dim">for=</span><span class="text-[#a8c7fa]">"cardNumber"</span><span class="text-primary-fixed-dim">&gt;</span>Card Number<span class="text-primary-fixed-dim">&lt;/label&gt;</span>
+  <span class="text-primary-fixed-dim">&lt;input</span> 
+    <span class="text-tertiary-fixed-dim">type=</span><span class="text-[#a8c7fa]">"text"</span> 
+    <span class="text-tertiary-fixed-dim">class=</span><span class="text-[#a8c7fa]">"border-error"</span> 
+    <span class="text-tertiary-fixed-dim">aria-invalid=</span><span class="text-[#a8c7fa]">"true"</span>
+    <span class="text-tertiary-fixed-dim">aria-describedby=</span><span class="text-[#a8c7fa]">"card-error"</span>
+  <span class="text-primary-fixed-dim">/&gt;</span>
+  <span class="text-primary-fixed-dim">&lt;p</span> <span class="text-tertiary-fixed-dim">id=</span><span class="text-[#a8c7fa]">"card-error"</span> <span class="text-tertiary-fixed-dim">class=</span><span class="text-[#a8c7fa]">"text-error text-sm mt-1"</span><span class="text-primary-fixed-dim">&gt;</span>
+    Please enter 16 digits without spaces.
+  <span class="text-primary-fixed-dim">&lt;/p&gt;</span>
+<span class="text-primary-fixed-dim">&lt;/div&gt;</span></code></pre>
+</div>
+<div class="flex gap-3 mt-6">
+<button class="flex-1 py-2.5 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-lg font-label font-semibold text-sm hover:opacity-90 transition-opacity">
+                                Apply to Figma
+                            </button>
+<button class="flex-1 py-2.5 bg-surface-container-high text-primary rounded-lg font-label font-semibold text-sm hover:bg-surface-variant transition-colors border border-outline-variant/15">
+                                Copy Code
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

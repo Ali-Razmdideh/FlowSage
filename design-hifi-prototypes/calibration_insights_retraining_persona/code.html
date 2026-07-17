@@ -1,0 +1,305 @@
+<!DOCTYPE html><html lang="en" class="light"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;700&amp;family=Inter:wght@300;400;500;600&amp;family=Public+Sans:wght@300;400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#c3c6d5",
+                        "background": "#faf9fa",
+                        "tertiary": "#6d5e00",
+                        "tertiary-container": "#bfab49",
+                        "tertiary-fixed-dim": "#dcc661",
+                        "primary-container": "#3366cc",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#c2c7cc",
+                        "on-secondary-fixed-variant": "#42474b",
+                        "secondary-fixed": "#dfe3e8",
+                        "primary": "#094cb2",
+                        "outline": "#737784",
+                        "on-secondary-fixed": "#171c20",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#f5f3f4",
+                        "on-tertiary-fixed": "#211b00",
+                        "tertiary-fixed": "#f9e37a",
+                        "surface-container-high": "#e9e8e9",
+                        "surface-bright": "#faf9fa",
+                        "surface-container": "#efedee",
+                        "primary-fixed": "#d9e2ff",
+                        "on-tertiary-fixed-variant": "#524600",
+                        "on-secondary-container": "#606569",
+                        "on-primary": "#ffffff",
+                        "surface-tint": "#2259bf",
+                        "secondary-container": "#dfe3e8",
+                        "on-surface": "#1b1c1d",
+                        "inverse-surface": "#303031",
+                        "inverse-on-surface": "#f2f0f1",
+                        "error": "#ba1a1a",
+                        "secondary": "#5a5f63",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#434653",
+                        "inverse-primary": "#b1c5ff",
+                        "surface-dim": "#dbdadb",
+                        "surface-variant": "#e3e2e3",
+                        "on-tertiary-container": "#4a3f00",
+                        "on-error": "#ffffff",
+                        "on-background": "#1b1c1d",
+                        "on-primary-fixed-variant": "#00419d",
+                        "surface-container-highest": "#e3e2e3",
+                        "primary-fixed-dim": "#b1c5ff",
+                        "surface": "#faf9fa",
+                        "on-primary-container": "#e7ebff",
+                        "on-primary-fixed": "#001946"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Noto Serif"],
+                        "display": ["Noto Serif"],
+                        "body": ["Inter"],
+                        "label": ["Public Sans"]
+                    }
+                }
+            }
+        }
+    }catch(_e){}</script><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Noto+Serif:wght@100..900&amp;family=Public+Sans:wght@100..900&amp;display=swap" rel="stylesheet"></head><body class="bg-background text-on-surface font-body antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar Component (Authority: JSON) -->
+<aside class="bg-surface-container-low h-screen w-72 flex flex-col left-0 top-0 fixed border-r border-outline-variant/15 p-6 space-y-2 z-40">
+<div class="mb-8">
+<h1 class="font-headline text-xl text-primary font-bold tracking-tight">Research Alpha</h1>
+<p class="font-label text-[10px] uppercase tracking-widest text-outline">Global UX Intelligence</p>
+</div>
+<nav class="flex-1 flex flex-col space-y-1">
+<!-- Active Navigation Logic: "Calibration" is the primary intent -->
+<a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-body text-sm tracking-wide">Predictive Engine</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300">
+<span class="material-symbols-outlined">timeline</span>
+<span class="font-body text-sm tracking-wide">Journey Graph</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-3 bg-primary-container/20 text-primary font-medium rounded-xl transition-all duration-300">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">tune</span>
+<span class="font-body text-sm tracking-wide">Calibration</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant/50 rounded-xl transition-all duration-300">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body text-sm tracking-wide">Settings</span>
+</a>
+</nav>
+<!-- CTA from JSON -->
+<button class="mt-4 mb-8 w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-3 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm">add</span>
+            New Simulation
+        </button>
+<!-- Footer Tabs from JSON -->
+<div class="pt-6 border-t border-outline-variant/15 space-y-1">
+<a href="#" class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/30 rounded-xl transition-all">
+<span class="material-symbols-outlined text-xl">contact_support</span>
+<span class="font-body text-xs">Support</span>
+</a>
+<a href="#" class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-variant/30 rounded-xl transition-all">
+<span class="material-symbols-outlined text-xl">inventory_2</span>
+<span class="font-body text-xs">Archive</span>
+</a>
+</div>
+</aside>
+<main class="flex-1 ml-72 flex flex-col h-full bg-background relative overflow-y-auto">
+<!-- TopNavBar Component (Authority: JSON) -->
+<header class="bg-surface-container-lowest/80 backdrop-blur-md sticky top-0 z-50 flex justify-between items-center px-8 py-4 w-full border-b border-outline-variant/15">
+<div class="flex items-center gap-6">
+<span class="font-headline text-2xl font-bold tracking-tight text-primary">FlowSage</span>
+<div class="flex items-center bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant/15 w-64">
+<span class="material-symbols-outlined text-outline-variant text-sm">search</span>
+<input type="text" placeholder="Search engine..." class="bg-transparent border-none focus:ring-0 text-sm font-body w-full placeholder:text-outline-variant">
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<span class="text-primary font-bold border-b-2 border-primary pb-1 font-display text-sm leading-relaxed">Sync Events</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer">help_outline</span>
+</div>
+<div class="h-10 w-10 rounded-full bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a senior UX researcher in a bright, high-end editorial studio setting. The subject is wearing a navy blue blazer and looking confidently at the camera. The background is a soft, out-of-focus archival library with warm gold lighting, reflecting the Alexandria design system's scholarly aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWbpItOxsNmXvm8RD_tJKdHf3L_Bs_D0-k1S7odxXH8i0HJyIezuPLsx1arCi7f3hafYm-Xnsp0Eth8WhepZuNcfqrw4FmLrKcgUK0CFVEbCiu-ypDoLF_r5V-g-GRODXzsloRUjN8LBJ3Sermdu5qdCJMeTMOf-kIRnYJByqucCbVA0779b-3wUAvwQ8nU6kLlnWMDquYOBDcy9b1NW5ldM84qIY9K1XlspMHukXFZ_pETI60UBTixHCHJQlbr2UyiApdpLSiO2AZ">
+</div>
+</div>
+</header>
+<section class="p-10 max-w-6xl mx-auto w-full">
+<!-- Retraining Header -->
+<div class="mb-12">
+<div class="flex items-center gap-3 mb-2">
+<span class="px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed font-label text-[10px] tracking-widest uppercase font-semibold rounded-full">Active Re-training</span>
+<span class="text-outline text-xs font-label">Persona: Senior Archivist #402</span>
+</div>
+<h2 class="font-headline text-4xl text-on-surface font-bold leading-tight mb-6">Persona Re-calibration in Progress</h2>
+<!-- Detailed Progress Bar -->
+<div class="space-y-3">
+<div class="flex justify-between items-end font-label text-sm text-on-surface-variant mb-1">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg animate-spin" style="font-variation-settings: 'wght' 200;">refresh</span>
+                            Neural Weights Recalculating...
+                        </span>
+<span class="font-bold text-primary">68%</span>
+</div>
+<div class="h-4 w-full bg-surface-container-high rounded-full overflow-hidden relative">
+<div class="h-full bg-gradient-to-r from-primary to-primary-container w-[68%] rounded-full relative overflow-hidden">
+<div class="absolute inset-0 progress-shimmer"></div>
+</div>
+</div>
+<p class="text-xs text-outline-variant italic font-body">Optimizing vector space for archival decision-making patterns...</p>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-8">
+<!-- Main Content: Progress Table -->
+<div class="col-span-12 lg:col-span-8 space-y-6">
+<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-outline-variant/10">
+<h3 class="font-headline text-xl mb-6">Real-time Inference Scoring</h3>
+<div class="overflow-hidden">
+<table class="w-full text-left">
+<thead class="border-b border-outline-variant/20">
+<tr class="text-on-surface-variant font-label text-xs uppercase tracking-wider">
+<th class="pb-4 px-2">Decision Node</th>
+<th class="pb-4 px-2">Baseline</th>
+<th class="pb-4 px-2">Delta</th>
+<th class="pb-4 px-2">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr class="group">
+<td class="py-5 px-2">
+<div class="font-medium font-body text-sm">Metadata Classification</div>
+<div class="text-[10px] text-outline">Cluster 04: Paleography</div>
+</td>
+<td class="py-5 px-2 font-body text-sm text-outline">0.824</td>
+<td class="py-5 px-2">
+<div class="h-2 w-24 bg-surface-container-low rounded-full animate-pulse"></div>
+</td>
+<td class="py-5 px-2">
+<span class="flex items-center gap-2 text-[10px] font-label text-primary italic">
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-ping"></span>
+                                                Processing...
+                                            </span>
+</td>
+</tr>
+<tr class="group">
+<td class="py-5 px-2">
+<div class="font-medium font-body text-sm">Temporal Contextualization</div>
+<div class="text-[10px] text-outline">Cluster 12: Byzantine</div>
+</td>
+<td class="py-5 px-2 font-body text-sm text-outline">0.691</td>
+<td class="py-5 px-2">
+<div class="h-2 w-24 bg-surface-container-low rounded-full animate-pulse delay-100"></div>
+</td>
+<td class="py-5 px-2">
+<span class="flex items-center gap-2 text-[10px] font-label text-primary italic">
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-ping"></span>
+                                                Processing...
+                                            </span>
+</td>
+</tr>
+<tr class="group">
+<td class="py-5 px-2">
+<div class="font-medium font-body text-sm">Validation Probability</div>
+<div class="text-[10px] text-outline">Global Threshold</div>
+</td>
+<td class="py-5 px-2 font-body text-sm text-outline">0.912</td>
+<td class="py-5 px-2">
+<div class="h-2 w-24 bg-surface-container-low rounded-full animate-pulse delay-200"></div>
+</td>
+<td class="py-5 px-2">
+<span class="flex items-center gap-2 text-[10px] font-label text-primary italic">
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-ping"></span>
+                                                Queued
+                                            </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Sidebar: Neural Alignment -->
+<aside class="col-span-12 lg:col-span-4 space-y-6">
+<div class="bg-surface-dim/40 rounded-xl p-6 border border-outline-variant/15 flex flex-col gap-6">
+<div class="space-y-1">
+<h4 class="font-headline text-lg text-primary">Digital Twin Training</h4>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+<p class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Syncing with Neo4j</p>
+</div>
+</div>
+<!-- Neural Alignment Visualization (Bento Style) -->
+<div class="relative bg-surface-container-lowest h-64 rounded-xl border border-outline-variant/15 overflow-hidden flex items-center justify-center p-4 pulse-soft">
+<div class="absolute inset-0 opacity-10">
+<svg class="w-full h-full" viewBox="0 0 100 100">
+<pattern height="10" id="grid" patternUnits="userSpaceOnUse" width="10">
+<path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" stroke-width="0.5"></path>
+</pattern>
+<rect fill="url(#grid)" height="100" width="100"></rect>
+</svg>
+</div>
+<!-- Placeholder for Pulsing Network -->
+<div class="relative w-full h-full flex items-center justify-center">
+<div class="w-32 h-32 border border-primary/20 rounded-full animate-ping absolute"></div>
+<div class="w-24 h-24 border border-primary/40 rounded-full animate-ping absolute" style="animation-delay: 1s;"></div>
+<div class="z-10 flex flex-col items-center gap-2">
+<span class="material-symbols-outlined text-4xl text-primary neural-node">hub</span>
+<span class="font-label text-[10px] text-primary-container font-bold tracking-tighter">Neural Core Alignment</span>
+</div>
+<!-- Decorative Nodes -->
+<div class="absolute top-10 left-10 neural-node"><span class="material-symbols-outlined text-xs text-outline-variant">circle</span></div>
+<div class="absolute bottom-12 right-12 neural-node" style="animation-delay: -2s;"><span class="material-symbols-outlined text-xs text-outline-variant">circle</span></div>
+<div class="absolute top-20 right-8 neural-node" style="animation-delay: -5s;"><span class="material-symbols-outlined text-xs text-outline-variant">circle</span></div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center px-2">
+<span class="font-label text-xs text-outline">Loss Rate</span>
+<span class="font-body text-xs font-medium text-on-surface">0.0024</span>
+</div>
+<div class="flex justify-between items-center px-2">
+<span class="font-label text-xs text-outline">Node Cohesion</span>
+<span class="font-body text-xs font-medium text-on-surface">98.2%</span>
+</div>
+<div class="flex justify-between items-center px-2">
+<span class="font-label text-xs text-outline">Epoch</span>
+<span class="font-body text-xs font-medium text-on-surface">42/100</span>
+</div>
+</div>
+<button class="w-full bg-surface-container-high py-3 rounded-xl font-label text-xs font-semibold text-error hover:bg-error-container/20 transition-colors uppercase tracking-widest">
+                            Abort Calibration
+                        </button>
+</div>
+<!-- Archival Insight (Design System Flavor) -->
+<div class="bg-tertiary-fixed/10 p-6 rounded-xl border border-tertiary-fixed/20 relative overflow-hidden">
+<span class="material-symbols-outlined text-tertiary absolute -right-4 -bottom-4 text-8xl opacity-10" style="font-variation-settings: 'FILL' 1;">auto_stories</span>
+<p class="font-headline text-tertiary-fixed-dim text-sm italic relative z-10 leading-relaxed">
+                            "The calibration process ensures the persona respects historical divergence while maintaining semantic continuity."
+                        </p>
+</div>
+</aside>
+</div>
+</section>
+</main>
+<script>
+        // Micro-interaction for the progress bar
+        let progress = 68;
+        const progressEl = document.querySelector('.h-full.bg-gradient-to-r');
+        const progressText = document.querySelector('.font-bold.text-primary');
+
+        setInterval(() => {
+            if (progress < 99) {
+                progress += Math.random() * 0.2;
+                progressEl.style.width = `${progress}%`;
+                progressText.innerText = `${Math.floor(progress)}%`;
+            }
+        }, 3000);
+    </script>
+</body></html>
