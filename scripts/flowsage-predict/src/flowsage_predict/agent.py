@@ -8,7 +8,7 @@ until the persona abandons the flow or the screenshots run out.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, TypedDict, cast
+from typing import Callable, Iterator, TypedDict, cast
 
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import END, StateGraph
@@ -70,6 +70,23 @@ def build_agent_graph(vision_client: VisionClient) -> CompiledStateGraph:
     return graph.compile()
 
 
+def _initial_state(persona: Persona, goal: str, screenshots: list[Path]) -> AgentState:
+    return {
+        "persona": persona,
+        "goal": goal,
+        "screenshots": screenshots,
+        "index": 0,
+        "steps": [],
+        "issues": [],
+        "done": False,
+    }
+
+
+def _recursion_config(screenshot_count: int) -> RunnableConfig:
+    # +5 headroom over one node-visit per screenshot for LangGraph's internal bookkeeping.
+    return {"recursion_limit": screenshot_count + 5}
+
+
 def run_persona_walkthrough(
     persona: Persona,
     goal: str,
@@ -81,15 +98,28 @@ def run_persona_walkthrough(
         raise ValueError("At least one screenshot is required")
 
     graph = build_agent_graph(vision_client)
-    initial_state: AgentState = {
-        "persona": persona,
-        "goal": goal,
-        "screenshots": screenshots,
-        "index": 0,
-        "steps": [],
-        "issues": [],
-        "done": False,
-    }
-    # +5 headroom over one node-visit per screenshot for LangGraph's internal bookkeeping.
-    config: RunnableConfig = {"recursion_limit": len(screenshots) + 5}
+    initial_state = _initial_state(persona, goal, screenshots)
+    config = _recursion_config(len(screenshots))
     return cast(AgentState, graph.invoke(initial_state, config=config))
+
+
+def iter_persona_walkthrough(
+    persona: Persona,
+    goal: str,
+    screenshots: list[Path],
+    vision_client: VisionClient,
+) -> Iterator[AgentState]:
+    """Run the walkthrough, yielding the state after each screen is evaluated.
+
+    Lets a caller (e.g. a job worker) persist/broadcast each step as it happens,
+    instead of waiting for the whole walkthrough to finish like
+    `run_persona_walkthrough` does.
+    """
+    if not screenshots:
+        raise ValueError("At least one screenshot is required")
+
+    graph = build_agent_graph(vision_client)
+    initial_state = _initial_state(persona, goal, screenshots)
+    config = _recursion_config(len(screenshots))
+    for state in graph.stream(initial_state, config=config, stream_mode="values"):
+        yield cast(AgentState, state)

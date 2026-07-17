@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from flowsage_predict.agent import run_persona_walkthrough
+from flowsage_predict.agent import iter_persona_walkthrough, run_persona_walkthrough
 from flowsage_predict.models import (
     BehavioralSliders,
     DemographicAnchors,
@@ -118,4 +118,69 @@ def test_walkthrough_requires_at_least_one_screenshot() -> None:
     with pytest.raises(ValueError, match="At least one screenshot"):
         run_persona_walkthrough(
             persona=_persona(), goal="goal", screenshots=[], vision_client=ScriptedVisionClient([])
+        )
+
+
+def test_iter_walkthrough_yields_growing_steps_and_ends_with_the_final_state() -> None:
+    screenshots = [Path("01_cart.png"), Path("02_shipping.png"), Path("03_confirm.png")]
+    evaluations = [
+        ScreenEvaluation(action="Adds item to cart", reasoning="Wants to buy it"),
+        ScreenEvaluation(action="Enters shipping address", reasoning="Required to continue"),
+        ScreenEvaluation(action="Confirms order", reasoning="Sees the total and confirms"),
+    ]
+    client = ScriptedVisionClient(evaluations)
+
+    states = list(
+        iter_persona_walkthrough(
+            persona=_persona(),
+            goal="Complete purchase",
+            screenshots=screenshots,
+            vision_client=client,
+        )
+    )
+
+    step_counts = [len(state["steps"]) for state in states]
+    assert step_counts == sorted(step_counts)  # monotonically non-decreasing
+    assert step_counts[-1] == 3
+    final_state = states[-1]
+    assert final_state["done"] is True
+    assert [s.screen for s in final_state["steps"]] == ["01_cart", "02_shipping", "03_confirm"]
+
+
+def test_iter_walkthrough_matches_invoke_result_for_same_input() -> None:
+    screenshots = [Path("01.png"), Path("02.png")]
+
+    def evaluations() -> list[ScreenEvaluation]:
+        return [
+            ScreenEvaluation(action="a1", reasoning="r1"),
+            ScreenEvaluation(action="a2", reasoning="r2"),
+        ]
+
+    invoked = run_persona_walkthrough(
+        persona=_persona(),
+        goal="goal",
+        screenshots=screenshots,
+        vision_client=ScriptedVisionClient(evaluations()),
+    )
+    *_, streamed_final = iter_persona_walkthrough(
+        persona=_persona(),
+        goal="goal",
+        screenshots=screenshots,
+        vision_client=ScriptedVisionClient(evaluations()),
+    )
+
+    assert streamed_final["steps"] == invoked["steps"]
+    assert streamed_final["done"] == invoked["done"]
+    assert streamed_final["issues"] == invoked["issues"]
+
+
+def test_iter_walkthrough_requires_at_least_one_screenshot() -> None:
+    with pytest.raises(ValueError, match="At least one screenshot"):
+        list(
+            iter_persona_walkthrough(
+                persona=_persona(),
+                goal="goal",
+                screenshots=[],
+                vision_client=ScriptedVisionClient([]),
+            )
         )

@@ -62,6 +62,6 @@ tested against a fake `VisionClient` so `pytest` never needs an API key.
 | `models.py` | Pydantic models shared across the pipeline (`Persona`, `FrictionIssue`, `SimulationReport`, ...) |
 | `personas.py` | Load/validate persona YAML files, bundled or custom |
 | `vision.py` | `VisionClient` protocol + `AnthropicVisionClient` (Claude vision + forced tool call) |
-| `agent.py` | LangGraph state machine that loops the vision client over the screenshot sequence |
+| `agent.py` | LangGraph state machine that loops the vision client over the screenshot sequence. `run_persona_walkthrough` runs to completion; `iter_persona_walkthrough` yields the state after each screen, for callers (e.g. a job worker) that want to persist/broadcast progress live |
 | `report.py` | Renders a `SimulationReport` as the `friction_report.md` Markdown |
 | `cli.py` | `flowsage-predict` command-line entry point |
