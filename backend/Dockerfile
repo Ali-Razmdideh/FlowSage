@@ -14,6 +14,11 @@ COPY scripts/flowsage-graph ./scripts/flowsage-graph
 RUN uv sync --frozen --no-dev --package flowsage-backend
 
 RUN useradd --create-home --uid 1000 appuser
+# Pre-create and own the uploads mount point before the volume attaches: Docker
+# seeds a fresh named volume from whatever's already at the mount point in the
+# image (including ownership), so this is what makes appuser able to write there
+# instead of it staying root-owned.
+RUN mkdir -p /data/uploads && chown -R appuser:appuser /data
 USER appuser
 
 EXPOSE 8000

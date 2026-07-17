@@ -45,7 +45,43 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment: &backend_env
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-flowsage}:${POSTGRES_PASSWORD:-flowsage_dev}@postgres:5432/${POSTGRES_DB:-flowsage}"
+      REDIS_URL: "redis://redis:6379/0"
+      UPLOAD_DIR: /data/uploads
+      JWT_SECRET: "${JWT_SECRET:-dev-secret-change-me-before-deploying-32bytes}"
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+    volumes:
+      - uploads_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    command: ["/workspace/.venv/bin/flowsage-worker"]
+    environment: *backend_env
+    volumes:
+      - uploads_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   neo4j_data:
   postgres_data:
   redis_data:
+  uploads_data:

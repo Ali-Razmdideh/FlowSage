@@ -1,4 +1,4 @@
-"""`flowsage-backend` console script: serves the API, or manages the seeded user."""
+"""`flowsage-backend` console script: serves the API, or manages seed data."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import uvicorn
 
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
-from flowsage_backend.seed import upsert_user
+from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
 
 async def _create_user(email: str, password: str) -> None:
@@ -20,6 +20,16 @@ async def _create_user(email: str, password: str) -> None:
         user = await upsert_user(session, email, password)
     await engine.dispose()
     print(f"User ready: {user.email} ({user.id})")
+
+
+async def _seed_personas() -> None:
+    settings = get_settings()
+    engine = create_engine(settings)
+    session_factory = create_session_factory(engine)
+    async with session_factory() as session:
+        personas = await seed_baseline_personas(session)
+    await engine.dispose()
+    print(f"{len(personas)} baseline persona(s) ready: {', '.join(p.slug for p in personas)}")
 
 
 def _serve() -> None:
@@ -38,10 +48,16 @@ def main() -> None:
     create_user_parser.add_argument("email")
     create_user_parser.add_argument("password")
 
+    subparsers.add_parser("seed-personas", help="Load the 5 baseline personas into the database")
+
     args = parser.parse_args()
 
     if args.command == "create-user":
         asyncio.run(_create_user(args.email, args.password))
+        return
+
+    if args.command == "seed-personas":
+        asyncio.run(_seed_personas())
         return
 
     _serve()

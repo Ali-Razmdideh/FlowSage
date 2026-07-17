@@ -18,10 +18,17 @@ dependencies = [
     "argon2-cffi>=23.1,<24.0",
     "pyjwt>=2.9,<3.0",
     "email-validator>=2.2,<3.0",
+    "arq>=0.26,<0.27",
+    "python-multipart>=0.0.12,<0.1",
+    "flowsage-predict",
 ]
+
+[tool.uv.sources]
+flowsage-predict = { workspace = true }
 
 [project.scripts]
 flowsage-backend = "flowsage_backend.__main__:main"
+flowsage-worker = "flowsage_backend.worker:run_worker"
 
 [dependency-groups]
 dev = [

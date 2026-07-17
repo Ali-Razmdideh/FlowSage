@@ -1,14 +1,15 @@
-"""Shared fixtures: a session-scoped ephemeral Postgres container via testcontainers.
+"""Shared fixtures: session-scoped ephemeral Postgres + Redis containers via testcontainers.
 
 Tests never depend on `infra/docker-compose.yml` already being up — each test run
-spins its own throwaway Postgres, so `pytest` is hermetic in CI and locally. Tables
-are created once per session directly from the ORM metadata (Alembic's upgrade path
-is verified separately, by hand, against a real docker-compose Postgres).
+spins its own throwaway Postgres/Redis, so `pytest` is hermetic in CI and locally.
+Tables are created once per session directly from the ORM metadata (Alembic's
+upgrade path is verified separately, by hand, against a real docker-compose Postgres).
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 
 from flowsage_backend.config import Settings
 from flowsage_backend.main import create_app
@@ -33,6 +35,13 @@ def postgres_url() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    with RedisContainer("redis:7-alpine") as container:
+        port = container.get_exposed_port(6379)
+        yield f"redis://{container.get_container_host_ip()}:{port}/0"
+
+
+@pytest.fixture(scope="session")
 async def _tables_ready(postgres_url: str) -> AsyncIterator[None]:
     engine: AsyncEngine = create_async_engine(postgres_url)
     async with engine.begin() as conn:
@@ -42,8 +51,10 @@ async def _tables_ready(postgres_url: str) -> AsyncIterator[None]:
 
 
 @pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(database_url=postgres_url)
+def settings(postgres_url: str, redis_url: str, tmp_path: Path) -> Settings:
+    return Settings(
+        database_url=postgres_url, redis_url=redis_url, upload_dir=str(tmp_path / "uploads")
+    )
 
 
 @pytest.fixture

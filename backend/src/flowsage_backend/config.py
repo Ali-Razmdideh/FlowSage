@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     cookie_name: str = "flowsage_session"
     cookie_secure: bool = False  # set True once served over HTTPS
 
+    # Simulation jobs (arq/Redis worker) and where uploaded screenshots land.
+    redis_url: str = "redis://localhost:6379/0"
+    upload_dir: str = "./data/uploads"
+
     @model_validator(mode="after")
     def _reject_placeholder_secret_outside_dev(self) -> "Settings":
         if self.environment != "development" and self.jwt_secret == _PLACEHOLDER_JWT_SECRET:

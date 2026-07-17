@@ -5,17 +5,23 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import arq
+from arq.connections import RedisSettings
 from fastapi import FastAPI
 from sqlalchemy import text
 
 from flowsage_backend.api.auth import router as auth_router
+from flowsage_backend.api.personas import router as personas_router
+from flowsage_backend.api.simulations import router as simulations_router
 from flowsage_backend.config import Settings, get_settings
 from flowsage_backend.db import create_engine, create_session_factory
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    app.state.arq_pool = await arq.create_pool(RedisSettings.from_dsn(app.state.settings.redis_url))
     yield
+    await app.state.arq_pool.aclose()
     await app.state.engine.dispose()
 
 
@@ -26,6 +32,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
     app.include_router(auth_router)
+    app.include_router(personas_router)
+    app.include_router(simulations_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

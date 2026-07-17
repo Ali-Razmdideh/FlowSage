@@ -1,0 +1,63 @@
+"""LLM persona records (README §Features: configurable personas).
+
+Mirrors `flowsage_predict.models.Persona`; `to_predict_persona()` converts a row into
+that package's Pydantic model so the same LangGraph agent code runs whether it's
+invoked from the CLI or from a simulation job here.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from flowsage_predict.models import BehavioralSliders, DemographicAnchors
+from flowsage_predict.models import Persona as PredictPersona
+from sqlalchemy import Boolean, DateTime, Float, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from flowsage_backend.models.base import Base
+
+
+class Persona(Base):
+    __tablename__ = "personas"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text)
+    baseline: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    tech_affinity: Mapped[str] = mapped_column(String(64))
+    primary_device: Mapped[str] = mapped_column(String(64))
+    discovery_mode: Mapped[str] = mapped_column(String(64))
+    contextual_triggers: Mapped[list[str]] = mapped_column(JSONB, default=list)
+
+    technical_literacy: Mapped[float] = mapped_column(Float)
+    anxiety: Mapped[float] = mapped_column(Float)
+    patience: Mapped[float] = mapped_column(Float)
+    curiosity: Mapped[float] = mapped_column(Float)
+
+    model: Mapped[str] = mapped_column(String(64), default="claude-sonnet-4-5")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    def to_predict_persona(self) -> PredictPersona:
+        return PredictPersona(
+            id=self.slug,
+            name=self.name,
+            description=self.description,
+            baseline=self.baseline,
+            demographic_anchors=DemographicAnchors(
+                tech_affinity=self.tech_affinity,
+                primary_device=self.primary_device,
+                discovery_mode=self.discovery_mode,
+            ),
+            contextual_triggers=list(self.contextual_triggers),
+            sliders=BehavioralSliders(
+                technical_literacy=self.technical_literacy,
+                anxiety=self.anxiety,
+                patience=self.patience,
+                curiosity=self.curiosity,
+            ),
+            model=self.model,
+        )
