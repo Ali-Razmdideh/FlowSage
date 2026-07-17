@@ -19,17 +19,25 @@ def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
 
 
-def test_placeholder_jwt_secret_rejected_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_placeholder_secrets_rejected_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
-    with pytest.raises(ValueError, match="JWT_SECRET is still the dev placeholder"):
+    with pytest.raises(ValueError, match="JWT_SECRET, EVENTS_API_KEY"):
         Settings()
 
 
-def test_placeholder_jwt_secret_allowed_in_dev() -> None:
+def test_one_placeholder_secret_rejected_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET", "a-real-32-byte-secret-for-production!!")
+    with pytest.raises(ValueError, match="EVENTS_API_KEY"):
+        Settings()
+
+
+def test_placeholder_secrets_allowed_in_dev() -> None:
     Settings(environment="development")  # must not raise
 
 
-def test_custom_jwt_secret_allowed_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_custom_secrets_allowed_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("JWT_SECRET", "a-real-32-byte-secret-for-production!!")
+    monkeypatch.setenv("EVENTS_API_KEY", "a-real-32-byte-events-api-key-here!!")
     Settings()  # must not raise

@@ -1,7 +1,9 @@
-"""FastAPI dependency providers: DB session and the current authenticated user."""
+"""FastAPI dependency providers: DB session, the current authenticated user, and
+the shared-secret API key check used by the server-to-server ingestion endpoint."""
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import AsyncIterator
 
 import jwt
@@ -38,3 +40,10 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User no longer exists")
     return user
+
+
+async def require_api_key(request: Request) -> None:
+    settings = request.app.state.settings
+    provided = request.headers.get("X-API-Key")
+    if provided is None or not secrets.compare_digest(provided, settings.events_api_key):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing or invalid X-API-Key")

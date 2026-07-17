@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class Event(BaseModel):
@@ -33,6 +33,7 @@ class FunnelStep(BaseModel):
     sessions_entered: int
     sessions_continued: int
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def drop_off_rate(self) -> float:
         if self.sessions_entered == 0:

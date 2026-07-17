@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import arq
 from arq.connections import RedisSettings
 from fastapi import FastAPI
+from flowsage_graph.ingest import Neo4jGraphSink
 from sqlalchemy import text
 
 from flowsage_backend.api.auth import router as auth_router
+from flowsage_backend.api.events import events_router, graph_router
 from flowsage_backend.api.personas import router as personas_router
 from flowsage_backend.api.simulations import router as simulations_router
 from flowsage_backend.config import Settings, get_settings
@@ -22,6 +25,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.arq_pool = await arq.create_pool(RedisSettings.from_dsn(app.state.settings.redis_url))
     yield
     await app.state.arq_pool.aclose()
+    await asyncio.to_thread(app.state.graph_sink.close)
     await app.state.engine.dispose()
 
 
@@ -31,9 +35,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
+    app.state.graph_sink = Neo4jGraphSink(
+        settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password
+    )
     app.include_router(auth_router)
     app.include_router(personas_router)
     app.include_router(simulations_router)
+    app.include_router(events_router)
+    app.include_router(graph_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

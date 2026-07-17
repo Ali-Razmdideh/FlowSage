@@ -21,10 +21,12 @@ dependencies = [
     "arq>=0.26,<0.27",
     "python-multipart>=0.0.12,<0.1",
     "flowsage-predict",
+    "flowsage-graph",
 ]
 
 [tool.uv.sources]
 flowsage-predict = { workspace = true }
+flowsage-graph = { workspace = true }
 
 [project.scripts]
 flowsage-backend = "flowsage_backend.__main__:main"

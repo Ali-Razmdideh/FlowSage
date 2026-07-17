@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from testcontainers.neo4j import Neo4jContainer
 from testcontainers.postgres import PostgresContainer
 from testcontainers.redis import RedisContainer
 
@@ -72,3 +73,25 @@ async def db_session(postgres_url: str, _tables_ready: None) -> AsyncIterator[As
     async with session_factory() as session:
         yield session
     await engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def neo4j_credentials() -> Iterator[tuple[str, str, str]]:
+    """Session-scoped and only started by tests that request it (real Neo4j
+    ingestion), so the rest of the suite doesn't pay for a JVM container startup."""
+    with Neo4jContainer("neo4j:5.24-community", password="flowsage_test") as container:
+        yield container.get_connection_url(), "neo4j", "flowsage_test"
+
+
+@pytest.fixture
+async def app_with_real_neo4j(
+    settings: Settings, _tables_ready: None, neo4j_credentials: tuple[str, str, str]
+) -> AsyncIterator[FastAPI]:
+    uri, user, password = neo4j_credentials
+    application = create_app(
+        settings.model_copy(
+            update={"neo4j_uri": uri, "neo4j_user": user, "neo4j_password": password}
+        )
+    )
+    async with application.router.lifespan_context(application):
+        yield application

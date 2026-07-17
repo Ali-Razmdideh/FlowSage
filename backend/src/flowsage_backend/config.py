@@ -8,6 +8,7 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_JWT_SECRET = "dev-secret-change-me-before-deploying-32bytes"
+_PLACEHOLDER_EVENTS_API_KEY = "dev-events-api-key-change-me-before-deploying"
 
 
 class Settings(BaseSettings):
@@ -30,12 +31,30 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     upload_dir: str = "./data/uploads"
 
+    # Observational engine: raw events are stored in Postgres (so the funnel/
+    # friction queries below can reuse flowsage_graph's tested pure functions) and
+    # best-effort mirrored into Neo4j as a temporal graph for future direct queries.
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "flowsage_dev"
+    # POST /v1/events is meant for server-to-server ingestion (SDKs/webhooks), so it
+    # checks a shared secret via X-API-Key rather than the browser session cookie.
+    events_api_key: str = _PLACEHOLDER_EVENTS_API_KEY
+
     @model_validator(mode="after")
     def _reject_placeholder_secret_outside_dev(self) -> "Settings":
-        if self.environment != "development" and self.jwt_secret == _PLACEHOLDER_JWT_SECRET:
+        if self.environment == "development":
+            return self
+        placeholders = {
+            "JWT_SECRET": self.jwt_secret == _PLACEHOLDER_JWT_SECRET,
+            "EVENTS_API_KEY": self.events_api_key == _PLACEHOLDER_EVENTS_API_KEY,
+        }
+        still_placeholder = [name for name, is_default in placeholders.items() if is_default]
+        if still_placeholder:
             raise ValueError(
-                "JWT_SECRET is still the dev placeholder but ENVIRONMENT is "
-                f"{self.environment!r} -- set a real JWT_SECRET (e.g. `openssl rand -hex 32`)."
+                f"{', '.join(still_placeholder)} still set to the dev placeholder but "
+                f"ENVIRONMENT is {self.environment!r} -- set real secrets "
+                "(e.g. `openssl rand -hex 32`)."
             )
         return self
 

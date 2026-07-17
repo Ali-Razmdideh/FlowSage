@@ -85,6 +85,32 @@ completes or fails — simpler, and this single-tenant Phase 1 already has Postg
 Uploaded filenames are sanitized to their basename before touching disk, so a
 crafted `../../etc/evil.png` can't escape `UPLOAD_DIR`.
 
+## Events & journey graph
+
+`POST /v1/events` is for server-to-server ingestion (SDKs/webhooks), so it checks a
+shared secret (`X-API-Key`) instead of the browser session cookie. Events are stored
+in Postgres -- the source of truth `GET /graph/funnel` queries -- and best-effort
+mirrored into Neo4j as a temporal graph via `flowsage_graph.ingest.Neo4jGraphSink`
+(same library the `flowsage-graph` CLI uses). If Neo4j is unreachable, ingestion into
+Postgres still succeeds; the graph mirror is just skipped with a logged warning.
+
+```bash
+curl -X POST localhost:8000/v1/events \
+  -H "X-API-Key: ${EVENTS_API_KEY}" -H 'Content-Type: application/json' \
+  -d '[{"session_id": "s1", "screen": "cart", "event": "screen_view", "timestamp": "2026-07-17T12:00:00Z", "device": "mobile", "cohort": "paid_users"}]'
+
+curl -b cookies.txt localhost:8000/graph/funnel
+curl -b cookies.txt "localhost:8000/graph/funnel?cohort=paid_users&device=mobile"
+```
+
+`GET /graph/funnel` re-derives the funnel/friction breakdown from the raw Postgres
+event log on every call, reusing `flowsage_graph.funnel.discover_funnel`/
+`detect_friction` unchanged -- fine at this scale, and it means the same
+rage-loop/backtrack detection logic is exercised identically whether you run
+`flowsage-graph` standalone or through this API. (Neo4j's schema only keeps
+aggregated per-session transition edges, which loses the same-screen repeat visits
+rage-loop detection needs -- see `models/event.py`.)
+
 ### Full stack via docker-compose
 
 ```bash
@@ -127,9 +153,11 @@ Tests spin up their own ephemeral Postgres via [testcontainers](https://testcont
 | `deps.py` | FastAPI dependencies: DB session, `get_current_user` (reads the session cookie) |
 | `simulations.py` | `create_run`/`execute_simulation` -- the testable core of the simulation lifecycle |
 | `worker.py` | arq `WorkerSettings` + `run_simulation_job`, run via `flowsage-worker` |
+| `events.py` | `ingest_events`/`query_events`/`build_funnel_report` -- Postgres storage + funnel query |
 | `api/auth.py` | `/auth/login`, `/auth/logout`, `/auth/me` |
 | `api/personas.py` | `GET /personas` |
 | `api/simulations.py` | `POST /simulations`, `GET /simulations/{id}`, `GET /simulations/{id}/stream` (SSE) |
-| `main.py` | `create_app()` FastAPI factory, lifespan-managed engine + arq pool, `/healthz` |
+| `api/events.py` | `POST /v1/events` (API-key auth), `GET /graph/funnel` (session auth) |
+| `main.py` | `create_app()` FastAPI factory, lifespan-managed engine + arq pool + Neo4j sink, `/healthz` |
 | `__main__.py` | `flowsage-backend` console script: `serve` (default), `create-user`, `seed-personas` |
 | `migrations/` | Alembic environment, wired to `Settings.database_url` and `models.Base.metadata` |
