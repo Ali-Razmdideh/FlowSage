@@ -48,15 +48,28 @@ Together these answer three questions no current tool answers in one place: wher
 ## Development
 
 The full build sequence lives in [plans/full-project-coding-plan.md](plans/full-project-coding-plan.md).
-Phase 0 ships two standalone scripts, each with its own README:
 
-- [scripts/flowsage-predict](scripts/flowsage-predict) — LLM persona walkthrough of a screenshot sequence -> Markdown friction report.
-- [scripts/flowsage-graph](scripts/flowsage-graph) — event log -> Neo4j journey graph -> automatic funnel discovery -> HTML report.
+- [scripts/flowsage-predict](scripts/flowsage-predict) — Phase 0 CLI: LLM persona walkthrough of a screenshot sequence -> Markdown friction report.
+- [scripts/flowsage-graph](scripts/flowsage-graph) — Phase 0 CLI: event log -> Neo4j journey graph -> automatic funnel discovery -> HTML report.
+- [backend](backend) — Phase 1 FastAPI app: auth, the simulations API (wraps flowsage-predict in an arq job), and the events/journey-graph API (wraps flowsage-graph).
+- [frontend](frontend) — Phase 1 React app: login, dashboard, Predictive Engine, Journey Graph.
 
-Both are `uv` workspace members (single lockfile at the repo root) and ship a
-`Dockerfile`. `infra/docker-compose.yml` brings up local Neo4j/Postgres/Redis for
-development. Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY` to get
-started.
+The two scripts and the backend are all `uv` workspace members (single lockfile at
+the repo root); the backend depends on both scripts as libraries rather than
+reimplementing their logic. Every component ships a `Dockerfile`, and
+`infra/docker-compose.yml` brings up the whole stack (Postgres, Redis, Neo4j,
+backend, worker, frontend) with one command. Copy `.env.example` to `.env` and fill
+in `ANTHROPIC_API_KEY` to get started.
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml exec backend \
+  python -m alembic -c /workspace/backend/alembic.ini upgrade head
+docker compose -f infra/docker-compose.yml exec backend flowsage-backend seed-personas
+docker compose -f infra/docker-compose.yml exec backend \
+  flowsage-backend create-user admin@example.com supersecret123
+# -> http://localhost:5173
+```
 
 ## Roadmap
 

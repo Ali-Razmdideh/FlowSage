@@ -16,6 +16,9 @@ build/
 node_modules/
 frontend/dist/
 frontend/.vite/
+.playwright-mcp/
+test-results/
+playwright-report/
 
 # Env / secrets
 .env

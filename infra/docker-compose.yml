@@ -88,6 +88,15 @@ services:
       neo4j:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
 volumes:
   neo4j_data:
   postgres_data:

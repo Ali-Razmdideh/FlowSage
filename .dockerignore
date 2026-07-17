@@ -7,6 +7,9 @@
 .pytest_cache/
 node_modules/
 frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright-mcp/
 .remember/
 plans/
 design-hifi-prototypes/

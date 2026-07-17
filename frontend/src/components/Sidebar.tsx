@@ -1,0 +1,66 @@
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+
+const NAV_ITEMS = [
+  { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { to: "/predictive", label: "Predictive Engine", icon: "psychology" },
+  { to: "/journey", label: "Journey Graph", icon: "timeline" },
+] as const;
+
+export function Sidebar() {
+  const { user, logout } = useAuth();
+
+  return (
+    <nav className="hidden md:flex h-screen w-72 flex-col fixed left-0 top-0 bg-surface-container-low text-sm z-40">
+      <div className="flex flex-col p-6 space-y-2 h-full">
+        <div className="mb-6">
+          <p className="font-headline text-xl text-primary">FlowSage</p>
+          <p className="font-label text-xs uppercase tracking-wide text-on-surface-variant mt-1">
+            Global UX Intelligence
+          </p>
+        </div>
+
+        <NavLink
+          to="/predictive"
+          className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-on-primary font-medium hover:opacity-90 transition"
+        >
+          <span className="material-symbols-outlined text-lg">add</span>
+          New Simulation
+        </NavLink>
+
+        <ul className="flex flex-col gap-1">
+          {NAV_ITEMS.map((item) => (
+            <li key={item.to}>
+              <NavLink
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-3 py-2 transition ${
+                    isActive
+                      ? "bg-primary-container/20 text-primary font-medium"
+                      : "text-on-surface-variant hover:bg-surface-container"
+                  }`
+                }
+              >
+                <span className="material-symbols-outlined text-lg">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-auto flex flex-col gap-3">
+          <div className="ghost-border rounded-lg p-3">
+            <p className="text-xs text-on-surface-variant truncate">{user?.email}</p>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="mt-1 text-xs font-medium text-primary hover:underline"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
