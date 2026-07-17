@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.deps import get_current_user, get_db_session
 from flowsage_backend.models.user import User
-from flowsage_backend.security import create_access_token, verify_password
+from flowsage_backend.security import create_access_token, dummy_password_hash, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,7 +39,14 @@ async def login(
 ) -> User:
     result = await session.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
-    if user is None or not verify_password(payload.password, user.hashed_password):
+    # Always hash-verify, even for an unknown email, so a wrong password and an unknown
+    # email take about the same time -- otherwise the response time leaks which emails
+    # have accounts (a real Argon2 verify is ~50-200ms; a short-circuited `None` check
+    # returns near-instantly).
+    password_ok = verify_password(
+        payload.password, user.hashed_password if user is not None else dummy_password_hash()
+    )
+    if user is None or not password_ok:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
     settings = request.app.state.settings
@@ -63,7 +70,14 @@ async def login(
 @router.post("/logout")
 async def logout(request: Request, response: Response) -> dict[str, str]:
     settings = request.app.state.settings
-    response.delete_cookie(settings.cookie_name)
+    # Must match the attributes set_cookie used in login() -- browsers only clear a
+    # cookie when path/samesite/secure line up with how it was originally set.
+    response.delete_cookie(
+        settings.cookie_name,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
     return {"status": "logged_out"}
 
 

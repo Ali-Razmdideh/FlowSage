@@ -1,7 +1,9 @@
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import flowsage_backend.api.auth as auth_module
 from flowsage_backend.seed import upsert_user
 
 
@@ -81,3 +83,38 @@ async def test_me_rejects_tampered_cookie(app: FastAPI) -> None:
         response = await client.get("/auth/me")
 
     assert response.status_code == 401
+
+
+async def test_unknown_email_still_runs_a_password_verify(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test: the unknown-email path must cost about the same as a real
+    failed login (both call verify_password once), or response timing leaks which
+    emails have accounts."""
+    calls: list[tuple[str, str]] = []
+    real_verify_password = auth_module.verify_password
+
+    def spy_verify_password(password: str, hashed: str) -> bool:
+        calls.append((password, hashed))
+        return real_verify_password(password, hashed)
+
+    monkeypatch.setattr(auth_module, "verify_password", spy_verify_password)
+
+    async with await _client(app) as client:
+        response = await client.post(
+            "/auth/login", json={"email": "nobody@example.com", "password": "whatever"}
+        )
+
+    assert response.status_code == 401
+    assert len(calls) == 1
+    assert calls[0] == ("whatever", auth_module.dummy_password_hash())
+
+
+async def test_logout_cookie_attributes_match_login_cookie(app: FastAPI) -> None:
+    async with await _client(app) as client:
+        response = await client.post("/auth/logout")
+
+    set_cookie = response.headers.get("set-cookie", "")
+    assert "flowsage_session=" in set_cookie
+    assert "httponly" in set_cookie.lower()
+    assert "samesite=lax" in set_cookie.lower()

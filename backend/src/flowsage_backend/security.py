@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 import jwt
 from argon2 import PasswordHasher
@@ -21,6 +22,17 @@ def verify_password(password: str, hashed: str) -> bool:
         return _hasher.verify(hashed, password)
     except (VerificationError, InvalidHash):
         return False
+
+
+@lru_cache(maxsize=1)
+def dummy_password_hash() -> str:
+    """A fixed Argon2 hash to verify against when no user was found.
+
+    Callers should still run `verify_password(password, dummy_password_hash())` on the
+    "unknown email" path so it costs about the same time as a real failed login --
+    otherwise the login endpoint's response time leaks which emails have accounts.
+    """
+    return _hasher.hash("not-a-real-password-timing-safety-only")
 
 
 def create_access_token(
