@@ -45,6 +45,19 @@ Together these answer three questions no current tool answers in one place: wher
 - **Vision/LLM:** multimodal models for reading UI screenshots and generating friction reports
 - **API:** FastAPI
 
+## Development
+
+The full build sequence lives in [plans/full-project-coding-plan.md](plans/full-project-coding-plan.md).
+Phase 0 ships two standalone scripts, each with its own README:
+
+- [scripts/flowsage-predict](scripts/flowsage-predict) — LLM persona walkthrough of a screenshot sequence -> Markdown friction report.
+- [scripts/flowsage-graph](scripts/flowsage-graph) — event log -> Neo4j journey graph -> automatic funnel discovery -> HTML report.
+
+Both are `uv` workspace members (single lockfile at the repo root) and ship a
+`Dockerfile`. `infra/docker-compose.yml` brings up local Neo4j/Postgres/Redis for
+development. Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY` to get
+started.
+
 ## Roadmap
 
 | Phase | Timeline | Goal |

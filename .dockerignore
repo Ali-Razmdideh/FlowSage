@@ -1,0 +1,13 @@
+.git/
+.github/
+.venv/
+**/__pycache__/
+**/*.pyc
+.mypy_cache/
+.pytest_cache/
+node_modules/
+frontend/dist/
+.remember/
+plans/
+design-hifi-prototypes/
+scripts/*/out/

@@ -1,0 +1,9 @@
+[tool.uv.workspace]
+members = [
+    "scripts/flowsage-predict",
+    "scripts/flowsage-graph",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]

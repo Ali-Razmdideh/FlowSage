@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python:
+    name: Python lint, typecheck, test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - scripts/flowsage-predict
+          - scripts/flowsage-graph
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.package }}
+        run: uv sync --all-extras
+
+      - name: autoflake8 (unused imports/vars)
+        working-directory: ${{ matrix.package }}
+        run: uv run autoflake8 --recursive --check src tests
+
+      - name: black (format check)
+        working-directory: ${{ matrix.package }}
+        run: uv run black --check src tests
+
+      - name: mypy (strict typing)
+        working-directory: ${{ matrix.package }}
+        run: uv run mypy --strict src
+
+      - name: pytest
+        working-directory: ${{ matrix.package }}
+        run: uv run pytest -v

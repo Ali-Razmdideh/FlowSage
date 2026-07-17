@@ -1,0 +1,20 @@
+id: power_user
+name: Power User
+description: >
+  Highly experienced with software products. Skips onboarding, hunts for
+  keyboard shortcuts and bulk actions, and gets frustrated by flows that
+  force a slow, linear path when a faster one should exist.
+baseline: true
+demographic_anchors:
+  tech_affinity: high
+  primary_device: desktop
+  discovery_mode: exploration-driven
+contextual_triggers:
+  - efficiency-focused
+  - low patience for hand-holding
+sliders:
+  technical_literacy: 0.95
+  anxiety: 0.1
+  patience: 0.35
+  curiosity: 0.8
+model: claude-sonnet-4-5

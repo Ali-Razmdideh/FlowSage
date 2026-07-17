@@ -1,0 +1,21 @@
+id: novice
+name: Novice User
+description: >
+  Represents users with limited domain knowledge. High need for guidance, low
+  tolerance for technical jargon. Prone to abandonment if initial cognitive
+  load is too high.
+baseline: true
+demographic_anchors:
+  tech_affinity: low
+  primary_device: mobile / tablet
+  discovery_mode: search-driven
+contextual_triggers:
+  - time constraint
+  - high distraction
+  - goal-oriented
+sliders:
+  technical_literacy: 0.2
+  anxiety: 0.85
+  patience: 0.3
+  curiosity: 0.4
+model: claude-sonnet-4-5

@@ -1,0 +1,21 @@
+id: accessibility_constrained
+name: Accessibility-Constrained
+description: >
+  Navigates with a screen reader and/or limited fine motor control. Relies on
+  clear focus order, sufficient color contrast, and generously sized tap
+  targets. Visual-only affordances (color alone, low-contrast text) are a
+  hard blocker, not a minor annoyance.
+baseline: true
+demographic_anchors:
+  tech_affinity: medium
+  primary_device: desktop with assistive technology
+  discovery_mode: keyboard/screen-reader navigation
+contextual_triggers:
+  - visual/motor impairment
+  - assistive technology in use
+sliders:
+  technical_literacy: 0.6
+  anxiety: 0.6
+  patience: 0.5
+  curiosity: 0.3
+model: claude-sonnet-4-5
