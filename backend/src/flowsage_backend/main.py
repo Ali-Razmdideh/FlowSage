@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from flowsage_backend.api.auth import router as auth_router
 from flowsage_backend.config import Settings, get_settings
 from flowsage_backend.db import create_engine, create_session_factory
 
@@ -24,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
+    app.include_router(auth_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

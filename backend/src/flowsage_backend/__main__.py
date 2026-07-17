@@ -1,12 +1,50 @@
-"""`flowsage-backend` console script: runs the API with uvicorn."""
+"""`flowsage-backend` console script: serves the API, or manages the seeded user."""
 
 from __future__ import annotations
 
+import argparse
+import asyncio
+
 import uvicorn
+
+from flowsage_backend.config import get_settings
+from flowsage_backend.db import create_engine, create_session_factory
+from flowsage_backend.seed import upsert_user
+
+
+async def _create_user(email: str, password: str) -> None:
+    settings = get_settings()
+    engine = create_engine(settings)
+    session_factory = create_session_factory(engine)
+    async with session_factory() as session:
+        user = await upsert_user(session, email, password)
+    await engine.dispose()
+    print(f"User ready: {user.email} ({user.id})")
+
+
+def _serve() -> None:
+    uvicorn.run("flowsage_backend.main:create_app", factory=True, host="0.0.0.0", port=8000)
 
 
 def main() -> None:
-    uvicorn.run("flowsage_backend.main:create_app", factory=True, host="0.0.0.0", port=8000)
+    parser = argparse.ArgumentParser(prog="flowsage-backend")
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    subparsers.add_parser("serve", help="Run the API server (default)")
+
+    create_user_parser = subparsers.add_parser(
+        "create-user", help="Create the single-tenant user, or reset its password"
+    )
+    create_user_parser.add_argument("email")
+    create_user_parser.add_argument("password")
+
+    args = parser.parse_args()
+
+    if args.command == "create-user":
+        asyncio.run(_create_user(args.email, args.password))
+        return
+
+    _serve()
 
 
 if __name__ == "__main__":
