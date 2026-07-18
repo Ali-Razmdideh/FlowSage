@@ -669,34 +669,36 @@ def build_digest_blocks(report: AlertsReport) -> list[dict[str, object]]:
         )
         return blocks
 
-    for alert in report.calibration_alerts:
+    for cal_alert in report.calibration_alerts:
         blocks.append(
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        f"*Calibration anomaly*: {alert.persona_name} on `{alert.screen}` "
-                        f"(delta {alert.delta:+.2f})"
+                        f"*Calibration anomaly*: {cal_alert.persona_name} on `{cal_alert.screen}` "
+                        f"(delta {cal_alert.delta:+.2f})"
                     ),
                 },
             }
         )
-    for alert in report.churn_alerts:
+    for churn_alert in report.churn_alerts:
         blocks.append(
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        f"*Churn risk*: {alert.cohort} at {alert.risk_score * 100:.0f}% "
-                        f"-- {alert.top_reason}"
+                        f"*Churn risk*: {churn_alert.cohort} at {churn_alert.risk_score * 100:.0f}% "
+                        f"-- {churn_alert.top_reason}"
                     ),
                 },
             }
         )
     return blocks
 ```
+
+(An earlier draft reused `alert` as the loop variable in both `for` loops above. mypy `--strict` narrows a reused loop variable's type across iterations of the *same* scope, and flagged 4 errors when the second loop rebound `alert` to a different Pydantic model. Fixed by giving each loop its own variable name — caught during Task 4's implementation, patched here for anyone reading this plan afterward.)
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
