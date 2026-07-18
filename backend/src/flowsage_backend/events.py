@@ -54,6 +54,22 @@ async def query_events(
     return [row.to_graph_event() for row in result.scalars().all()]
 
 
+async def distinct_cohorts(
+    session: AsyncSession,
+    *,
+    device: str | None = None,
+    since: datetime | None = None,
+) -> list[str]:
+    query = select(Event.cohort).distinct()
+    if device is not None:
+        query = query.where(Event.device == device)
+    if since is not None:
+        query = query.where(Event.timestamp >= since)
+
+    result = await session.execute(query)
+    return sorted(result.scalars().all())
+
+
 async def build_funnel_report(
     session: AsyncSession,
     *,

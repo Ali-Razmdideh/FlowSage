@@ -125,3 +125,43 @@ export interface RetrainingJob {
   progress: number;
   error: string | null;
 }
+
+export interface CohortFunnelSummary {
+  cohort: string;
+  total_sessions: number;
+  funnel: FunnelStep[];
+}
+
+export interface ScreenCohortComparison {
+  screen: string;
+  drop_off_by_cohort: Record<string, number>;
+  max_delta: number;
+}
+
+export interface CohortComparisonReport {
+  cohorts: CohortFunnelSummary[];
+  screens: ScreenCohortComparison[];
+}
+
+export interface ChurnRiskSegment {
+  cohort: string;
+  risk_score: number;
+  sessions_at_risk: number;
+  top_reason: string;
+}
+
+export interface Recommendation {
+  rank: number;
+  title: string;
+  description: string;
+  expected_lift_pct: number | null;
+}
+
+export interface NodeIntelligence {
+  screen: string;
+  drop_off_rate: number;
+  avg_seconds_on_node: number | null;
+  friction_nodes: FrictionNode[];
+  ai_insight: string;
+  recommendations: Recommendation[];
+}

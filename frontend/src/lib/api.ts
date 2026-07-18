@@ -1,7 +1,10 @@
 import type {
   CalibrationReport,
+  ChurnRiskSegment,
+  CohortComparisonReport,
   FunnelFilters,
   FunnelReport,
+  NodeIntelligence,
   Persona,
   RetrainingJob,
   SimulationRun,
@@ -65,6 +68,21 @@ function toQueryString(filters: FunnelFilters): string {
   return qs ? `?${qs}` : "";
 }
 
+interface CohortCompareFilters {
+  cohorts?: string[];
+  device?: string;
+  since?: string;
+}
+
+function toCohortCompareQueryString(filters: CohortCompareFilters): string {
+  const params = new URLSearchParams();
+  for (const cohort of filters.cohorts ?? []) params.append("cohorts", cohort);
+  if (filters.device) params.set("device", filters.device);
+  if (filters.since) params.set("since", filters.since);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 export interface CreateSimulationInput {
   personaId: string;
   goal: string;
@@ -118,4 +136,18 @@ export const api = {
     request<RetrainingJob>(`/calibration/retrain/${id}`),
 
   retrainingStreamUrl: (id: string): string => `${API_BASE}/calibration/retrain/${id}/stream`,
+
+  getCohortComparison: (filters: CohortCompareFilters = {}): Promise<CohortComparisonReport> =>
+    request<CohortComparisonReport>(`/graph/cohorts/compare${toCohortCompareQueryString(filters)}`),
+
+  getChurnRisk: (filters: FunnelFilters = {}): Promise<ChurnRiskSegment[]> =>
+    request<ChurnRiskSegment[]>(`/graph/churn-risk${toQueryString(filters)}`),
+
+  getNodeIntelligence: (
+    screen: string,
+    filters: FunnelFilters = {},
+  ): Promise<NodeIntelligence> =>
+    request<NodeIntelligence>(
+      `/graph/nodes/${encodeURIComponent(screen)}${toQueryString(filters)}`,
+    ),
 };

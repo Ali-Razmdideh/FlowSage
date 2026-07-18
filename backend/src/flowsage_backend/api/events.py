@@ -7,12 +7,20 @@ import asyncio
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from flowsage_graph.models import Event as GraphEvent
 from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.churn import (
+    ChurnRiskSegment,
+    CohortComparisonReport,
+    NodeIntelligence,
+    build_churn_risk_segments,
+    compare_cohorts,
+    get_node_intelligence,
+)
 from flowsage_backend.deps import get_current_user, get_db_session, require_api_key
 from flowsage_backend.events import build_funnel_report, ingest_events
 
@@ -65,3 +73,36 @@ async def funnel(
     session: AsyncSession = Depends(get_db_session),
 ) -> FunnelReport:
     return await build_funnel_report(session, cohort=cohort, device=device, since=since)
+
+
+@graph_router.get("/cohorts/compare", response_model=CohortComparisonReport)
+async def cohorts_compare(
+    cohorts: list[str] = Query(default=[]),
+    device: str | None = Query(default=None),
+    since: datetime | None = Query(default=None),
+    session: AsyncSession = Depends(get_db_session),
+) -> CohortComparisonReport:
+    return await compare_cohorts(session, cohorts, device=device, since=since)
+
+
+@graph_router.get("/churn-risk", response_model=list[ChurnRiskSegment])
+async def churn_risk(
+    device: str | None = Query(default=None),
+    since: datetime | None = Query(default=None),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[ChurnRiskSegment]:
+    return await build_churn_risk_segments(session, device=device, since=since)
+
+
+@graph_router.get("/nodes/{screen}", response_model=NodeIntelligence)
+async def node_intelligence(
+    screen: str,
+    cohort: str | None = Query(default=None),
+    device: str | None = Query(default=None),
+    since: datetime | None = Query(default=None),
+    session: AsyncSession = Depends(get_db_session),
+) -> NodeIntelligence:
+    result = await get_node_intelligence(session, screen, cohort=cohort, device=device, since=since)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
+    return result
