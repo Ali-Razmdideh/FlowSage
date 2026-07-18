@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     # checks a shared secret via X-API-Key rather than the browser session cookie.
     events_api_key: str = _PLACEHOLDER_EVENTS_API_KEY
 
+    # Alert export integrations (Phase 2 chunk 3). Optional -- unlike JWT_SECRET/
+    # EVENTS_API_KEY, exports are meant to work unconfigured: callers get a clean
+    # "not configured" error from flowsage_backend.integrations, not a startup
+    # failure. Per-workspace Integration rows + a settings UI are Phase 3 scope.
+    slack_webhook_url: str | None = None
+    jira_base_url: str | None = None
+    jira_email: str | None = None
+    jira_api_token: str | None = None
+    jira_project_key: str | None = None
+
     @model_validator(mode="after")
     def _reject_placeholder_secret_outside_dev(self) -> "Settings":
         if self.environment == "development":
