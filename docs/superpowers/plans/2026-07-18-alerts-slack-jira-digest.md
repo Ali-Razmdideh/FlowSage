@@ -140,7 +140,7 @@ Expected: exits 0. (Run from the repo root — running `uv sync` from inside `ba
 
 **Interfaces:**
 - Produces: `SlackNotConfiguredError(Exception)`, `SlackDeliveryError(Exception)`,
-  `async def post_slack_message(webhook_url: str | None, *, text: str, blocks: list[dict[str, object]] | None = None, transport: httpx.BaseTransport | None = None) -> None`
+  `async def post_slack_message(webhook_url: str | None, *, text: str, blocks: list[dict[str, object]] | None = None, transport: httpx.AsyncBaseTransport | None = None) -> None`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -223,7 +223,7 @@ async def post_slack_message(
     *,
     text: str,
     blocks: list[dict[str, object]] | None = None,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> None:
     if webhook_url is None:
         raise SlackNotConfiguredError("SLACK_WEBHOOK_URL is not configured")
@@ -286,7 +286,7 @@ Expected: `Success: no issues found`
 **Interfaces:**
 - Consumes: nothing from Task 2 (parallel client, same pattern).
 - Produces: `JiraNotConfiguredError(Exception)`, `JiraDeliveryError(Exception)`,
-  `async def create_jira_issue(*, base_url: str | None, email: str | None, api_token: str | None, project_key: str | None, summary: str, description: str, transport: httpx.BaseTransport | None = None) -> str` (returns the created issue key, e.g. `"FLOW-123"`).
+  `async def create_jira_issue(*, base_url: str | None, email: str | None, api_token: str | None, project_key: str | None, summary: str, description: str, transport: httpx.AsyncBaseTransport | None = None) -> str` (returns the created issue key, e.g. `"FLOW-123"`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -400,7 +400,7 @@ async def create_jira_issue(
     project_key: str | None,
     summary: str,
     description: str,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> str:
     if not (base_url and email and api_token and project_key):
         raise JiraNotConfiguredError(
