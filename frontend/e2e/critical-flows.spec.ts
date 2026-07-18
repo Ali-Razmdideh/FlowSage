@@ -38,6 +38,16 @@ test("journey graph loads without error", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("calibration insights loads without error", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "Calibration" }).click();
+  await expect(page).toHaveURL(/\/calibration/);
+  // Whichever state the report is in (anomaly vs. optimized depends on whether
+  // any completed simulation run + ingested events exist), the heading is
+  // always rendered -- that's the contract this test checks.
+  await expect(page.getByRole("heading", { name: "Calibration Insights" })).toBeVisible();
+});
+
 test("running a simulation reaches a terminal state", async ({ page }) => {
   await login(page);
   await page.getByRole("link", { name: "Predictive Engine" }).click();

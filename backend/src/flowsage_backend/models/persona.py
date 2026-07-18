@@ -12,7 +12,7 @@ from datetime import datetime
 
 from flowsage_predict.models import BehavioralSliders, DemographicAnchors
 from flowsage_predict.models import Persona as PredictPersona
-from sqlalchemy import Boolean, DateTime, Float, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,3 +61,19 @@ class Persona(Base):
             ),
             model=self.model,
         )
+
+
+class PersonaMemory(Base):
+    """A note appended to a persona's history, e.g. by a retraining job explaining
+    what behavioral evidence it saw and how it adjusted the persona's sliders."""
+
+    __tablename__ = "persona_memories"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    persona_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("personas.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    note: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(32), default="retraining")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

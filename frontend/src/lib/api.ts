@@ -1,7 +1,9 @@
 import type {
+  CalibrationReport,
   FunnelFilters,
   FunnelReport,
   Persona,
+  RetrainingJob,
   SimulationRun,
   SimulationRunDetail,
   User,
@@ -102,4 +104,18 @@ export const api = {
     request<FunnelReport>(`/graph/funnel${toQueryString(filters)}`),
 
   simulationStreamUrl: (id: string): string => `${API_BASE}/simulations/${id}/stream`,
+
+  getCalibrationReport: (): Promise<CalibrationReport> =>
+    request<CalibrationReport>("/calibration/report"),
+
+  startRetraining: (personaId: string): Promise<RetrainingJob> =>
+    request<RetrainingJob>("/calibration/retrain", {
+      method: "POST",
+      body: JSON.stringify({ persona_id: personaId }),
+    }),
+
+  getRetrainingJob: (id: string): Promise<RetrainingJob> =>
+    request<RetrainingJob>(`/calibration/retrain/${id}`),
+
+  retrainingStreamUrl: (id: string): string => `${API_BASE}/calibration/retrain/${id}/stream`,
 };

@@ -15,6 +15,7 @@ from flowsage_predict.vision import AnthropicVisionClient, VisionClient
 
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
+from flowsage_backend.retraining import execute_retraining
 from flowsage_backend.simulations import execute_simulation
 
 
@@ -37,8 +38,14 @@ async def run_simulation_job(ctx: dict[str, Any], run_id: str) -> None:
         await execute_simulation(session, uuid.UUID(run_id), vision_client)
 
 
+async def run_retraining_job(ctx: dict[str, Any], job_id: str) -> None:
+    session_factory = ctx["session_factory"]
+    async with session_factory() as session:
+        await execute_retraining(session, uuid.UUID(job_id))
+
+
 class WorkerSettings:
-    functions = [run_simulation_job]
+    functions = [run_simulation_job, run_retraining_job]
     on_startup = _startup
     on_shutdown = _shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)

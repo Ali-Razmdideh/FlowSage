@@ -7,6 +7,7 @@ import { DashboardPage } from "./routes/DashboardPage";
 import { PredictiveEnginePage } from "./routes/predictive/PredictiveEnginePage";
 import { RunningSimulationPage } from "./routes/predictive/RunningSimulationPage";
 import { JourneyGraphPage } from "./routes/journey/JourneyGraphPage";
+import { CalibrationPage } from "./routes/calibration/CalibrationPage";
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
           <Route path="/predictive" element={<PredictiveEnginePage />} />
           <Route path="/predictive/runs/:runId" element={<RunningSimulationPage />} />
           <Route path="/journey" element={<JourneyGraphPage />} />
+          <Route path="/calibration" element={<CalibrationPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

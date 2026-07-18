@@ -85,3 +85,43 @@ export interface FunnelFilters {
   device?: string;
   since?: string;
 }
+
+export interface ScreenCalibration {
+  screen: string;
+  predicted_score: number;
+  observed_score: number;
+  delta: number;
+  anomaly: boolean;
+}
+
+export interface PersonaCalibration {
+  persona_id: string;
+  persona_name: string;
+  run_id: string;
+  screens: ScreenCalibration[];
+}
+
+export interface AccuracyPoint {
+  persona_id: string;
+  persona_name: string;
+  complexity: number;
+  accuracy: number;
+}
+
+export interface CalibrationReport {
+  personas: PersonaCalibration[];
+  accuracy_points: AccuracyPoint[];
+  has_anomaly: boolean;
+}
+
+export type RetrainingStatus = "queued" | "running" | "completed" | "failed";
+
+export interface RetrainingJob {
+  id: string;
+  persona_id: string;
+  status: RetrainingStatus;
+  epoch: number;
+  total_epochs: number;
+  progress: number;
+  error: string | null;
+}
