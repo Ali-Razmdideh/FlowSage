@@ -49,7 +49,9 @@ def has_alerts(report: AlertsReport) -> bool:
 
 def check_calibration_anomalies(report: CalibrationReport) -> list[CalibrationAlert]:
     return [
-        CalibrationAlert(persona_name=persona.persona_name, screen=screen.screen, delta=screen.delta)
+        CalibrationAlert(
+            persona_name=persona.persona_name, screen=screen.screen, delta=screen.delta
+        )
         for persona in report.personas
         for screen in persona.screens
         if screen.anomaly

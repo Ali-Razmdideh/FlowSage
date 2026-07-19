@@ -51,7 +51,9 @@ async def create_jira_issue(
         response = await client.post(f"{base_url}/rest/api/3/issue", json=payload)
 
     if response.status_code != 201:
-        raise JiraDeliveryError(f"Jira issue creation returned {response.status_code}: {response.text}")
+        raise JiraDeliveryError(
+            f"Jira issue creation returned {response.status_code}: {response.text}"
+        )
 
     key = response.json()["key"]
     assert isinstance(key, str)
