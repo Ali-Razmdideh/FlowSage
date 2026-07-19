@@ -82,7 +82,9 @@ class CalibrationReport(BaseModel):
 
 
 def build_screen_calibrations(
-    predicted: dict[str, float], funnel: list[FunnelStep]
+    predicted: dict[str, float],
+    funnel: list[FunnelStep],
+    anomaly_threshold: float = ANOMALY_THRESHOLD,
 ) -> list[ScreenCalibration]:
     observed_by_screen = {step.screen: step.drop_off_rate for step in funnel}
     results = [
@@ -91,7 +93,7 @@ def build_screen_calibrations(
             predicted_score=predicted_score,
             observed_score=observed_by_screen.get(screen, 0.0),
             delta=observed_by_screen.get(screen, 0.0) - predicted_score,
-            anomaly=abs(observed_by_screen.get(screen, 0.0) - predicted_score) > ANOMALY_THRESHOLD,
+            anomaly=abs(observed_by_screen.get(screen, 0.0) - predicted_score) > anomaly_threshold,
         )
         for screen, predicted_score in predicted.items()
     ]
@@ -134,7 +136,9 @@ async def latest_completed_run_for_persona(
 
 
 async def build_calibration_report(
-    session: AsyncSession, funnel: list[FunnelStep]
+    session: AsyncSession,
+    funnel: list[FunnelStep],
+    anomaly_threshold: float = ANOMALY_THRESHOLD,
 ) -> CalibrationReport:
     runs = await latest_completed_runs_by_persona(session)
     personas: list[PersonaCalibration] = []
@@ -146,7 +150,7 @@ async def build_calibration_report(
         if not predicted:
             continue
 
-        screens = build_screen_calibrations(predicted, funnel)
+        screens = build_screen_calibrations(predicted, funnel, anomaly_threshold)
         if any(s.anomaly for s in screens):
             has_anomaly = True
 

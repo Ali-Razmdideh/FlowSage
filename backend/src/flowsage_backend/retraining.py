@@ -27,6 +27,7 @@ from flowsage_backend.calibration import (
 from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.persona import Persona, PersonaMemory
+from flowsage_backend.settings_store import get_or_create_calibration_settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 NUDGE_STEP = 0.05
@@ -95,7 +96,8 @@ async def execute_retraining(session: AsyncSession, job_id: uuid.UUID) -> None:
 
         events = await query_events(session)
         funnel = discover_funnel(events)
-        screens = build_screen_calibrations(predicted, funnel)
+        settings = await get_or_create_calibration_settings(session)
+        screens = build_screen_calibrations(predicted, funnel, settings.anomaly_threshold)
         anomalies = [s for s in screens if s.anomaly]
 
         job.total_epochs = max(len(anomalies), 1)

@@ -19,6 +19,7 @@ from flowsage_backend.deps import get_current_user, get_db_session
 from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.retraining import RetrainingError, create_retraining_job
+from flowsage_backend.settings_store import get_or_create_calibration_settings
 
 router = APIRouter(
     prefix="/calibration", tags=["calibration"], dependencies=[Depends(get_current_user)]
@@ -57,7 +58,8 @@ async def get_calibration_report(
 ) -> CalibrationReport:
     events = await query_events(session)
     funnel = discover_funnel(events)
-    return await build_calibration_report(session, funnel)
+    settings = await get_or_create_calibration_settings(session)
+    return await build_calibration_report(session, funnel, settings.anomaly_threshold)
 
 
 @router.post("/retrain", response_model=RetrainingJobOut, status_code=status.HTTP_201_CREATED)
