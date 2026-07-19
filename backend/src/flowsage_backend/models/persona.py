@@ -12,7 +12,16 @@ from datetime import datetime
 
 from flowsage_predict.models import BehavioralSliders, DemographicAnchors
 from flowsage_predict.models import Persona as PredictPersona
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,12 +30,13 @@ from flowsage_backend.models.base import Base
 
 class Persona(Base):
     __tablename__ = "personas"
+    __table_args__ = (UniqueConstraint("slug", "workspace_id", name="uq_persona_slug_workspace"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
-    slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(64), index=True)
     name: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text)
     baseline: Mapped[bool] = mapped_column(Boolean, default=False)

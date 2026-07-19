@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -27,6 +28,8 @@ from testcontainers.redis import RedisContainer
 from flowsage_backend.config import Settings
 from flowsage_backend.main import create_app
 from flowsage_backend.models import Base
+from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership
 
 
 @pytest.fixture(scope="session")
@@ -73,6 +76,16 @@ async def db_session(postgres_url: str, _tables_ready: None) -> AsyncIterator[As
     async with session_factory() as session:
         yield session
     await engine.dispose()
+
+
+@pytest.fixture
+async def second_workspace_membership(db_session: AsyncSession) -> tuple[User, Membership]:
+    """A second user in a second workspace, for cross-tenant isolation tests."""
+    from flowsage_backend.seed import upsert_user
+
+    user = await upsert_user(db_session, "other-tenant@example.com", "hunter2")
+    result = await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    return user, result.scalar_one()
 
 
 @pytest.fixture(scope="session")

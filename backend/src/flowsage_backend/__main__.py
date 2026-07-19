@@ -6,9 +6,11 @@ import argparse
 import asyncio
 
 import uvicorn
+from sqlalchemy import select
 
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
+from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
 
@@ -27,7 +29,11 @@ async def _seed_personas() -> None:
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
     async with session_factory() as session:
-        personas = await seed_baseline_personas(session)
+        result = await session.execute(select(Workspace).order_by(Workspace.created_at).limit(1))
+        workspace = result.scalar_one_or_none()
+        if workspace is None:
+            raise SystemExit("No workspace exists yet -- run `create-user` first.")
+        personas = await seed_baseline_personas(session, workspace.id)
     await engine.dispose()
     print(f"{len(personas)} baseline persona(s) ready: {', '.join(p.slug for p in personas)}")
 
