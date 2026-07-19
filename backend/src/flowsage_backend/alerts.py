@@ -1,9 +1,11 @@
-"""Trend/alert checks reused by the dashboard banner, the weekly digest, and
+"""Trend/alert checks reused by the dashboard banner, the digest job, and
 (indirectly, via the same threshold definitions) the export buttons' context.
-Deliberately reuses the existing calibration delta threshold
-(`calibration.ANOMALY_THRESHOLD`) and a fixed churn-risk threshold rather than
-introducing a configurable `AlertRule` table -- there's a single definition of
-"anomalous" across the app, and no rule-config UI was scoped for this chunk.
+Reuses the calibration delta threshold and a churn-risk threshold -- there's a
+single definition of "anomalous" across the app, not a per-rule config table --
+but both thresholds are now editable via `/settings/model-calibration`
+(`flowsage_backend.models.settings.CalibrationSettings`), not hardcoded; the
+module constants below remain as the defaults a fresh settings row is seeded
+with.
 
 Like `calibration.py`/`churn.py`, everything here is computed on demand from
 current data -- no persisted "alert" rows.
@@ -18,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from flowsage_backend.calibration import CalibrationReport, build_calibration_report
 from flowsage_backend.churn import ChurnRiskSegment, build_churn_risk_segments
 from flowsage_backend.events import query_events
+from flowsage_backend.settings_store import get_or_create_calibration_settings
 
 CHURN_RISK_ALERT_THRESHOLD = 0.5
 """A churn-risk segment at or above this score is alert-worthy. Matches the
@@ -58,22 +61,25 @@ def check_calibration_anomalies(report: CalibrationReport) -> list[CalibrationAl
     ]
 
 
-def check_churn_alerts(segments: list[ChurnRiskSegment]) -> list[ChurnAlert]:
+def check_churn_alerts(
+    segments: list[ChurnRiskSegment], churn_risk_alert_threshold: float = CHURN_RISK_ALERT_THRESHOLD
+) -> list[ChurnAlert]:
     return [
         ChurnAlert(cohort=s.cohort, risk_score=s.risk_score, top_reason=s.top_reason)
         for s in segments
-        if s.risk_score >= CHURN_RISK_ALERT_THRESHOLD
+        if s.risk_score >= churn_risk_alert_threshold
     ]
 
 
 async def build_alerts_report(session: AsyncSession) -> AlertsReport:
     events = await query_events(session)
     funnel = discover_funnel(events)
-    calibration_report = await build_calibration_report(session, funnel)
+    settings = await get_or_create_calibration_settings(session)
+    calibration_report = await build_calibration_report(session, funnel, settings.anomaly_threshold)
     churn_segments = await build_churn_risk_segments(session)
     return AlertsReport(
         calibration_alerts=check_calibration_anomalies(calibration_report),
-        churn_alerts=check_churn_alerts(churn_segments),
+        churn_alerts=check_churn_alerts(churn_segments, settings.churn_risk_alert_threshold),
     )
 
 
@@ -81,23 +87,23 @@ def build_digest_text(report: AlertsReport) -> str:
     """Plain-text fallback for Slack's top-level `text` field (used in
     notification previews; `build_digest_blocks` is the rendered body)."""
     if not has_alerts(report):
-        return "FlowSage Weekly Digest: no calibration or churn alerts this week."
+        return "FlowSage Digest: no calibration or churn alerts."
     parts = [
         f"{len(report.calibration_alerts)} calibration anomalies",
         f"{len(report.churn_alerts)} churn-risk segments",
     ]
-    return "FlowSage Weekly Digest: " + ", ".join(parts)
+    return "FlowSage Digest: " + ", ".join(parts)
 
 
 def build_digest_blocks(report: AlertsReport) -> list[dict[str, object]]:
     blocks: list[dict[str, object]] = [
-        {"type": "header", "text": {"type": "plain_text", "text": "FlowSage Weekly Digest"}},
+        {"type": "header", "text": {"type": "plain_text", "text": "FlowSage Digest"}},
     ]
     if not has_alerts(report):
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "No calibration or churn alerts this week."},
+                "text": {"type": "mrkdwn", "text": "No calibration or churn alerts."},
             }
         )
         return blocks
