@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: "/predictive", label: "Predictive Engine", icon: "psychology" },
   { to: "/journey", label: "Journey Graph", icon: "timeline" },
   { to: "/calibration", label: "Calibration", icon: "tune" },
+  { to: "/settings/model-calibration", label: "Settings", icon: "settings" },
 ] as const;
 
 export function Sidebar() {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError } from "../../lib/api";
 import type { Persona } from "../../lib/types";
 
@@ -55,17 +55,30 @@ export function PredictiveEnginePage() {
       </div>
 
       <section className="bg-surface-container-lowest rounded-xl p-6">
-        <h2 className="font-headline text-xl mb-4">Persona Library</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-headline text-xl">Persona Library</h2>
+          <Link
+            to="/predictive/personas/new"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            + New Persona
+          </Link>
+        </div>
         {personas === null ? (
           <p className="text-on-surface-variant text-sm">Loading personas…</p>
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {personas.map((persona) => (
-              <li key={persona.id} className="ghost-border rounded-lg p-4">
-                <p className="font-medium">{persona.name}</p>
-                <p className="text-sm text-on-surface-variant mt-1 line-clamp-2">
-                  {persona.description}
-                </p>
+              <li key={persona.id}>
+                <Link
+                  to={`/predictive/personas/${persona.id}`}
+                  className="ghost-border rounded-lg p-4 block hover:bg-surface-container transition"
+                >
+                  <p className="font-medium">{persona.name}</p>
+                  <p className="text-sm text-on-surface-variant mt-1 line-clamp-2">
+                    {persona.description}
+                  </p>
+                </Link>
               </li>
             ))}
           </ul>

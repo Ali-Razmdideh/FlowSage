@@ -20,6 +20,43 @@ export interface Persona {
   curiosity: number;
 }
 
+export interface PersonaMemory {
+  id: string;
+  title: string;
+  note: string;
+  kind: string;
+  created_at: string;
+}
+
+export interface PersonaDetail extends Persona {
+  memories: PersonaMemory[];
+}
+
+export interface PersonaCreatePayload {
+  slug: string;
+  name: string;
+  description: string;
+  tech_affinity: string;
+  primary_device: string;
+  discovery_mode: string;
+  contextual_triggers: string[];
+  technical_literacy: number;
+  anxiety: number;
+  patience: number;
+  curiosity: number;
+}
+
+export type PersonaUpdatePayload = Omit<PersonaCreatePayload, "slug">;
+
+export type DigestFrequency = "daily" | "weekly";
+
+export interface CalibrationSettings {
+  anomaly_threshold: number;
+  churn_risk_alert_threshold: number;
+  auto_retrain_on_anomaly: boolean;
+  digest_frequency: DigestFrequency;
+}
+
 export type RunStatus = "queued" | "running" | "completed" | "failed";
 
 export interface SimulationRun {

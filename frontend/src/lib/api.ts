@@ -1,6 +1,7 @@
 import type {
   AlertsReport,
   CalibrationReport,
+  CalibrationSettings,
   ChurnRiskSegment,
   CohortComparisonReport,
   FunnelFilters,
@@ -8,6 +9,9 @@ import type {
   JiraExportResult,
   NodeIntelligence,
   Persona,
+  PersonaCreatePayload,
+  PersonaDetail,
+  PersonaUpdatePayload,
   RetrainingJob,
   SimulationRun,
   SimulationRunDetail,
@@ -107,6 +111,20 @@ export const api = {
 
   listPersonas: (): Promise<Persona[]> => request<Persona[]>("/personas"),
 
+  getPersona: (id: string): Promise<PersonaDetail> => request<PersonaDetail>(`/personas/${id}`),
+
+  createPersona: (payload: PersonaCreatePayload): Promise<Persona> =>
+    request<Persona>("/personas", { method: "POST", body: JSON.stringify(payload) }),
+
+  updatePersona: (id: string, payload: PersonaUpdatePayload): Promise<Persona> =>
+    request<Persona>(`/personas/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  resetPersona: (id: string): Promise<Persona> =>
+    request<Persona>(`/personas/${id}/reset`, { method: "POST" }),
+
+  deletePersona: (id: string): Promise<void> =>
+    request<void>(`/personas/${id}`, { method: "DELETE" }),
+
   createSimulation: (input: CreateSimulationInput): Promise<SimulationRun> => {
     const formData = new FormData();
     formData.set("persona_id", input.personaId);
@@ -173,4 +191,13 @@ export const api = {
       `/graph/nodes/${encodeURIComponent(screen)}/export/jira`,
       { method: "POST" },
     ),
+
+  getModelCalibrationSettings: (): Promise<CalibrationSettings> =>
+    request<CalibrationSettings>("/settings/model-calibration"),
+
+  updateModelCalibrationSettings: (payload: CalibrationSettings): Promise<CalibrationSettings> =>
+    request<CalibrationSettings>("/settings/model-calibration", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };
