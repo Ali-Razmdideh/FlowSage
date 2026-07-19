@@ -126,6 +126,23 @@ const SEVERITY_LABEL: Record<FrictionIssue["severity"], string> = {
 };
 
 function FrictionIssueCard({ issue }: { issue: FrictionIssue }) {
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  const handleExport = async (target: "slack" | "jira") => {
+    setExportStatus(null);
+    try {
+      if (target === "slack") {
+        await api.exportIssueToSlack(issue.id);
+        setExportStatus("Exported to Slack.");
+      } else {
+        const result = await api.exportIssueToJira(issue.id);
+        setExportStatus(`Created Jira issue ${result.issue_key}.`);
+      }
+    } catch (err) {
+      setExportStatus(err instanceof ApiError ? err.message : "Export failed.");
+    }
+  };
+
   return (
     <li className="ghost-border rounded-lg p-4">
       <div className="flex items-center gap-2">
@@ -149,6 +166,25 @@ function FrictionIssueCard({ issue }: { issue: FrictionIssue }) {
         <span className="text-on-surface-variant">Suggested fix: </span>
         {issue.suggested_fix}
       </p>
+      <div className="flex items-center gap-4 mt-3">
+        <button
+          type="button"
+          onClick={() => void handleExport("slack")}
+          className="text-sm text-primary hover:underline"
+        >
+          Export to Slack
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleExport("jira")}
+          className="text-sm text-primary hover:underline"
+        >
+          Export to Jira
+        </button>
+      </div>
+      {exportStatus !== null ? (
+        <p className="text-xs text-on-surface-variant mt-2">{exportStatus}</p>
+      ) : null}
     </li>
   );
 }

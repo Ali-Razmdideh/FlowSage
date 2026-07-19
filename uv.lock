@@ -493,6 +493,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "flowsage-graph" },
     { name = "flowsage-predict" },
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
@@ -505,7 +506,6 @@ dependencies = [
 dev = [
     { name = "autoflake8" },
     { name = "black" },
-    { name = "httpx" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -522,6 +522,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<0.116" },
     { name = "flowsage-graph", editable = "scripts/flowsage-graph" },
     { name = "flowsage-predict", editable = "scripts/flowsage-predict" },
+    { name = "httpx", specifier = ">=0.27,<0.28" },
     { name = "pydantic", specifier = ">=2.7,<3.0" },
     { name = "pydantic-settings", specifier = ">=2.4,<3.0" },
     { name = "pyjwt", specifier = ">=2.9,<3.0" },
@@ -534,7 +535,6 @@ requires-dist = [
 dev = [
     { name = "autoflake8", specifier = ">=0.4.1,<0.5" },
     { name = "black", specifier = ">=24.8,<25.0" },
-    { name = "httpx", specifier = ">=0.27,<0.28" },
     { name = "mypy", specifier = ">=1.11,<2.0" },
     { name = "pytest", specifier = ">=8.3,<9.0" },
     { name = "pytest-asyncio", specifier = ">=0.24,<0.25" },

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
-import type { FunnelReport, Persona } from "../lib/types";
+import type { AlertsReport, FunnelReport, Persona } from "../lib/types";
 
 export function DashboardPage() {
   const [personas, setPersonas] = useState<Persona[] | null>(null);
   const [funnel, setFunnel] = useState<FunnelReport | null>(null);
+  const [alerts, setAlerts] = useState<AlertsReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,9 +18,13 @@ export function DashboardPage() {
       .catch((err: unknown) => {
         setError(err instanceof ApiError ? err.message : "Failed to load dashboard data.");
       });
+
+    api.getAlerts().then(setAlerts).catch(() => setAlerts(null));
   }, []);
 
   const topFriction = funnel?.friction_nodes.slice(0, 3) ?? [];
+  const hasAlerts =
+    alerts !== null && (alerts.calibration_alerts.length > 0 || alerts.churn_alerts.length > 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -32,6 +37,28 @@ export function DashboardPage() {
       </div>
 
       {error !== null ? <p className="text-error text-sm">{error}</p> : null}
+
+      {hasAlerts && alerts !== null ? (
+        <div className="rounded-xl border-l-4 border-error bg-error-container/20 p-4">
+          <span className="inline-block rounded-full bg-error-container px-3 py-1 text-xs font-label uppercase tracking-wide text-on-error-container mb-2">
+            Alerts
+          </span>
+          <ul className="text-sm mt-2 flex flex-col gap-1">
+            {alerts.calibration_alerts.map((alert) => (
+              <li key={`cal-${alert.persona_name}-${alert.screen}`}>
+                Calibration anomaly: {alert.persona_name} on {alert.screen} (delta{" "}
+                {alert.delta.toFixed(2)})
+              </li>
+            ))}
+            {alerts.churn_alerts.map((alert) => (
+              <li key={`churn-${alert.cohort}`}>
+                Churn risk: {alert.cohort} at {(alert.risk_score * 100).toFixed(0)}% —{" "}
+                {alert.top_reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard

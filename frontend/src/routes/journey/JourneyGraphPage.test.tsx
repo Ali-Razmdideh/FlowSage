@@ -14,6 +14,8 @@ vi.mock("../../lib/api", async () => {
       getChurnRisk: vi.fn().mockResolvedValue([]),
       getCohortComparison: vi.fn().mockResolvedValue({ cohorts: [], screens: [] }),
       getNodeIntelligence: vi.fn(),
+      exportNodeToSlack: vi.fn(),
+      exportNodeToJira: vi.fn(),
     },
   };
 });
@@ -105,5 +107,36 @@ describe("JourneyGraphPage", () => {
     expect(await screen.findByText("Node Intelligence")).toBeInTheDocument();
     expect(await screen.findByText(/80% of sessions abandon/)).toBeInTheDocument();
     expect(screen.getByText(/Simplify the Checkout_Final_Payment step/)).toBeInTheDocument();
+  });
+
+  it("exports the open node to Slack and shows a success message", async () => {
+    vi.mocked(api.getFunnel).mockResolvedValue({
+      funnel: [{ screen: "checkout", sessions_entered: 10, sessions_continued: 5, drop_off_rate: 0.5 }],
+      friction_nodes: [
+        { screen: "checkout", kind: "abnormal_drop_off", detail: "High drop-off.", sessions_affected: 5 },
+      ],
+      total_sessions: 10,
+      total_events: 20,
+    });
+    vi.mocked(api.getNodeIntelligence).mockResolvedValue({
+      screen: "checkout",
+      drop_off_rate: 0.5,
+      avg_seconds_on_node: 30,
+      friction_nodes: [],
+      ai_insight: "High drop-off at checkout.",
+      recommendations: [],
+    });
+    vi.mocked(api.exportNodeToSlack).mockResolvedValue({ status: "sent" });
+
+    render(<JourneyGraphPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /checkout/ }));
+    await screen.findByText("High drop-off at checkout.");
+
+    const slackButton = screen.getByRole("button", { name: "Export to Slack" });
+    fireEvent.click(slackButton);
+
+    expect(await screen.findByText(/Exported to Slack/)).toBeInTheDocument();
+    expect(api.exportNodeToSlack).toHaveBeenCalledWith("checkout");
   });
 });

@@ -41,3 +41,24 @@ def test_custom_secrets_allowed_outside_dev(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("JWT_SECRET", "a-real-32-byte-secret-for-production!!")
     monkeypatch.setenv("EVENTS_API_KEY", "a-real-32-byte-events-api-key-here!!")
     Settings()  # must not raise
+
+
+def test_slack_jira_settings_default_to_unconfigured() -> None:
+    settings = Settings()
+    assert settings.slack_webhook_url is None
+    assert settings.jira_base_url is None
+    assert settings.jira_email is None
+    assert settings.jira_api_token is None
+    assert settings.jira_project_key is None
+
+
+def test_slack_jira_settings_read_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/x/y/z")
+    monkeypatch.setenv("JIRA_BASE_URL", "https://example.atlassian.net")
+    monkeypatch.setenv("JIRA_EMAIL", "bot@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "token123")
+    monkeypatch.setenv("JIRA_PROJECT_KEY", "FLOW")
+    settings = Settings()
+    assert settings.slack_webhook_url == "https://hooks.slack.com/services/x/y/z"
+    assert settings.jira_base_url == "https://example.atlassian.net"
+    assert settings.jira_project_key == "FLOW"

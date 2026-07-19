@@ -1,14 +1,17 @@
 import type {
+  AlertsReport,
   CalibrationReport,
   ChurnRiskSegment,
   CohortComparisonReport,
   FunnelFilters,
   FunnelReport,
+  JiraExportResult,
   NodeIntelligence,
   Persona,
   RetrainingJob,
   SimulationRun,
   SimulationRunDetail,
+  SlackExportResult,
   User,
 } from "./types";
 
@@ -149,5 +152,25 @@ export const api = {
   ): Promise<NodeIntelligence> =>
     request<NodeIntelligence>(
       `/graph/nodes/${encodeURIComponent(screen)}${toQueryString(filters)}`,
+    ),
+
+  getAlerts: (): Promise<AlertsReport> => request<AlertsReport>("/alerts"),
+
+  exportIssueToSlack: (issueId: string): Promise<SlackExportResult> =>
+    request<SlackExportResult>(`/friction-issues/${issueId}/export/slack`, { method: "POST" }),
+
+  exportIssueToJira: (issueId: string): Promise<JiraExportResult> =>
+    request<JiraExportResult>(`/friction-issues/${issueId}/export/jira`, { method: "POST" }),
+
+  exportNodeToSlack: (screen: string): Promise<SlackExportResult> =>
+    request<SlackExportResult>(
+      `/graph/nodes/${encodeURIComponent(screen)}/export/slack`,
+      { method: "POST" },
+    ),
+
+  exportNodeToJira: (screen: string): Promise<JiraExportResult> =>
+    request<JiraExportResult>(
+      `/graph/nodes/${encodeURIComponent(screen)}/export/jira`,
+      { method: "POST" },
     ),
 };

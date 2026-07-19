@@ -140,7 +140,7 @@ Expected: exits 0. (Run from the repo root — running `uv sync` from inside `ba
 
 **Interfaces:**
 - Produces: `SlackNotConfiguredError(Exception)`, `SlackDeliveryError(Exception)`,
-  `async def post_slack_message(webhook_url: str | None, *, text: str, blocks: list[dict[str, object]] | None = None, transport: httpx.BaseTransport | None = None) -> None`
+  `async def post_slack_message(webhook_url: str | None, *, text: str, blocks: list[dict[str, object]] | None = None, transport: httpx.AsyncBaseTransport | None = None) -> None`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -223,7 +223,7 @@ async def post_slack_message(
     *,
     text: str,
     blocks: list[dict[str, object]] | None = None,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> None:
     if webhook_url is None:
         raise SlackNotConfiguredError("SLACK_WEBHOOK_URL is not configured")
@@ -286,7 +286,7 @@ Expected: `Success: no issues found`
 **Interfaces:**
 - Consumes: nothing from Task 2 (parallel client, same pattern).
 - Produces: `JiraNotConfiguredError(Exception)`, `JiraDeliveryError(Exception)`,
-  `async def create_jira_issue(*, base_url: str | None, email: str | None, api_token: str | None, project_key: str | None, summary: str, description: str, transport: httpx.BaseTransport | None = None) -> str` (returns the created issue key, e.g. `"FLOW-123"`).
+  `async def create_jira_issue(*, base_url: str | None, email: str | None, api_token: str | None, project_key: str | None, summary: str, description: str, transport: httpx.AsyncBaseTransport | None = None) -> str` (returns the created issue key, e.g. `"FLOW-123"`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -400,7 +400,7 @@ async def create_jira_issue(
     project_key: str | None,
     summary: str,
     description: str,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> str:
     if not (base_url and email and api_token and project_key):
         raise JiraNotConfiguredError(
@@ -669,34 +669,36 @@ def build_digest_blocks(report: AlertsReport) -> list[dict[str, object]]:
         )
         return blocks
 
-    for alert in report.calibration_alerts:
+    for cal_alert in report.calibration_alerts:
         blocks.append(
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        f"*Calibration anomaly*: {alert.persona_name} on `{alert.screen}` "
-                        f"(delta {alert.delta:+.2f})"
+                        f"*Calibration anomaly*: {cal_alert.persona_name} on `{cal_alert.screen}` "
+                        f"(delta {cal_alert.delta:+.2f})"
                     ),
                 },
             }
         )
-    for alert in report.churn_alerts:
+    for churn_alert in report.churn_alerts:
         blocks.append(
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": (
-                        f"*Churn risk*: {alert.cohort} at {alert.risk_score * 100:.0f}% "
-                        f"-- {alert.top_reason}"
+                        f"*Churn risk*: {churn_alert.cohort} at {churn_alert.risk_score * 100:.0f}% "
+                        f"-- {churn_alert.top_reason}"
                     ),
                 },
             }
         )
     return blocks
 ```
+
+(An earlier draft reused `alert` as the loop variable in both `for` loops above. mypy `--strict` narrows a reused loop variable's type across iterations of the *same* scope, and flagged 4 errors when the second loop rebound `alert` to a different Pydantic model. Fixed by giving each loop its own variable name — caught during Task 4's implementation, patched here for anyone reading this plan afterward.)
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

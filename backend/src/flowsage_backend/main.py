@@ -12,9 +12,11 @@ from fastapi import FastAPI
 from flowsage_graph.ingest import Neo4jGraphSink
 from sqlalchemy import text
 
+from flowsage_backend.api.alerts import router as alerts_router
 from flowsage_backend.api.auth import router as auth_router
 from flowsage_backend.api.calibration import router as calibration_router
 from flowsage_backend.api.events import events_router, graph_router
+from flowsage_backend.api.exports import router as exports_router
 from flowsage_backend.api.personas import router as personas_router
 from flowsage_backend.api.simulations import router as simulations_router
 from flowsage_backend.config import Settings, get_settings
@@ -45,6 +47,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(events_router)
     app.include_router(graph_router)
     app.include_router(calibration_router)
+    app.include_router(alerts_router)
+    app.include_router(exports_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
