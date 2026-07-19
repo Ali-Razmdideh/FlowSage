@@ -256,6 +256,23 @@ function NodeIntelligenceAside({
   error: string | null;
   onClose: () => void;
 }) {
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  const handleExport = async (target: "slack" | "jira") => {
+    setExportStatus(null);
+    try {
+      if (target === "slack") {
+        await api.exportNodeToSlack(node.screen);
+        setExportStatus("Exported to Slack.");
+      } else {
+        const result = await api.exportNodeToJira(node.screen);
+        setExportStatus(`Created Jira issue ${result.issue_key}.`);
+      }
+    } catch (err) {
+      setExportStatus(err instanceof ApiError ? err.message : "Export failed.");
+    }
+  };
+
   return (
     <aside className="w-[380px] shrink-0 bg-surface-container-lowest rounded-xl p-6 h-fit sticky top-6">
       <div className="flex items-start justify-between mb-4">
@@ -324,6 +341,26 @@ function NodeIntelligenceAside({
                 ))}
               </ul>
             </div>
+          ) : null}
+
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => void handleExport("slack")}
+              className="text-sm text-primary hover:underline"
+            >
+              Export to Slack
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport("jira")}
+              className="text-sm text-primary hover:underline"
+            >
+              Export to Jira
+            </button>
+          </div>
+          {exportStatus !== null ? (
+            <p className="text-xs text-on-surface-variant">{exportStatus}</p>
           ) : null}
         </div>
       ) : null}
