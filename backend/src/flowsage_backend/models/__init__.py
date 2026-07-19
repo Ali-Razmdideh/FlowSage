@@ -12,10 +12,15 @@ from flowsage_backend.models.simulation import (
     SimulationStep,
 )
 from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership, Role, Workspace, WorkspacePrivacy
 
 __all__ = [
     "Base",
     "User",
+    "Workspace",
+    "WorkspacePrivacy",
+    "Membership",
+    "Role",
     "Persona",
     "PersonaMemory",
     "SimulationRun",

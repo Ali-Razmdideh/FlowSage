@@ -23,6 +23,9 @@ class Persona(Base):
     __tablename__ = "personas"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     slug: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text)
@@ -76,6 +79,9 @@ class PersonaMemory(Base):
     __tablename__ = "persona_memories"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     persona_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("personas.id", ondelete="CASCADE"), index=True
     )
