@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,3 +129,141 @@ async def archive_current_workspace(
     await session.commit()
     await session.refresh(workspace)
     return workspace
+
+
+class MemberOut(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    email: str
+    role: Role
+    created_at: datetime
+
+
+class MemberAdd(BaseModel):
+    email: str = Field(min_length=1)
+    role: Role
+
+
+class MemberRoleUpdate(BaseModel):
+    role: Role
+
+
+async def _admin_count(session: AsyncSession, workspace_id: uuid.UUID) -> int:
+    result = await session.execute(
+        select(Membership).where(
+            Membership.workspace_id == workspace_id, Membership.role == Role.ADMIN
+        )
+    )
+    return len(result.scalars().all())
+
+
+async def _get_membership_in_workspace(
+    session: AsyncSession, membership_id: uuid.UUID, workspace_id: uuid.UUID
+) -> Membership:
+    membership = await session.get(Membership, membership_id)
+    if membership is None or membership.workspace_id != workspace_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Member not found in this workspace")
+    return membership
+
+
+@router.get("/current/members", response_model=list[MemberOut])
+async def list_members(
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[MemberOut]:
+    _, membership = membership_pair
+    result = await session.execute(
+        select(Membership, User)
+        .join(User, Membership.user_id == User.id)
+        .where(Membership.workspace_id == membership.workspace_id)
+        .order_by(User.email)
+    )
+    return [
+        MemberOut(
+            id=m.id, user_id=m.user_id, email=user.email, role=m.role, created_at=m.created_at
+        )
+        for m, user in result.all()
+    ]
+
+
+@router.post("/current/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED)
+async def add_member(
+    payload: MemberAdd,
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
+    session: AsyncSession = Depends(get_db_session),
+) -> MemberOut:
+    _, membership = membership_pair
+    result = await session.execute(select(User).where(User.email == payload.email))
+    target_user = result.scalar_one_or_none()
+    if target_user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No account with that email")
+
+    existing = await session.execute(
+        select(Membership).where(
+            Membership.user_id == target_user.id, Membership.workspace_id == membership.workspace_id
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That user is already a member")
+
+    new_membership = Membership(
+        user_id=target_user.id, workspace_id=membership.workspace_id, role=payload.role
+    )
+    session.add(new_membership)
+    await session.commit()
+    await session.refresh(new_membership)
+    return MemberOut(
+        id=new_membership.id,
+        user_id=target_user.id,
+        email=target_user.email,
+        role=new_membership.role,
+        created_at=new_membership.created_at,
+    )
+
+
+@router.patch("/current/members/{membership_id}", response_model=MemberOut)
+async def update_member_role(
+    membership_id: uuid.UUID,
+    payload: MemberRoleUpdate,
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
+    session: AsyncSession = Depends(get_db_session),
+) -> MemberOut:
+    _, membership = membership_pair
+    target = await _get_membership_in_workspace(session, membership_id, membership.workspace_id)
+
+    if target.role == Role.ADMIN and payload.role != Role.ADMIN:
+        if await _admin_count(session, membership.workspace_id) <= 1:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "Workspace must keep at least one admin"
+            )
+
+    target.role = payload.role
+    await session.commit()
+    await session.refresh(target)
+    user = await session.get(User, target.user_id)
+    assert user is not None
+    return MemberOut(
+        id=target.id,
+        user_id=target.user_id,
+        email=user.email,
+        role=target.role,
+        created_at=target.created_at,
+    )
+
+
+@router.delete(
+    "/current/members/{membership_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
+async def remove_member(
+    membership_id: uuid.UUID,
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
+    session: AsyncSession = Depends(get_db_session),
+) -> None:
+    _, membership = membership_pair
+    target = await _get_membership_in_workspace(session, membership_id, membership.workspace_id)
+
+    if target.role == Role.ADMIN and await _admin_count(session, membership.workspace_id) <= 1:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Workspace must keep at least one admin")
+
+    await session.delete(target)
+    await session.commit()
