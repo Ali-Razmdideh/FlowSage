@@ -14,7 +14,7 @@ from flowsage_predict.models import BehavioralSliders, DemographicAnchors
 from flowsage_predict.models import Persona as PredictPersona
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from flowsage_backend.models.base import Base
 
@@ -40,6 +40,12 @@ class Persona(Base):
 
     model: Mapped[str] = mapped_column(String(64), default="claude-sonnet-4-5")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    memories: Mapped[list["PersonaMemory"]] = relationship(
+        back_populates="persona",
+        cascade="all, delete-orphan",
+        order_by="PersonaMemory.created_at.desc()",
+    )
 
     def to_predict_persona(self) -> PredictPersona:
         return PredictPersona(
@@ -77,3 +83,5 @@ class PersonaMemory(Base):
     note: Mapped[str] = mapped_column(Text)
     kind: Mapped[str] = mapped_column(String(32), default="retraining")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    persona: Mapped[Persona] = relationship(back_populates="memories")
