@@ -165,3 +165,28 @@ export interface NodeIntelligence {
   ai_insight: string;
   recommendations: Recommendation[];
 }
+
+export interface CalibrationAlert {
+  persona_name: string;
+  screen: string;
+  delta: number;
+}
+
+export interface ChurnAlert {
+  cohort: string;
+  risk_score: number;
+  top_reason: string;
+}
+
+export interface AlertsReport {
+  calibration_alerts: CalibrationAlert[];
+  churn_alerts: ChurnAlert[];
+}
+
+export interface SlackExportResult {
+  status: string;
+}
+
+export interface JiraExportResult {
+  issue_key: string;
+}
