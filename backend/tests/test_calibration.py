@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import uuid
 
 from flowsage_graph.models import FunnelStep
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,17 @@ from flowsage_backend.calibration import (
 )
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.seed import seed_baseline_personas
+
+
+async def _create_workspace(session: AsyncSession) -> uuid.UUID:
+    """Create a workspace and return its ID."""
+    workspace = Workspace(name="Test", slug=f"test-{uuid.uuid4().hex[:8]}")
+    session.add(workspace)
+    await session.commit()
+    await session.refresh(workspace)
+    return workspace.id
 
 
 def test_bucket_severity_maps_known_values() -> None:
@@ -91,9 +102,15 @@ def test_build_screen_calibrations_ignores_screens_without_a_prediction() -> Non
 
 
 async def _completed_run_with_issue(
-    session: AsyncSession, persona: Persona, *, screen: str, severity: str
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    persona: Persona,
+    *,
+    screen: str,
+    severity: str,
 ) -> SimulationRun:
     run = SimulationRun(
+        workspace_id=workspace_id,
         flow_name="Checkout",
         goal="Complete purchase",
         persona_id=persona.id,
@@ -105,6 +122,7 @@ async def _completed_run_with_issue(
     await session.flush()
     session.add(
         FrictionIssue(
+            workspace_id=workspace_id,
             run_id=run.id,
             screen=screen,
             severity=severity,
@@ -123,14 +141,19 @@ async def _completed_run_with_issue(
 async def test_latest_completed_run_for_persona_picks_most_recent(
     db_session: AsyncSession,
 ) -> None:
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = personas[0]
-    older = await _completed_run_with_issue(db_session, persona, screen="a", severity="low")
+    older = await _completed_run_with_issue(
+        db_session, workspace_id, persona, screen="a", severity="low"
+    )
     older.finished_at = datetime(2020, 1, 1, tzinfo=timezone.utc)
     await db_session.commit()
-    newer = await _completed_run_with_issue(db_session, persona, screen="b", severity="high")
+    newer = await _completed_run_with_issue(
+        db_session, workspace_id, persona, screen="b", severity="high"
+    )
 
-    result = await latest_completed_run_for_persona(db_session, persona.id)
+    result = await latest_completed_run_for_persona(db_session, workspace_id, persona.id)
 
     assert result is not None
     assert result.id == newer.id
@@ -139,11 +162,16 @@ async def test_latest_completed_run_for_persona_picks_most_recent(
 async def test_latest_completed_runs_by_persona_one_per_persona(
     db_session: AsyncSession,
 ) -> None:
-    personas = await seed_baseline_personas(db_session)
-    await _completed_run_with_issue(db_session, personas[0], screen="a", severity="low")
-    await _completed_run_with_issue(db_session, personas[1], screen="b", severity="high")
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    await _completed_run_with_issue(
+        db_session, workspace_id, personas[0], screen="a", severity="low"
+    )
+    await _completed_run_with_issue(
+        db_session, workspace_id, personas[1], screen="b", severity="high"
+    )
 
-    runs = await latest_completed_runs_by_persona(db_session)
+    runs = await latest_completed_runs_by_persona(db_session, workspace_id)
 
     persona_ids = {run.persona_id for run in runs}
     assert personas[0].id in persona_ids
@@ -157,12 +185,15 @@ async def test_build_calibration_report_flags_anomaly_and_computes_accuracy(
     # from other tests/files persist. So assertions here are scoped to *this*
     # test's own persona/run rather than the report's total size, which may
     # include leftovers from tests that ran earlier in the same session.
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = personas[0]
-    await _completed_run_with_issue(db_session, persona, screen="checkout", severity="low")
+    await _completed_run_with_issue(
+        db_session, workspace_id, persona, screen="checkout", severity="low"
+    )
     funnel = [FunnelStep(screen="checkout", sessions_entered=10, sessions_continued=1)]
 
-    report = await build_calibration_report(db_session, funnel)
+    report = await build_calibration_report(db_session, workspace_id, funnel)
 
     assert report.has_anomaly is True
     persona_calibration = next(p for p in report.personas if p.persona_id == str(persona.id))
@@ -176,10 +207,11 @@ async def test_build_calibration_report_skips_personas_without_predictions(
     # `personas[-1]` never receives a completed run in any test in this suite,
     # so its absence from the report is a reliable signal even with a shared,
     # un-truncated test database (see comment above).
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     untouched = personas[-1]
 
-    report = await build_calibration_report(db_session, funnel=[])
+    report = await build_calibration_report(db_session, workspace_id, funnel=[])
 
     assert all(p.persona_id != str(untouched.id) for p in report.personas)
     assert all(a.persona_id != str(untouched.id) for a in report.accuracy_points)
