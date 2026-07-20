@@ -130,3 +130,96 @@ async def test_friction_issue_export_is_workspace_scoped(
         response = await client_b.post(f"/friction-issues/{issue.id}/export/slack")
 
     assert response.status_code == 404
+
+
+async def test_retraining_rejects_persona_from_another_workspace(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """A workspace B caller must not be able to start a retraining job (which
+    mutates persona sliders and writes a PersonaMemory) against a persona_id
+    that belongs to workspace A."""
+    from flowsage_backend.models.persona import Persona
+    from flowsage_backend.models.workspace import Membership
+
+    from sqlalchemy import select
+
+    tenant_a_email = f"isolation-retrain-a-{uuid.uuid4().hex[:8]}@example.com"
+    tenant_b_email = f"isolation-retrain-b-{uuid.uuid4().hex[:8]}@example.com"
+    user_a = await upsert_user(db_session, tenant_a_email, "hunter2")
+    await upsert_user(db_session, tenant_b_email, "hunter2")
+
+    membership_a = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user_a.id))
+    ).scalar_one()
+
+    persona = Persona(
+        workspace_id=membership_a.workspace_id,
+        slug=f"retrain-persona-{uuid.uuid4().hex[:8]}",
+        name="P",
+        description="d",
+        baseline=False,
+        tech_affinity="Low",
+        primary_device="Desktop",
+        discovery_mode="Search",
+        contextual_triggers=[],
+        technical_literacy=0.5,
+        anxiety=0.5,
+        patience=0.5,
+        curiosity=0.5,
+    )
+    db_session.add(persona)
+    await db_session.commit()
+    await db_session.refresh(persona)
+
+    async with _authed_client(app, tenant_b_email) as client_b:
+        response = await client_b.post("/calibration/retrain", json={"persona_id": str(persona.id)})
+
+    assert response.status_code == 422
+
+
+async def test_create_simulation_rejects_persona_from_another_workspace(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """A workspace B caller must not be able to start a simulation run against
+    a persona_id that belongs to workspace A."""
+    from flowsage_backend.models.persona import Persona
+    from flowsage_backend.models.workspace import Membership
+
+    from sqlalchemy import select
+
+    tenant_a_email = f"isolation-sim-a-{uuid.uuid4().hex[:8]}@example.com"
+    tenant_b_email = f"isolation-sim-b-{uuid.uuid4().hex[:8]}@example.com"
+    user_a = await upsert_user(db_session, tenant_a_email, "hunter2")
+    await upsert_user(db_session, tenant_b_email, "hunter2")
+
+    membership_a = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user_a.id))
+    ).scalar_one()
+
+    persona = Persona(
+        workspace_id=membership_a.workspace_id,
+        slug=f"sim-persona-{uuid.uuid4().hex[:8]}",
+        name="P",
+        description="d",
+        baseline=False,
+        tech_affinity="Low",
+        primary_device="Desktop",
+        discovery_mode="Search",
+        contextual_triggers=[],
+        technical_literacy=0.5,
+        anxiety=0.5,
+        patience=0.5,
+        curiosity=0.5,
+    )
+    db_session.add(persona)
+    await db_session.commit()
+    await db_session.refresh(persona)
+
+    async with _authed_client(app, tenant_b_email) as client_b:
+        response = await client_b.post(
+            "/simulations",
+            data={"persona_id": str(persona.id), "goal": "goal", "flow_name": "flow"},
+            files={"files": ("01.png", b"\x89PNG\r\n\x1a\nfake", "image/png")},
+        )
+
+    assert response.status_code == 422

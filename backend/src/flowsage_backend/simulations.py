@@ -53,7 +53,11 @@ async def create_run(
 ) -> SimulationRun:
     """`run_id` lets a caller that already picked a directory name (e.g. the upload
     endpoint, which needs an id before it can save files) reuse it as the row's id."""
-    persona = await session.get(Persona, persona_id)
+    persona = (
+        await session.execute(
+            select(Persona).where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
+        )
+    ).scalar_one_or_none()
     if persona is None:
         raise SimulationError(f"No persona with id {persona_id}")
 

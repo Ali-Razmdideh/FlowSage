@@ -28,6 +28,7 @@ from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.persona import Persona, PersonaMemory
 from flowsage_backend.settings_store import get_or_create_calibration_settings
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 NUDGE_STEP = 0.05
@@ -68,7 +69,11 @@ def nudge_sliders(
 async def create_retraining_job(
     session: AsyncSession, persona_id: uuid.UUID, *, workspace_id: uuid.UUID
 ) -> RetrainingJob:
-    persona = await session.get(Persona, persona_id)
+    persona = (
+        await session.execute(
+            select(Persona).where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
+        )
+    ).scalar_one_or_none()
     if persona is None:
         raise RetrainingError(f"No persona with id {persona_id}")
 
