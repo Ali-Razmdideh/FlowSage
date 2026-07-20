@@ -56,7 +56,16 @@ export function Sidebar() {
           {user && user.workspaces.length > 1 ? (
             <select
               value={user.workspace_id}
-              onChange={(event) => void switchWorkspace(event.target.value)}
+              onChange={(event) => {
+                // Every route fetches its data on mount with no shared cache/
+                // invalidation layer, so a full reload is the only way to get
+                // every currently-mounted page to refetch under the new
+                // workspace's session -- otherwise stale, wrong-tenant data
+                // stays on screen after switching.
+                void switchWorkspace(event.target.value).then(() => {
+                  window.location.reload();
+                });
+              }}
               className="ghost-border rounded-lg px-3 py-2 bg-transparent text-sm"
               aria-label="Switch workspace"
             >
