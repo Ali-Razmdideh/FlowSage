@@ -11,6 +11,7 @@ function renderWithAuth(overrides: Partial<AuthState> = {}) {
     loading: false,
     login: vi.fn(),
     logout: vi.fn(),
+    switchWorkspace: vi.fn(),
     ...overrides,
   };
   render(
