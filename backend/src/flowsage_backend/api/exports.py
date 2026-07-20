@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend.deps import get_current_user, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.integrations.jira import (
     JiraDeliveryError,
     JiraNotConfiguredError,
@@ -24,9 +24,11 @@ from flowsage_backend.integrations.slack import (
     post_slack_message,
 )
 from flowsage_backend.models.simulation import FrictionIssue
+from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership
 
 router = APIRouter(
-    prefix="/friction-issues", tags=["exports"], dependencies=[Depends(get_current_user)]
+    prefix="/friction-issues", tags=["exports"], dependencies=[Depends(get_current_membership)]
 )
 
 
@@ -38,18 +40,24 @@ class JiraExportResult(BaseModel):
     issue_key: str
 
 
-async def _get_issue(session: AsyncSession, issue_id: uuid.UUID) -> FrictionIssue:
+async def _get_issue(
+    session: AsyncSession, workspace_id: uuid.UUID, issue_id: uuid.UUID
+) -> FrictionIssue:
     issue = await session.get(FrictionIssue, issue_id)
-    if issue is None:
+    if issue is None or issue.workspace_id != workspace_id:
         raise HTTPException(404, "Friction issue not found")
     return issue
 
 
 @router.post("/{issue_id}/export/slack", response_model=SlackExportResult)
 async def export_issue_to_slack(
-    issue_id: uuid.UUID, request: Request, session: AsyncSession = Depends(get_db_session)
+    issue_id: uuid.UUID,
+    request: Request,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> SlackExportResult:
-    issue = await _get_issue(session, issue_id)
+    _, membership = membership_pair
+    issue = await _get_issue(session, membership.workspace_id, issue_id)
     settings = request.app.state.settings
     text = f"*{issue.severity.upper()}* friction on `{issue.screen}`: {issue.title}"
     try:
@@ -63,9 +71,13 @@ async def export_issue_to_slack(
 
 @router.post("/{issue_id}/export/jira", response_model=JiraExportResult)
 async def export_issue_to_jira(
-    issue_id: uuid.UUID, request: Request, session: AsyncSession = Depends(get_db_session)
+    issue_id: uuid.UUID,
+    request: Request,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> JiraExportResult:
-    issue = await _get_issue(session, issue_id)
+    _, membership = membership_pair
+    issue = await _get_issue(session, membership.workspace_id, issue_id)
     settings = request.app.state.settings
     try:
         issue_key = await create_jira_issue(

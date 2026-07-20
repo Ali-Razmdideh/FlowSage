@@ -8,7 +8,8 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
-from flowsage_backend.seed import upsert_user
+
+from .conftest import login_to_default_workspace
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -26,11 +27,8 @@ def _event(session_id: str, screen: str, minutes: int, cohort: str) -> dict[str,
 
 @asynccontextmanager
 async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    await upsert_user(db_session, "churn-api@example.com", "hunter2")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post(
-            "/auth/login", json={"email": "churn-api@example.com", "password": "hunter2"}
-        )
+        await login_to_default_workspace(client, db_session, "churn-api@example.com")
         yield client
 
 

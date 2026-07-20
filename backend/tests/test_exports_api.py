@@ -5,10 +5,12 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+from flowsage_backend.models.workspace import Membership
 from flowsage_backend.seed import upsert_user
 
 
@@ -22,8 +24,18 @@ async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterato
         yield client
 
 
+async def _exports_api_workspace_id(db_session: AsyncSession) -> uuid.UUID:
+    user = await upsert_user(db_session, "exports-api@example.com", "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    return membership.workspace_id
+
+
 async def _make_issue(db_session: AsyncSession) -> uuid.UUID:
+    workspace_id = await _exports_api_workspace_id(db_session)
     persona = Persona(
+        workspace_id=workspace_id,
         slug=f"exports-persona-{uuid.uuid4().hex[:8]}",
         name="Exports Test Persona",
         description="d",
@@ -41,6 +53,7 @@ async def _make_issue(db_session: AsyncSession) -> uuid.UUID:
     await db_session.flush()
 
     run = SimulationRun(
+        workspace_id=workspace_id,
         flow_name="checkout",
         goal="buy",
         persona_id=persona.id,
@@ -52,6 +65,7 @@ async def _make_issue(db_session: AsyncSession) -> uuid.UUID:
     await db_session.flush()
 
     issue = FrictionIssue(
+        workspace_id=workspace_id,
         run_id=run.id,
         screen="checkout",
         severity="high",

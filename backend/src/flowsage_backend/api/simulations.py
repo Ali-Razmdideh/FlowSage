@@ -20,12 +20,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from flowsage_backend.deps import get_current_user, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
+from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership
 from flowsage_backend.simulations import IMAGE_SUFFIXES, SimulationError, create_run
 
 router = APIRouter(
-    prefix="/simulations", tags=["simulations"], dependencies=[Depends(get_current_user)]
+    prefix="/simulations", tags=["simulations"], dependencies=[Depends(get_current_membership)]
 )
 
 
@@ -68,10 +70,12 @@ class SimulationRunDetailOut(SimulationRunOut):
     issues: list[FrictionIssueOut]
 
 
-async def _load_run_with_children(session: AsyncSession, run_id: uuid.UUID) -> SimulationRun | None:
+async def _load_run_with_children(
+    session: AsyncSession, workspace_id: uuid.UUID, run_id: uuid.UUID
+) -> SimulationRun | None:
     result = await session.execute(
         select(SimulationRun)
-        .where(SimulationRun.id == run_id)
+        .where(SimulationRun.id == run_id, SimulationRun.workspace_id == workspace_id)
         .options(selectinload(SimulationRun.steps), selectinload(SimulationRun.issues))
     )
     return result.scalar_one_or_none()
@@ -84,8 +88,10 @@ async def create_simulation(
     goal: str = Form(...),
     flow_name: str = Form(...),
     files: list[UploadFile] = File(...),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
+    _, membership = membership_pair
     settings = request.app.state.settings
     run_id = uuid.uuid4()
     screenshots_dir = Path(settings.upload_dir) / str(run_id)
@@ -104,6 +110,7 @@ async def create_simulation(
     try:
         run = await create_run(
             session,
+            workspace_id=membership.workspace_id,
             run_id=run_id,
             persona_id=persona_id,
             flow_name=flow_name,
@@ -119,9 +126,12 @@ async def create_simulation(
 
 @router.get("/{run_id}", response_model=SimulationRunDetailOut)
 async def get_simulation(
-    run_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+    run_id: uuid.UUID,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
-    run = await _load_run_with_children(session, run_id)
+    _, membership = membership_pair
+    run = await _load_run_with_children(session, membership.workspace_id, run_id)
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Simulation run not found")
     return run
@@ -133,6 +143,7 @@ def _sse_event(event: str, data: dict[str, object]) -> str:
 
 async def stream_simulation_events(
     session_factory: async_sessionmaker[AsyncSession],
+    workspace_id: uuid.UUID,
     run_id: uuid.UUID,
     *,
     poll_interval_seconds: float = 0.5,
@@ -145,7 +156,7 @@ async def stream_simulation_events(
     sent_step_count = 0
     while True:
         async with session_factory() as session:
-            run = await _load_run_with_children(session, run_id)
+            run = await _load_run_with_children(session, workspace_id, run_id)
 
         if run is None:
             yield _sse_event("error", {"detail": "Simulation run not found"})
@@ -163,8 +174,14 @@ async def stream_simulation_events(
 
 
 @router.get("/{run_id}/stream")
-async def stream_simulation(run_id: uuid.UUID, request: Request) -> StreamingResponse:
+async def stream_simulation(
+    run_id: uuid.UUID,
+    request: Request,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+) -> StreamingResponse:
+    _, membership = membership_pair
     session_factory = request.app.state.session_factory
     return StreamingResponse(
-        stream_simulation_events(session_factory, run_id), media_type="text/event-stream"
+        stream_simulation_events(session_factory, membership.workspace_id, run_id),
+        media_type="text/event-stream",
     )

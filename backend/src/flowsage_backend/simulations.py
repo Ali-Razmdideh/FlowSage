@@ -44,6 +44,7 @@ def discover_screenshots(directory: Path) -> list[Path]:
 async def create_run(
     session: AsyncSession,
     *,
+    workspace_id: uuid.UUID,
     persona_id: uuid.UUID,
     flow_name: str,
     goal: str,
@@ -61,6 +62,7 @@ async def create_run(
 
     run = SimulationRun(
         id=run_id if run_id is not None else uuid.uuid4(),
+        workspace_id=workspace_id,
         flow_name=flow_name,
         goal=goal,
         persona_id=persona.id,
@@ -115,6 +117,7 @@ async def execute_simulation(
 
             for offset, predict_step in enumerate(state["steps"][persisted_step_count:]):
                 step_row = SimulationStep(
+                    workspace_id=run.workspace_id,
                     run_id=run.id,
                     sequence=persisted_step_count + offset,
                     screen=predict_step.screen,
@@ -128,6 +131,7 @@ async def execute_simulation(
                     issue = predict_step.friction
                     session.add(
                         FrictionIssue(
+                            workspace_id=run.workspace_id,
                             run_id=run.id,
                             step_id=step_row.id,
                             screen=issue.screen,

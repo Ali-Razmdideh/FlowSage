@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     neo4j_password: str = "flowsage_dev"
     # POST /v1/events is meant for server-to-server ingestion (SDKs/webhooks), so it
     # checks a shared secret via X-API-Key rather than the browser session cookie.
+    # This one shared key can't carry a workspace, so ingested events are hardcoded to
+    # the single "fs-default"-slug Workspace row (see api/events.py's
+    # `_default_workspace_id`) until per-workspace API keys land in Phase 3 chunk 2.
     events_api_key: str = _PLACEHOLDER_EVENTS_API_KEY
 
     # Alert export integrations (Phase 2 chunk 3). Optional -- unlike JWT_SECRET/

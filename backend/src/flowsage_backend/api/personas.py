@@ -16,10 +16,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from flowsage_backend.deps import get_current_user, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.persona import Persona
+from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership
 
-router = APIRouter(prefix="/personas", tags=["personas"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/personas", tags=["personas"], dependencies=[Depends(get_current_membership)]
+)
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
@@ -83,9 +87,13 @@ class PersonaUpdate(BaseModel):
     curiosity: float = Field(ge=0.0, le=1.0)
 
 
-async def _get_persona_or_404(session: AsyncSession, persona_id: uuid.UUID) -> Persona:
+async def _get_persona_or_404(
+    session: AsyncSession, workspace_id: uuid.UUID, persona_id: uuid.UUID
+) -> Persona:
     result = await session.execute(
-        select(Persona).where(Persona.id == persona_id).options(selectinload(Persona.memories))
+        select(Persona)
+        .where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
+        .options(selectinload(Persona.memories))
     )
     persona = result.scalar_one_or_none()
     if persona is None:
@@ -94,22 +102,36 @@ async def _get_persona_or_404(session: AsyncSession, persona_id: uuid.UUID) -> P
 
 
 @router.get("", response_model=list[PersonaOut])
-async def list_personas(session: AsyncSession = Depends(get_db_session)) -> list[Persona]:
-    result = await session.execute(select(Persona).order_by(Persona.name))
+async def list_personas(
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[Persona]:
+    _, membership = membership_pair
+    result = await session.execute(
+        select(Persona)
+        .where(Persona.workspace_id == membership.workspace_id)
+        .order_by(Persona.name)
+    )
     return list(result.scalars().all())
 
 
 @router.get("/{persona_id}", response_model=PersonaDetailOut)
 async def get_persona(
-    persona_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+    persona_id: uuid.UUID,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
-    return await _get_persona_or_404(session, persona_id)
+    _, membership = membership_pair
+    return await _get_persona_or_404(session, membership.workspace_id, persona_id)
 
 
 @router.post("", response_model=PersonaOut, status_code=status.HTTP_201_CREATED)
 async def create_persona(
-    payload: PersonaCreate, session: AsyncSession = Depends(get_db_session)
+    payload: PersonaCreate,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
+    _, membership = membership_pair
     if not _SLUG_RE.match(payload.slug):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -117,6 +139,7 @@ async def create_persona(
         )
 
     persona = Persona(
+        workspace_id=membership.workspace_id,
         slug=payload.slug,
         name=payload.name,
         description=payload.description,
@@ -146,9 +169,11 @@ async def create_persona(
 async def update_persona(
     persona_id: uuid.UUID,
     payload: PersonaUpdate,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
-    persona = await _get_persona_or_404(session, persona_id)
+    _, membership = membership_pair
+    persona = await _get_persona_or_404(session, membership.workspace_id, persona_id)
     persona.name = payload.name
     persona.description = payload.description
     persona.tech_affinity = payload.tech_affinity
@@ -166,12 +191,15 @@ async def update_persona(
 
 @router.post("/{persona_id}/reset", response_model=PersonaOut)
 async def reset_persona(
-    persona_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+    persona_id: uuid.UUID,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
     """Baseline personas only -- re-reads the shipped YAML definition
     (`flowsage_predict.baseline_personas`) and overwrites the row's editable
     fields, undoing any manual edits or retraining-job slider nudges."""
-    persona = await _get_persona_or_404(session, persona_id)
+    _, membership = membership_pair
+    persona = await _get_persona_or_404(session, membership.workspace_id, persona_id)
     if not persona.baseline:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Only baseline personas can be reset to their default"
@@ -201,9 +229,12 @@ async def reset_persona(
 
 @router.delete("/{persona_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_persona(
-    persona_id: uuid.UUID, session: AsyncSession = Depends(get_db_session)
+    persona_id: uuid.UUID,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> None:
-    persona = await _get_persona_or_404(session, persona_id)
+    _, membership = membership_pair
+    persona = await _get_persona_or_404(session, membership.workspace_id, persona_id)
     if persona.baseline:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Baseline personas can't be deleted, only reset"

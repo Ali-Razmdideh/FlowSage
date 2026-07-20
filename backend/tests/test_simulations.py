@@ -9,8 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.simulation import RunStatus
+from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.seed import seed_baseline_personas
 from flowsage_backend.simulations import SimulationError, create_run, execute_simulation
+
+
+async def _create_workspace(session: AsyncSession) -> uuid.UUID:
+    workspace = Workspace(name="Test", slug=f"test-{uuid.uuid4().hex[:8]}")
+    session.add(workspace)
+    await session.commit()
+    await session.refresh(workspace)
+    return workspace.id
 
 
 class ScriptedVisionClient:
@@ -37,18 +46,20 @@ class FailingVisionClient:
         raise RuntimeError("Claude API is unreachable")
 
 
-async def _seed_persona(db_session: AsyncSession) -> Persona:
-    personas = await seed_baseline_personas(db_session)
+async def _seed_persona(db_session: AsyncSession, workspace_id: uuid.UUID) -> Persona:
+    personas = await seed_baseline_personas(db_session, workspace_id)
     return next(p for p in personas if p.slug == "novice")
 
 
 async def test_create_run_requires_existing_persona(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
+    workspace_id = await _create_workspace(db_session)
     (tmp_path / "01.png").write_bytes(b"fake")
     with pytest.raises(SimulationError, match="No persona"):
         await create_run(
             db_session,
+            workspace_id=workspace_id,
             persona_id=uuid.uuid4(),
             flow_name="Checkout",
             goal="Complete purchase",
@@ -57,12 +68,14 @@ async def test_create_run_requires_existing_persona(
 
 
 async def test_create_run_requires_screenshots(db_session: AsyncSession, tmp_path: Path) -> None:
-    persona = await _seed_persona(db_session)
+    workspace_id = await _create_workspace(db_session)
+    persona = await _seed_persona(db_session, workspace_id)
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
     with pytest.raises(SimulationError, match="No screenshots"):
         await create_run(
             db_session,
+            workspace_id=workspace_id,
             persona_id=persona.id,
             flow_name="Checkout",
             goal="Complete purchase",
@@ -71,11 +84,13 @@ async def test_create_run_requires_screenshots(db_session: AsyncSession, tmp_pat
 
 
 async def test_create_run_succeeds(db_session: AsyncSession, tmp_path: Path) -> None:
-    persona = await _seed_persona(db_session)
+    workspace_id = await _create_workspace(db_session)
+    persona = await _seed_persona(db_session, workspace_id)
     (tmp_path / "01_cart.png").write_bytes(b"fake")
 
     run = await create_run(
         db_session,
+        workspace_id=workspace_id,
         persona_id=persona.id,
         flow_name="Checkout",
         goal="Complete purchase",
@@ -89,11 +104,13 @@ async def test_create_run_succeeds(db_session: AsyncSession, tmp_path: Path) -> 
 async def test_execute_simulation_persists_steps_and_completes(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
-    persona = await _seed_persona(db_session)
+    workspace_id = await _create_workspace(db_session)
+    persona = await _seed_persona(db_session, workspace_id)
     (tmp_path / "01_cart.png").write_bytes(b"fake")
     (tmp_path / "02_shipping.png").write_bytes(b"fake")
     run = await create_run(
         db_session,
+        workspace_id=workspace_id,
         persona_id=persona.id,
         flow_name="Checkout",
         goal="Complete purchase",
@@ -136,10 +153,12 @@ async def test_execute_simulation_persists_steps_and_completes(
 async def test_execute_simulation_marks_run_failed_on_error(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
-    persona = await _seed_persona(db_session)
+    workspace_id = await _create_workspace(db_session)
+    persona = await _seed_persona(db_session, workspace_id)
     (tmp_path / "01_cart.png").write_bytes(b"fake")
     run = await create_run(
         db_session,
+        workspace_id=workspace_id,
         persona_id=persona.id,
         flow_name="Checkout",
         goal="Complete purchase",

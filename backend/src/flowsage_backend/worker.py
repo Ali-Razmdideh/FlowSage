@@ -29,6 +29,7 @@ from flowsage_backend.integrations.slack import SlackNotConfiguredError, post_sl
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.settings import DigestFrequency
+from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.retraining import create_retraining_job, execute_retraining
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 from flowsage_backend.simulations import execute_simulation
@@ -70,17 +71,28 @@ async def run_digest_job(ctx: dict[str, Any]) -> None:
     per `CalibrationSettings.digest_frequency` -- real dynamic cadence without
     arq's cron spec (fixed at process start) needing to change. Also enqueues
     retraining for anomalous personas when `auto_retrain_on_anomaly` is set,
-    same job the manual "Retrain" button in `/calibration` uses."""
+    same job the manual "Retrain" button in `/calibration` uses.
+
+    Scoped to the single shared "fs-default" workspace, same one-workspace
+    rationale as `api/events.py`'s `_default_workspace_id` -- there's no
+    per-workspace cron scheduling infrastructure yet (Phase 3 chunk 2+ scope).
+    No-ops quietly if that workspace doesn't exist yet (e.g. a fresh install
+    before any migration/backfill has run)."""
     app_settings = get_settings()
     session_factory = ctx["session_factory"]
     now = datetime.now(timezone.utc)
 
     async with session_factory() as session:
-        calibration_settings = await get_or_create_calibration_settings(session)
-        report = await build_alerts_report(session)
+        result = await session.execute(select(Workspace.id).where(Workspace.slug == "fs-default"))
+        workspace_id = result.scalar_one_or_none()
+        if workspace_id is None:
+            return
+
+        calibration_settings = await get_or_create_calibration_settings(session, workspace_id)
+        report = await build_alerts_report(session, workspace_id)
 
         if calibration_settings.auto_retrain_on_anomaly:
-            await _auto_retrain_anomalous_personas(session, report, ctx["redis"])
+            await _auto_retrain_anomalous_personas(session, workspace_id, report, ctx["redis"])
 
         interval = _DIGEST_INTERVALS[calibration_settings.digest_frequency]
         last_sent = calibration_settings.digest_last_sent_at
@@ -104,18 +116,23 @@ async def run_digest_job(ctx: dict[str, Any]) -> None:
 
 
 async def _auto_retrain_anomalous_personas(
-    session: AsyncSession, report: AlertsReport, redis: ArqRedis
+    session: AsyncSession, workspace_id: uuid.UUID, report: AlertsReport, redis: ArqRedis
 ) -> None:
     anomalous_persona_names = {alert.persona_name for alert in report.calibration_alerts}
     if not anomalous_persona_names:
         return
 
-    result = await session.execute(select(Persona).where(Persona.name.in_(anomalous_persona_names)))
+    result = await session.execute(
+        select(Persona).where(
+            Persona.workspace_id == workspace_id, Persona.name.in_(anomalous_persona_names)
+        )
+    )
     personas = result.scalars().all()
 
     in_flight = await session.execute(
         select(RetrainingJob.persona_id).where(
-            RetrainingJob.status.in_((RetrainingStatus.QUEUED, RetrainingStatus.RUNNING))
+            RetrainingJob.workspace_id == workspace_id,
+            RetrainingJob.status.in_((RetrainingStatus.QUEUED, RetrainingStatus.RUNNING)),
         )
     )
     persona_ids_in_flight = set(in_flight.scalars().all())
@@ -123,7 +140,7 @@ async def _auto_retrain_anomalous_personas(
     for persona in personas:
         if persona.id in persona_ids_in_flight:
             continue
-        job = await create_retraining_job(session, persona.id)
+        job = await create_retraining_job(session, persona.id, workspace_id=workspace_id)
         await redis.enqueue_job("run_retraining_job", str(job.id))
 
 

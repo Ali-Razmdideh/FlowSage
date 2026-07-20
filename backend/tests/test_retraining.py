@@ -10,6 +10,7 @@ from flowsage_backend.models.calibration import RetrainingStatus
 from flowsage_backend.models.event import Event
 from flowsage_backend.models.persona import Persona, PersonaMemory
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.retraining import (
     RetrainingError,
     create_retraining_job,
@@ -17,6 +18,14 @@ from flowsage_backend.retraining import (
     nudge_sliders,
 )
 from flowsage_backend.seed import seed_baseline_personas
+
+
+async def _create_workspace(session: AsyncSession) -> uuid.UUID:
+    workspace = Workspace(name="Test", slug=f"test-{uuid.uuid4().hex[:8]}")
+    session.add(workspace)
+    await session.commit()
+    await session.refresh(workspace)
+    return workspace.id
 
 
 def _persona(**overrides: float) -> Persona:
@@ -84,8 +93,9 @@ def test_nudge_sliders_clamps_to_zero_one() -> None:
 
 
 async def test_create_retraining_job_requires_existing_persona(db_session: AsyncSession) -> None:
+    workspace_id = await _create_workspace(db_session)
     with pytest.raises(RetrainingError, match="No persona"):
-        await create_retraining_job(db_session, uuid.uuid4())
+        await create_retraining_job(db_session, uuid.uuid4(), workspace_id=workspace_id)
 
 
 async def test_execute_retraining_raises_for_unknown_job(db_session: AsyncSession) -> None:
@@ -96,11 +106,13 @@ async def test_execute_retraining_raises_for_unknown_job(db_session: AsyncSessio
 async def test_execute_retraining_nudges_sliders_and_writes_memory(
     db_session: AsyncSession,
 ) -> None:
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = personas[0]
     original_anxiety = persona.anxiety
 
     run = SimulationRun(
+        workspace_id=workspace_id,
         flow_name="Checkout",
         goal="Complete purchase",
         persona_id=persona.id,
@@ -112,6 +124,7 @@ async def test_execute_retraining_nudges_sliders_and_writes_memory(
     await db_session.flush()
     db_session.add(
         FrictionIssue(
+            workspace_id=workspace_id,
             run_id=run.id,
             screen="cal_retrain_checkout",
             severity="low",
@@ -131,6 +144,7 @@ async def test_execute_retraining_nudges_sliders_and_writes_memory(
     for session_id in session_ids:
         db_session.add(
             Event(
+                workspace_id=workspace_id,
                 session_id=session_id,
                 screen="cal_retrain_checkout",
                 event="view",
@@ -146,6 +160,7 @@ async def test_execute_retraining_nudges_sliders_and_writes_memory(
     # "low" predicted severity -> anomaly.
     db_session.add(
         Event(
+            workspace_id=workspace_id,
             session_id=session_ids[0],
             screen="cal_retrain_confirmation",
             event="view",
@@ -157,7 +172,7 @@ async def test_execute_retraining_nudges_sliders_and_writes_memory(
     await db_session.commit()
 
     try:
-        job = await create_retraining_job(db_session, persona.id)
+        job = await create_retraining_job(db_session, persona.id, workspace_id=workspace_id)
         assert job.status == RetrainingStatus.QUEUED
 
         await execute_retraining(db_session, job.id)

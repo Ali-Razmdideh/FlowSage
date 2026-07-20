@@ -8,7 +8,8 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
-from flowsage_backend.seed import upsert_user
+
+from .conftest import ensure_default_workspace, login_to_default_workspace
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -26,11 +27,8 @@ def _event(session_id: str, screen: str, minutes: int, cohort: str) -> dict[str,
 
 @asynccontextmanager
 async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    await upsert_user(db_session, "alerts-api@example.com", "hunter2")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post(
-            "/auth/login", json={"email": "alerts-api@example.com", "password": "hunter2"}
-        )
+        await login_to_default_workspace(client, db_session, "alerts-api@example.com")
         yield client
 
 
@@ -50,6 +48,12 @@ async def test_get_alerts_flags_a_churn_risk_segment(
     # alerts.CHURN_RISK_ALERT_THRESHOLD (0.5). A flatter 2-step funnel (e.g.
     # 4 landing / 1 checkout) tops out around 0.43 and never alerts, since a
     # terminal funnel step's drop-off rate is always 0 by construction.
+    # `/v1/events` ingestion resolves the shared "fs-default" workspace at
+    # request time (see api/events.py's `_default_workspace_id`); this test
+    # runs before any other test in the suite has caused that row to be
+    # created, so it must ensure it exists itself, not just via
+    # `login_to_default_workspace` (which only runs after the ingest below).
+    await ensure_default_workspace(db_session)
     api_key = app.state.settings.events_api_key
     session_ids = [f"alerts-api-{i}" for i in range(8)]
     events = [

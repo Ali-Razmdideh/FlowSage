@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
-from flowsage_backend.seed import upsert_user
+
+from .conftest import login_to_default_workspace
 
 _T0 = datetime(2026, 7, 17, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -109,11 +110,8 @@ async def test_funnel_requires_authentication(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    await upsert_user(db_session, "events-api@example.com", "hunter2")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await client.post(
-            "/auth/login", json={"email": "events-api@example.com", "password": "hunter2"}
-        )
+        await login_to_default_workspace(client, db_session, "events-api@example.com")
         yield client
 
 

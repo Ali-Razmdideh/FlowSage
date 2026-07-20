@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.models.workspace import Membership
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
 
@@ -17,6 +19,14 @@ async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterato
             "/auth/login", json={"email": "personas-api@example.com", "password": "hunter2"}
         )
         yield client
+
+
+async def _personas_api_workspace_id(db_session: AsyncSession) -> uuid.UUID:
+    user = await upsert_user(db_session, "personas-api@example.com", "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    return membership.workspace_id
 
 
 def _create_payload(slug: str) -> dict[str, object]:
@@ -99,8 +109,9 @@ async def test_delete_non_baseline_persona(app: FastAPI, db_session: AsyncSessio
 
 
 async def test_baseline_persona_cannot_be_deleted(app: FastAPI, db_session: AsyncSession) -> None:
+    workspace_id = await _personas_api_workspace_id(db_session)
     async with _authed_client(app, db_session) as client:
-        personas = await seed_baseline_personas(db_session)
+        personas = await seed_baseline_personas(db_session, workspace_id)
         baseline = personas[0]
 
         delete_response = await client.delete(f"/personas/{baseline.id}")
@@ -109,8 +120,9 @@ async def test_baseline_persona_cannot_be_deleted(app: FastAPI, db_session: Asyn
 
 
 async def test_reset_baseline_persona_reverts_edits(app: FastAPI, db_session: AsyncSession) -> None:
+    workspace_id = await _personas_api_workspace_id(db_session)
     async with _authed_client(app, db_session) as client:
-        personas = await seed_baseline_personas(db_session)
+        personas = await seed_baseline_personas(db_session, workspace_id)
         baseline = personas[0]
         original_anxiety = baseline.anxiety
 

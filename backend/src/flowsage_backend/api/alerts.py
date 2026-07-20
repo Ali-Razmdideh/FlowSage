@@ -14,14 +14,18 @@ from flowsage_backend.alerts import (
     build_digest_blocks,
     build_digest_text,
 )
-from flowsage_backend.deps import get_current_user, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.integrations.slack import (
     SlackDeliveryError,
     SlackNotConfiguredError,
     post_slack_message,
 )
+from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership
 
-router = APIRouter(prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_user)])
+router = APIRouter(
+    prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_membership)]
+)
 
 
 class DigestResult(BaseModel):
@@ -29,16 +33,23 @@ class DigestResult(BaseModel):
 
 
 @router.get("", response_model=AlertsReport)
-async def get_alerts(session: AsyncSession = Depends(get_db_session)) -> AlertsReport:
-    return await build_alerts_report(session)
+async def get_alerts(
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
+) -> AlertsReport:
+    _, membership = membership_pair
+    return await build_alerts_report(session, membership.workspace_id)
 
 
 @router.post("/digest/run", response_model=DigestResult)
 async def run_digest_now(
-    request: Request, session: AsyncSession = Depends(get_db_session)
+    request: Request,
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
 ) -> DigestResult:
+    _, membership = membership_pair
     settings = request.app.state.settings
-    report = await build_alerts_report(session)
+    report = await build_alerts_report(session, membership.workspace_id)
     try:
         await post_slack_message(
             settings.slack_webhook_url,
