@@ -37,7 +37,14 @@ describe("RequireAuth", () => {
 
   it("renders the protected content when authenticated", () => {
     renderWithAuth({
-      user: { id: "u1", email: "a@b.com", created_at: "now" },
+      user: {
+        id: "u1",
+        email: "a@b.com",
+        created_at: "now",
+        workspace_id: "w1",
+        role: "admin",
+        workspaces: [{ id: "w1", name: "Workspace 1" }],
+      },
       loading: false,
       login: vi.fn(),
       logout: vi.fn(),

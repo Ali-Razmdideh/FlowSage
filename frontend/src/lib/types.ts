@@ -1,7 +1,55 @@
+export type Role = "admin" | "researcher" | "viewer";
+
 export interface User {
   id: string;
   email: string;
   created_at: string;
+  workspace_id: string;
+  role: Role;
+  workspaces: { id: string; name: string }[];
+}
+
+export type WorkspacePrivacy = "private" | "restricted";
+
+export interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  avatar_url: string | null;
+  privacy: WorkspacePrivacy;
+  region: string;
+  retention_days: number;
+  archived: boolean;
+  created_at: string;
+}
+
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  role: Role;
+}
+
+export interface WorkspaceUpdatePayload {
+  name: string;
+  description: string;
+  avatar_url: string | null;
+  privacy: WorkspacePrivacy;
+  region: string;
+  retention_days: number;
+}
+
+export interface Member {
+  id: string;
+  user_id: string;
+  email: string;
+  role: Role;
+  created_at: string;
+}
+
+export interface MemberAddPayload {
+  email: string;
+  role: Role;
 }
 
 export interface Persona {
