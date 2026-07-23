@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: "/settings/general", label: "General Settings", icon: "settings" },
   { to: "/settings/team", label: "Team Access", icon: "group" },
   { to: "/settings/model-calibration", label: "Model Calibration", icon: "tune" },
+  { to: "/settings/integrations", label: "Integrations", icon: "hub" },
 ] as const;
 
 export function Sidebar() {
