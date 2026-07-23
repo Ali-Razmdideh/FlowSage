@@ -275,3 +275,70 @@ export interface SlackExportResult {
 export interface JiraExportResult {
   issue_key: string;
 }
+
+export interface SlackStatus {
+  connected: boolean;
+  webhook_url_preview: string | null;
+}
+
+export interface JiraStatus {
+  connected: boolean;
+  base_url: string | null;
+  email: string | null;
+  project_key: string | null;
+}
+
+export interface JiraConnectPayload {
+  base_url: string;
+  email: string;
+  api_token: string;
+  project_key: string;
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked: boolean;
+}
+
+export interface ApiKeyCreated {
+  id: string;
+  name: string;
+  key: string;
+  key_prefix: string;
+  created_at: string;
+}
+
+export interface Webhook {
+  id: string;
+  url: string;
+  event_types: string[];
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface WebhookCreated extends Webhook {
+  secret: string;
+}
+
+export interface WebhookUpdatePayload {
+  url?: string;
+  event_types?: string[];
+  enabled?: boolean;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  event_type: string;
+  status_code: number | null;
+  success: boolean;
+  created_at: string;
+}
+
+export interface WebhookTestResult {
+  status_code: number | null;
+  success: boolean;
+}
