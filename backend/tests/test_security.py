@@ -6,9 +6,24 @@ import pytest
 from flowsage_backend.security import (
     create_access_token,
     decode_access_token,
+    generate_api_key,
+    hash_api_key,
     hash_password,
     verify_password,
 )
+
+
+def test_generate_api_key_has_expected_prefix_and_is_random() -> None:
+    key_a = generate_api_key()
+    key_b = generate_api_key()
+    assert key_a.startswith("fs_live_")
+    assert key_a != key_b
+
+
+def test_hash_api_key_is_deterministic_and_not_reversible() -> None:
+    raw = generate_api_key()
+    assert hash_api_key(raw) == hash_api_key(raw)
+    assert hash_api_key(raw) != raw
 
 
 def test_hash_password_does_not_return_plaintext() -> None:

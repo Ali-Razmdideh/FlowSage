@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ from flowsage_backend.integrations.slack import (
     SlackNotConfiguredError,
     post_slack_message,
 )
+from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
 from flowsage_backend.models.simulation import FrictionIssue
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
@@ -52,16 +53,15 @@ async def _get_issue(
 @router.post("/{issue_id}/export/slack", response_model=SlackExportResult)
 async def export_issue_to_slack(
     issue_id: uuid.UUID,
-    request: Request,
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> SlackExportResult:
     _, membership = membership_pair
     issue = await _get_issue(session, membership.workspace_id, issue_id)
-    settings = request.app.state.settings
+    integration = await get_slack_integration(session, membership.workspace_id)
     text = f"*{issue.severity.upper()}* friction on `{issue.screen}`: {issue.title}"
     try:
-        await post_slack_message(settings.slack_webhook_url, text=text)
+        await post_slack_message(integration.webhook_url if integration else None, text=text)
     except SlackNotConfiguredError as exc:
         raise HTTPException(400, str(exc)) from exc
     except SlackDeliveryError as exc:
@@ -72,19 +72,18 @@ async def export_issue_to_slack(
 @router.post("/{issue_id}/export/jira", response_model=JiraExportResult)
 async def export_issue_to_jira(
     issue_id: uuid.UUID,
-    request: Request,
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> JiraExportResult:
     _, membership = membership_pair
     issue = await _get_issue(session, membership.workspace_id, issue_id)
-    settings = request.app.state.settings
+    integration = await get_jira_integration(session, membership.workspace_id)
     try:
         issue_key = await create_jira_issue(
-            base_url=settings.jira_base_url,
-            email=settings.jira_email,
-            api_token=settings.jira_api_token,
-            project_key=settings.jira_project_key,
+            base_url=integration.base_url if integration else None,
+            email=integration.email if integration else None,
+            api_token=integration.api_token if integration else None,
+            project_key=integration.project_key if integration else None,
             summary=f"[FlowSage] {issue.title}",
             description=f"{issue.description}\n\nSuggested fix: {issue.suggested_fix}",
         )

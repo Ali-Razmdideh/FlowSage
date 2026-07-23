@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend import worker as worker_module
 from flowsage_backend.alerts import AlertsReport, CalibrationAlert
-from flowsage_backend.config import Settings
 from flowsage_backend.models.calibration import RetrainingJob
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.settings_store import get_or_create_calibration_settings
@@ -45,11 +44,10 @@ async def _force_due(db_session: AsyncSession) -> Any:
 
 
 async def test_run_digest_job_skips_silently_when_slack_not_configured(
-    db_session: AsyncSession, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    db_session: AsyncSession,
 ) -> None:
-    assert settings.slack_webhook_url is None
-    monkeypatch.setattr(worker_module, "get_settings", lambda: settings)
-
+    """No `SlackIntegration` row for fs-default is the default state -- nothing to
+    configure here."""
     calibration_settings, original_last_sent = await _force_due(db_session)
     try:
         ctx: dict[str, Any] = {"session_factory": lambda: db_session, "redis": _FakeRedis()}
@@ -64,11 +62,13 @@ async def test_run_digest_job_skips_silently_when_slack_not_configured(
         await db_session.commit()
 
 
-async def test_run_digest_job_posts_when_slack_configured(
-    db_session: AsyncSession, settings: Settings, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    configured = settings.model_copy(update={"slack_webhook_url": "https://hooks.slack.test/x"})
-    monkeypatch.setattr(worker_module, "get_settings", lambda: configured)
+async def test_run_digest_job_posts_when_slack_configured(db_session: AsyncSession) -> None:
+    from flowsage_backend.models.integration import SlackIntegration
+
+    workspace_id = await ensure_default_workspace(db_session)
+    integration = SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    db_session.add(integration)
+    await db_session.commit()
 
     posted: dict[str, object] = {}
 
@@ -76,6 +76,7 @@ async def test_run_digest_job_posts_when_slack_configured(
         posted["webhook_url"] = webhook_url
         posted["text"] = text
 
+    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(worker_module, "post_slack_message", _fake_post)
 
     calibration_settings, original_last_sent = await _force_due(db_session)
@@ -88,11 +89,12 @@ async def test_run_digest_job_posts_when_slack_configured(
     finally:
         calibration_settings.digest_last_sent_at = original_last_sent
         await db_session.commit()
+        await db_session.delete(integration)
+        await db_session.commit()
+        monkeypatch.undo()
 
 
-async def test_run_digest_job_skips_send_when_not_due(
-    db_session: AsyncSession, settings: Settings, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_run_digest_job_skips_send_when_not_due(db_session: AsyncSession) -> None:
     """A weekly-frequency settings row with a `digest_last_sent_at` from moments
     ago is not due yet -- the daily cron tick must no-op rather than re-send.
 
@@ -101,10 +103,11 @@ async def test_run_digest_job_skips_send_when_not_due(
     test restores `digest_last_sent_at` afterwards to avoid leaking "not due"
     state into whichever digest test runs next.
     """
-    configured = settings.model_copy(update={"slack_webhook_url": "https://hooks.slack.test/x"})
-    monkeypatch.setattr(worker_module, "get_settings", lambda: configured)
+    from flowsage_backend.models.integration import SlackIntegration
 
     workspace_id = await ensure_default_workspace(db_session)
+    integration = SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    db_session.add(integration)
     calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original_last_sent = calibration_settings.digest_last_sent_at
     calibration_settings.digest_last_sent_at = datetime.now(timezone.utc)
@@ -116,6 +119,7 @@ async def test_run_digest_job_skips_send_when_not_due(
         nonlocal posted
         posted = True
 
+    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(worker_module, "post_slack_message", _fake_post)
 
     try:
@@ -125,13 +129,14 @@ async def test_run_digest_job_skips_send_when_not_due(
     finally:
         calibration_settings.digest_last_sent_at = original_last_sent
         await db_session.commit()
+        await db_session.delete(integration)
+        await db_session.commit()
+        monkeypatch.undo()
 
 
 async def test_run_digest_job_auto_retrains_anomalous_personas(
-    db_session: AsyncSession, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(worker_module, "get_settings", lambda: settings)
-
     workspace_id = await ensure_default_workspace(db_session)
     calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original_auto_retrain = calibration_settings.auto_retrain_on_anomaly

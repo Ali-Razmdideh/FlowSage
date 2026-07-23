@@ -30,8 +30,10 @@ from testcontainers.redis import RedisContainer
 from flowsage_backend.config import Settings
 from flowsage_backend.main import create_app
 from flowsage_backend.models import Base
+from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace
+from flowsage_backend.security import generate_api_key, hash_api_key
 from flowsage_backend.seed import upsert_user
 
 
@@ -107,6 +109,24 @@ async def ensure_default_workspace(session: AsyncSession) -> uuid.UUID:
     await session.commit()
     await session.refresh(workspace)
     return workspace.id
+
+
+async def create_api_key_for(
+    session: AsyncSession, workspace_id: uuid.UUID, name: str = "test-key"
+) -> str:
+    """Mints a real `ApiKey` row and returns the raw key, for tests that need to
+    authenticate `POST /v1/events` -- replaces the old shared `events_api_key`."""
+    raw_key = generate_api_key()
+    session.add(
+        ApiKey(
+            workspace_id=workspace_id,
+            name=name,
+            key_prefix=raw_key[:12],
+            key_hash=hash_api_key(raw_key),
+        )
+    )
+    await session.commit()
+    return raw_key
 
 
 async def login_to_default_workspace(

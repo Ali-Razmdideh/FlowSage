@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
 
-from .conftest import login_to_default_workspace
+from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -56,7 +56,8 @@ async def test_node_intelligence_requires_authentication(app: FastAPI) -> None:
 async def test_cohorts_compare_auto_discovers_and_ranks_screens(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     # Namespaced session ids so this test's rows don't collide with other test
     # files' own "s{n}"-style ids in the shared, un-truncated events table.
     # Both cohorts walk landing -> cart -> checkout; "paid" never drops at
@@ -101,7 +102,8 @@ async def test_cohorts_compare_auto_discovers_and_ranks_screens(
 async def test_churn_risk_ranks_segments_by_risk_score(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"churn-risk-{i}" for i in range(4)]
     events = [
         *[_event(session_ids[i], "landing", 0, "healthy") for i in range(2)],
@@ -141,7 +143,8 @@ async def test_node_intelligence_returns_404_for_unknown_screen(
 async def test_node_intelligence_returns_recommendations_for_friction_screen(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"node-intel-{i}" for i in range(4)]
     events = [
         *[_event(session_ids[i], "landing", 0, "paid") for i in range(4)],

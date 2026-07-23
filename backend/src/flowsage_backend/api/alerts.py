@@ -4,7 +4,7 @@ on schedule, exposed here so it can be tested/fired without waiting a week."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +20,7 @@ from flowsage_backend.integrations.slack import (
     SlackNotConfiguredError,
     post_slack_message,
 )
+from flowsage_backend.integrations_store import get_slack_integration
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
 
@@ -43,16 +44,15 @@ async def get_alerts(
 
 @router.post("/digest/run", response_model=DigestResult)
 async def run_digest_now(
-    request: Request,
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> DigestResult:
     _, membership = membership_pair
-    settings = request.app.state.settings
+    integration = await get_slack_integration(session, membership.workspace_id)
     report = await build_alerts_report(session, membership.workspace_id)
     try:
         await post_slack_message(
-            settings.slack_webhook_url,
+            integration.webhook_url if integration else None,
             text=build_digest_text(report),
             blocks=build_digest_blocks(report),
         )

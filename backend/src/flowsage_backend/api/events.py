@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from flowsage_graph.models import Event as GraphEvent
 from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.churn import (
@@ -23,7 +22,7 @@ from flowsage_backend.churn import (
     compare_cohorts,
     get_node_intelligence,
 )
-from flowsage_backend.deps import get_current_membership, get_db_session, require_api_key
+from flowsage_backend.deps import get_current_membership, get_db_session, require_workspace_api_key
 from flowsage_backend.events import build_funnel_report, ingest_events
 from flowsage_backend.integrations.jira import (
     JiraDeliveryError,
@@ -35,14 +34,13 @@ from flowsage_backend.integrations.slack import (
     SlackNotConfiguredError,
     post_slack_message,
 )
+from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership, Workspace
+from flowsage_backend.models.workspace import Membership
 
 logger = logging.getLogger(__name__)
 
-events_router = APIRouter(
-    prefix="/v1/events", tags=["events"], dependencies=[Depends(require_api_key)]
-)
+events_router = APIRouter(prefix="/v1/events", tags=["events"])
 graph_router = APIRouter(
     prefix="/graph", tags=["graph"], dependencies=[Depends(get_current_membership)]
 )
@@ -61,21 +59,13 @@ class IngestResult(BaseModel):
     ingested: int
 
 
-async def _default_workspace_id(session: AsyncSession) -> uuid.UUID:
-    result = await session.execute(select(Workspace.id).where(Workspace.slug == "fs-default"))
-    workspace_id = result.scalar_one_or_none()
-    if workspace_id is None:
-        raise HTTPException(500, "No default workspace configured")
-    return workspace_id
-
-
 @events_router.post("", response_model=IngestResult, status_code=201)
 async def ingest(
     payload: list[EventIn],
     request: Request,
+    workspace_id: uuid.UUID = Depends(require_workspace_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> IngestResult:
-    workspace_id = await _default_workspace_id(session)
     graph_events = [GraphEvent.model_validate(e.model_dump()) for e in payload]
     rows = await ingest_events(session, workspace_id, graph_events)
 
@@ -160,7 +150,6 @@ class JiraExportResult(BaseModel):
 @graph_router.post("/nodes/{screen}/export/slack", response_model=SlackExportResult)
 async def export_node_to_slack(
     screen: str,
-    request: Request,
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
@@ -174,10 +163,10 @@ async def export_node_to_slack(
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
 
-    settings = request.app.state.settings
+    integration = await get_slack_integration(session, membership.workspace_id)
     text = f"Friction node `{screen}`: {intel.ai_insight}"
     try:
-        await post_slack_message(settings.slack_webhook_url, text=text)
+        await post_slack_message(integration.webhook_url if integration else None, text=text)
     except SlackNotConfiguredError as exc:
         raise HTTPException(400, str(exc)) from exc
     except SlackDeliveryError as exc:
@@ -188,7 +177,6 @@ async def export_node_to_slack(
 @graph_router.post("/nodes/{screen}/export/jira", response_model=JiraExportResult)
 async def export_node_to_jira(
     screen: str,
-    request: Request,
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
@@ -202,13 +190,13 @@ async def export_node_to_jira(
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
 
-    settings = request.app.state.settings
+    integration = await get_jira_integration(session, membership.workspace_id)
     try:
         issue_key = await create_jira_issue(
-            base_url=settings.jira_base_url,
-            email=settings.jira_email,
-            api_token=settings.jira_api_token,
-            project_key=settings.jira_project_key,
+            base_url=integration.base_url if integration else None,
+            email=integration.email if integration else None,
+            api_token=integration.api_token if integration else None,
+            project_key=integration.project_key if integration else None,
             summary=f"[FlowSage] Friction node: {screen}",
             description=intel.ai_insight,
         )

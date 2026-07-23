@@ -26,6 +26,7 @@ from flowsage_backend.alerts import (
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
 from flowsage_backend.integrations.slack import SlackNotConfiguredError, post_slack_message
+from flowsage_backend.integrations_store import get_slack_integration
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.settings import DigestFrequency
@@ -78,7 +79,6 @@ async def run_digest_job(ctx: dict[str, Any]) -> None:
     per-workspace cron scheduling infrastructure yet (Phase 3 chunk 2+ scope).
     No-ops quietly if that workspace doesn't exist yet (e.g. a fresh install
     before any migration/backfill has run)."""
-    app_settings = get_settings()
     session_factory = ctx["session_factory"]
     now = datetime.now(timezone.utc)
 
@@ -103,9 +103,11 @@ async def run_digest_job(ctx: dict[str, Any]) -> None:
         calibration_settings.digest_last_sent_at = now
         await session.commit()
 
+        integration = await get_slack_integration(session, workspace_id)
+
     try:
         await post_slack_message(
-            app_settings.slack_webhook_url,
+            integration.webhook_url if integration else None,
             text=build_digest_text(report),
             blocks=build_digest_blocks(report),
         )

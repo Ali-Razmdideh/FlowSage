@@ -10,7 +10,9 @@ from sqlalchemy import select
 
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
+from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.workspace import Workspace
+from flowsage_backend.security import generate_api_key, hash_api_key
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
 
@@ -38,6 +40,30 @@ async def _seed_personas() -> None:
     print(f"{len(personas)} baseline persona(s) ready: {', '.join(p.slug for p in personas)}")
 
 
+async def _create_api_key(workspace_slug: str, name: str) -> None:
+    settings = get_settings()
+    engine = create_engine(settings)
+    session_factory = create_session_factory(engine)
+    async with session_factory() as session:
+        result = await session.execute(select(Workspace).where(Workspace.slug == workspace_slug))
+        workspace = result.scalar_one_or_none()
+        if workspace is None:
+            raise SystemExit(f"No workspace with slug {workspace_slug!r}.")
+        raw_key = generate_api_key()
+        session.add(
+            ApiKey(
+                workspace_id=workspace.id,
+                name=name,
+                key_prefix=raw_key[:12],
+                key_hash=hash_api_key(raw_key),
+            )
+        )
+        await session.commit()
+    await engine.dispose()
+    print(f"API key created for workspace {workspace_slug!r}: {raw_key}")
+    print("Store it now -- it will not be shown again.")
+
+
 def _serve() -> None:
     uvicorn.run("flowsage_backend.main:create_app", factory=True, host="0.0.0.0", port=8000)
 
@@ -56,6 +82,12 @@ def main() -> None:
 
     subparsers.add_parser("seed-personas", help="Load the 5 baseline personas into the database")
 
+    create_api_key_parser = subparsers.add_parser(
+        "create-api-key", help="Create a POST /v1/events API key for a workspace"
+    )
+    create_api_key_parser.add_argument("workspace_slug")
+    create_api_key_parser.add_argument("name")
+
     args = parser.parse_args()
 
     if args.command == "create-user":
@@ -64,6 +96,10 @@ def main() -> None:
 
     if args.command == "seed-personas":
         asyncio.run(_seed_personas())
+        return
+
+    if args.command == "create-api-key":
+        asyncio.run(_create_api_key(args.workspace_slug, args.name))
         return
 
     _serve()

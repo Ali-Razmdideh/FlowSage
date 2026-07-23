@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
 
-from .conftest import login_to_default_workspace
+from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -51,7 +51,8 @@ async def test_export_node_to_slack_returns_404_for_unknown_screen(
 async def test_export_node_to_slack_returns_400_when_not_configured(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"node-export-{i}" for i in range(4)]
     events = [
         *[_event(session_ids[i], "landing", 0) for i in range(4)],
@@ -77,7 +78,8 @@ async def test_export_node_to_slack_returns_400_when_not_configured(
 async def test_export_node_to_jira_returns_400_when_not_configured(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"node-export-jira-{i}" for i in range(4)]
     events = [
         *[_event(session_ids[i], "landing", 0) for i in range(4)],

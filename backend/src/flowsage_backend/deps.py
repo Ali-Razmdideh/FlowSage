@@ -1,11 +1,12 @@
 """FastAPI dependency providers: DB session, the current authenticated membership
-(user + their role in the active workspace), and the shared-secret API key check
+(user + their role in the active workspace), and the per-workspace API key check
 used by the server-to-server ingestion endpoint."""
 
 from __future__ import annotations
 
-import secrets
+import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
+from datetime import datetime, timezone
 from typing import Any
 
 import jwt
@@ -14,9 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role
-from flowsage_backend.security import decode_access_token
+from flowsage_backend.security import decode_access_token, hash_api_key
 
 
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -84,8 +86,18 @@ def require_role(
     return _dependency
 
 
-async def require_api_key(request: Request) -> None:
-    settings = request.app.state.settings
+async def require_workspace_api_key(
+    request: Request, session: AsyncSession = Depends(get_db_session)
+) -> uuid.UUID:
     provided = request.headers.get("X-API-Key")
-    if provided is None or not secrets.compare_digest(provided, settings.events_api_key):
+    if provided is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing or invalid X-API-Key")
+
+    result = await session.execute(select(ApiKey).where(ApiKey.key_hash == hash_api_key(provided)))
+    api_key = result.scalar_one_or_none()
+    if api_key is None or api_key.revoked_at is not None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing or invalid X-API-Key")
+
+    api_key.last_used_at = datetime.now(timezone.utc)
+    await session.commit()
+    return api_key.workspace_id

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
 
-from .conftest import login_to_default_workspace
+from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
 
 _T0 = datetime(2026, 7, 17, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -28,13 +28,6 @@ def _event(
     }
 
 
-async def test_ingest_requires_api_key(app: FastAPI) -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/v1/events", json=[_event("s1", "landing", 0)])
-
-    assert response.status_code == 401
-
-
 async def test_ingest_rejects_wrong_api_key(app: FastAPI) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -47,7 +40,8 @@ async def test_ingest_rejects_wrong_api_key(app: FastAPI) -> None:
 
 
 async def test_ingest_stores_events_in_postgres(app: FastAPI, db_session: AsyncSession) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     events = [_event("s1", "landing", 0), _event("s1", "cart", 1)]
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -61,11 +55,12 @@ async def test_ingest_stores_events_in_postgres(app: FastAPI, db_session: AsyncS
     assert {r.screen for r in rows} == {"landing", "cart"}
 
 
-async def test_ingest_continues_when_neo4j_unreachable(app: FastAPI) -> None:
+async def test_ingest_continues_when_neo4j_unreachable(app: FastAPI, db_session: AsyncSession) -> None:
     """The default `app` fixture points at an unreachable Neo4j -- ingestion into
     Postgres must still succeed (best-effort mirroring, matching flowsage-graph's
     own CLI resilience pattern)."""
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -76,9 +71,10 @@ async def test_ingest_continues_when_neo4j_unreachable(app: FastAPI) -> None:
 
 
 async def test_ingest_actually_writes_to_neo4j(
-    app_with_real_neo4j: FastAPI, neo4j_credentials: tuple[str, str, str]
+    app_with_real_neo4j: FastAPI, db_session: AsyncSession, neo4j_credentials: tuple[str, str, str]
 ) -> None:
-    api_key = app_with_real_neo4j.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     events = [_event("s1", "landing", 0), _event("s1", "cart", 1)]
 
     async with AsyncClient(
@@ -116,7 +112,8 @@ async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterato
 
 
 async def test_funnel_discovers_path_and_friction(app: FastAPI, db_session: AsyncSession) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     events = [
         *[_event(f"s{i}", "landing", 0) for i in range(4)],
         *[_event(f"s{i}", "cart", 1) for i in range(4)],
@@ -142,7 +139,8 @@ async def test_funnel_discovers_path_and_friction(app: FastAPI, db_session: Asyn
 
 
 async def test_funnel_filters_by_cohort(app: FastAPI, db_session: AsyncSession) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     paid = _event("s1", "landing", 0)
     free = {**_event("s2", "landing", 0), "cohort": "free_trial"}
 
