@@ -13,6 +13,8 @@ current data -- no persisted "alert" rows.
 
 from __future__ import annotations
 
+import uuid
+
 from flowsage_graph.funnel import discover_funnel
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,12 +73,14 @@ def check_churn_alerts(
     ]
 
 
-async def build_alerts_report(session: AsyncSession) -> AlertsReport:
-    events = await query_events(session)
+async def build_alerts_report(session: AsyncSession, workspace_id: uuid.UUID) -> AlertsReport:
+    events = await query_events(session, workspace_id)
     funnel = discover_funnel(events)
-    settings = await get_or_create_calibration_settings(session)
-    calibration_report = await build_calibration_report(session, funnel, settings.anomaly_threshold)
-    churn_segments = await build_churn_risk_segments(session)
+    settings = await get_or_create_calibration_settings(session, workspace_id)
+    calibration_report = await build_calibration_report(
+        session, workspace_id, funnel, settings.anomaly_threshold
+    )
+    churn_segments = await build_churn_risk_segments(session, workspace_id)
     return AlertsReport(
         calibration_alerts=check_calibration_anomalies(calibration_report),
         churn_alerts=check_churn_alerts(churn_segments, settings.churn_risk_alert_threshold),

@@ -36,18 +36,24 @@ def dummy_password_hash() -> str:
 
 
 def create_access_token(
-    user_id: uuid.UUID, *, secret: str, algorithm: str, expires_minutes: int
+    user_id: uuid.UUID,
+    workspace_id: uuid.UUID,
+    *,
+    secret: str,
+    algorithm: str,
+    expires_minutes: int,
 ) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
+        "workspace_id": str(workspace_id),
         "iat": now,
         "exp": now + timedelta(minutes=expires_minutes),
     }
     return jwt.encode(payload, secret, algorithm=algorithm)
 
 
-def decode_access_token(token: str, *, secret: str, algorithm: str) -> uuid.UUID:
+def decode_access_token(token: str, *, secret: str, algorithm: str) -> tuple[uuid.UUID, uuid.UUID]:
     """Raises `jwt.PyJWTError` (or a subclass) if the token is invalid, expired, or malformed."""
     payload = jwt.decode(token, secret, algorithms=[algorithm])
-    return uuid.UUID(payload["sub"])
+    return uuid.UUID(payload["sub"]), uuid.UUID(payload["workspace_id"])

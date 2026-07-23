@@ -13,6 +13,7 @@ a heuristic keeps this endpoint fast and side-effect free.
 
 from __future__ import annotations
 
+import uuid
 from collections import defaultdict
 from datetime import datetime
 
@@ -104,16 +105,19 @@ def build_cohort_comparison(reports: dict[str, FunnelReport]) -> CohortCompariso
 
 async def compare_cohorts(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     cohorts: list[str],
     *,
     device: str | None = None,
     since: datetime | None = None,
 ) -> CohortComparisonReport:
     if not cohorts:
-        cohorts = await distinct_cohorts(session, device=device, since=since)
+        cohorts = await distinct_cohorts(session, workspace_id, device=device, since=since)
 
     reports = {
-        cohort: await build_funnel_report(session, cohort=cohort, device=device, since=since)
+        cohort: await build_funnel_report(
+            session, workspace_id, cohort=cohort, device=device, since=since
+        )
         for cohort in cohorts
     }
     return build_cohort_comparison(reports)
@@ -146,14 +150,18 @@ def score_churn_risk(cohort: str, report: FunnelReport) -> ChurnRiskSegment:
 
 async def build_churn_risk_segments(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     *,
     device: str | None = None,
     since: datetime | None = None,
 ) -> list[ChurnRiskSegment]:
-    cohorts = await distinct_cohorts(session, device=device, since=since)
+    cohorts = await distinct_cohorts(session, workspace_id, device=device, since=since)
     segments = [
         score_churn_risk(
-            cohort, await build_funnel_report(session, cohort=cohort, device=device, since=since)
+            cohort,
+            await build_funnel_report(
+                session, workspace_id, cohort=cohort, device=device, since=since
+            ),
         )
         for cohort in cohorts
     ]
@@ -291,13 +299,14 @@ def build_node_intelligence(
 
 async def get_node_intelligence(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     screen: str,
     *,
     cohort: str | None = None,
     device: str | None = None,
     since: datetime | None = None,
 ) -> NodeIntelligence | None:
-    events = await query_events(session, cohort=cohort, device=device, since=since)
+    events = await query_events(session, workspace_id, cohort=cohort, device=device, since=since)
     funnel = discover_funnel(events)
     if screen not in {step.screen for step in funnel}:
         return None

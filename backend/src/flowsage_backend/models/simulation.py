@@ -30,6 +30,9 @@ class SimulationRun(Base):
     __tablename__ = "simulation_runs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     flow_name: Mapped[str] = mapped_column(String(200))
     goal: Mapped[str] = mapped_column(String(500))
     persona_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("personas.id"))
@@ -55,6 +58,9 @@ class SimulationStep(Base):
     __tablename__ = "simulation_steps"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("simulation_runs.id", ondelete="CASCADE"))
     sequence: Mapped[int] = mapped_column(Integer)
     screen: Mapped[str] = mapped_column(String(200))
@@ -69,6 +75,9 @@ class FrictionIssue(Base):
     __tablename__ = "friction_issues"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("simulation_runs.id", ondelete="CASCADE"))
     step_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("simulation_steps.id", ondelete="SET NULL"), nullable=True

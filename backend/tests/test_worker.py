@@ -14,6 +14,8 @@ from flowsage_backend.models.persona import Persona
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 from flowsage_backend.worker import run_digest_job
 
+from .conftest import ensure_default_workspace
+
 
 class _FakeRedis:
     def __init__(self) -> None:
@@ -24,13 +26,18 @@ class _FakeRedis:
 
 
 async def _force_due(db_session: AsyncSession) -> Any:
-    """`CalibrationSettings` is a session-wide singleton row (see the module
-    docstring gotcha in `conftest.py` re: no per-test DB isolation) -- a prior
-    test in this file may have already set `digest_last_sent_at` to "now",
-    which would make this test's send look "not due" and silently no-op.
-    Force it back to never-sent so this test's send actually fires, and hand
-    back the original value so the caller can restore it in a `finally`."""
-    calibration_settings = await get_or_create_calibration_settings(db_session)
+    """`CalibrationSettings` is a session-wide singleton row per workspace (see
+    the module docstring gotcha in `conftest.py` re: no per-test DB isolation)
+    -- a prior test in this file may have already set `digest_last_sent_at` to
+    "now", which would make this test's send look "not due" and silently
+    no-op. Force it back to never-sent so this test's send actually fires, and
+    hand back the original value so the caller can restore it in a `finally`.
+
+    `run_digest_job` is scoped to the shared "fs-default" workspace (same
+    one-workspace rationale as `/v1/events` ingestion), so this test's
+    settings row must live there too."""
+    workspace_id = await ensure_default_workspace(db_session)
+    calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original_last_sent = calibration_settings.digest_last_sent_at
     calibration_settings.digest_last_sent_at = None
     await db_session.commit()
@@ -97,7 +104,8 @@ async def test_run_digest_job_skips_send_when_not_due(
     configured = settings.model_copy(update={"slack_webhook_url": "https://hooks.slack.test/x"})
     monkeypatch.setattr(worker_module, "get_settings", lambda: configured)
 
-    calibration_settings = await get_or_create_calibration_settings(db_session)
+    workspace_id = await ensure_default_workspace(db_session)
+    calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original_last_sent = calibration_settings.digest_last_sent_at
     calibration_settings.digest_last_sent_at = datetime.now(timezone.utc)
     await db_session.commit()
@@ -124,12 +132,14 @@ async def test_run_digest_job_auto_retrains_anomalous_personas(
 ) -> None:
     monkeypatch.setattr(worker_module, "get_settings", lambda: settings)
 
-    calibration_settings = await get_or_create_calibration_settings(db_session)
+    workspace_id = await ensure_default_workspace(db_session)
+    calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original_auto_retrain = calibration_settings.auto_retrain_on_anomaly
     calibration_settings.auto_retrain_on_anomaly = True
     await db_session.commit()
 
     persona = Persona(
+        workspace_id=workspace_id,
         slug=f"worker-autoretrain-{uuid.uuid4().hex[:8]}",
         name="Worker Autoretrain Persona",
         description="d",
@@ -145,7 +155,7 @@ async def test_run_digest_job_auto_retrains_anomalous_personas(
     await db_session.commit()
     await db_session.refresh(persona)
 
-    async def _fake_alerts_report(session: AsyncSession) -> AlertsReport:
+    async def _fake_alerts_report(session: AsyncSession, workspace_id: uuid.UUID) -> AlertsReport:
         return AlertsReport(
             calibration_alerts=[
                 CalibrationAlert(persona_name=persona.name, screen="checkout", delta=0.9)

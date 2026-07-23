@@ -108,11 +108,15 @@ def _complexity(screen_count: int) -> float:
     return min(screen_count / 10, 1.0)
 
 
-async def latest_completed_runs_by_persona(session: AsyncSession) -> list[SimulationRun]:
+async def latest_completed_runs_by_persona(
+    session: AsyncSession, workspace_id: uuid.UUID
+) -> list[SimulationRun]:
     """One row per persona: their most recent COMPLETED run, if any."""
     result = await session.execute(
         select(SimulationRun)
-        .where(SimulationRun.status == RunStatus.COMPLETED)
+        .where(
+            SimulationRun.workspace_id == workspace_id, SimulationRun.status == RunStatus.COMPLETED
+        )
         .options(selectinload(SimulationRun.issues), selectinload(SimulationRun.persona))
         .order_by(SimulationRun.persona_id, SimulationRun.finished_at.desc())
     )
@@ -123,11 +127,15 @@ async def latest_completed_runs_by_persona(session: AsyncSession) -> list[Simula
 
 
 async def latest_completed_run_for_persona(
-    session: AsyncSession, persona_id: uuid.UUID
+    session: AsyncSession, workspace_id: uuid.UUID, persona_id: uuid.UUID
 ) -> SimulationRun | None:
     result = await session.execute(
         select(SimulationRun)
-        .where(SimulationRun.persona_id == persona_id, SimulationRun.status == RunStatus.COMPLETED)
+        .where(
+            SimulationRun.workspace_id == workspace_id,
+            SimulationRun.persona_id == persona_id,
+            SimulationRun.status == RunStatus.COMPLETED,
+        )
         .options(selectinload(SimulationRun.issues))
         .order_by(SimulationRun.finished_at.desc())
         .limit(1)
@@ -137,10 +145,11 @@ async def latest_completed_run_for_persona(
 
 async def build_calibration_report(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     funnel: list[FunnelStep],
     anomaly_threshold: float = ANOMALY_THRESHOLD,
 ) -> CalibrationReport:
-    runs = await latest_completed_runs_by_persona(session)
+    runs = await latest_completed_runs_by_persona(session, workspace_id)
     personas: list[PersonaCalibration] = []
     accuracy_points: list[AccuracyPoint] = []
     has_anomaly = False

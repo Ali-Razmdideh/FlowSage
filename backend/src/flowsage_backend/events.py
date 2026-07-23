@@ -7,6 +7,7 @@ mirrored into Neo4j as a temporal graph -- see `models/event.py` for why both.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
 from flowsage_graph.funnel import detect_friction, discover_funnel
@@ -18,9 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from flowsage_backend.models.event import Event
 
 
-async def ingest_events(session: AsyncSession, events: list[GraphEvent]) -> list[Event]:
+async def ingest_events(
+    session: AsyncSession, workspace_id: uuid.UUID, events: list[GraphEvent]
+) -> list[Event]:
     rows = [
         Event(
+            workspace_id=workspace_id,
             session_id=e.session_id,
             screen=e.screen,
             event=e.event,
@@ -37,12 +41,13 @@ async def ingest_events(session: AsyncSession, events: list[GraphEvent]) -> list
 
 async def query_events(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     *,
     cohort: str | None = None,
     device: str | None = None,
     since: datetime | None = None,
 ) -> list[GraphEvent]:
-    query = select(Event)
+    query = select(Event).where(Event.workspace_id == workspace_id)
     if cohort is not None:
         query = query.where(Event.cohort == cohort)
     if device is not None:
@@ -56,11 +61,12 @@ async def query_events(
 
 async def distinct_cohorts(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     *,
     device: str | None = None,
     since: datetime | None = None,
 ) -> list[str]:
-    query = select(Event.cohort).distinct()
+    query = select(Event.cohort).distinct().where(Event.workspace_id == workspace_id)
     if device is not None:
         query = query.where(Event.device == device)
     if since is not None:
@@ -72,12 +78,13 @@ async def distinct_cohorts(
 
 async def build_funnel_report(
     session: AsyncSession,
+    workspace_id: uuid.UUID,
     *,
     cohort: str | None = None,
     device: str | None = None,
     since: datetime | None = None,
 ) -> FunnelReport:
-    events = await query_events(session, cohort=cohort, device=device, since=since)
+    events = await query_events(session, workspace_id, cohort=cohort, device=device, since=since)
     funnel = discover_funnel(events)
     friction = detect_friction(events, funnel)
     return FunnelReport(

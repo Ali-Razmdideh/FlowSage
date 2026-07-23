@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 
 from flowsage_graph.models import Event as GraphEvent
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from flowsage_backend.models.base import Base
@@ -26,6 +26,9 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     session_id: Mapped[str] = mapped_column(String(200), index=True)
     screen: Mapped[str] = mapped_column(String(200))
     event: Mapped[str] = mapped_column(String(100))

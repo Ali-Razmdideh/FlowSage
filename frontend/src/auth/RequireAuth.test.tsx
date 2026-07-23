@@ -26,21 +26,41 @@ function renderWithAuth(state: AuthState) {
 
 describe("RequireAuth", () => {
   it("shows a loading state while the session check is in flight", () => {
-    renderWithAuth({ user: null, loading: true, login: vi.fn(), logout: vi.fn() });
+    renderWithAuth({
+      user: null,
+      loading: true,
+      login: vi.fn(),
+      logout: vi.fn(),
+      switchWorkspace: vi.fn(),
+    });
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
   it("redirects to /login when there is no authenticated user", () => {
-    renderWithAuth({ user: null, loading: false, login: vi.fn(), logout: vi.fn() });
+    renderWithAuth({
+      user: null,
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      switchWorkspace: vi.fn(),
+    });
     expect(screen.getByText("Login screen")).toBeInTheDocument();
   });
 
   it("renders the protected content when authenticated", () => {
     renderWithAuth({
-      user: { id: "u1", email: "a@b.com", created_at: "now" },
+      user: {
+        id: "u1",
+        email: "a@b.com",
+        created_at: "now",
+        workspace_id: "w1",
+        role: "admin",
+        workspaces: [{ id: "w1", name: "Workspace 1" }],
+      },
       loading: false,
       login: vi.fn(),
       logout: vi.fn(),
+      switchWorkspace: vi.fn(),
     });
     expect(screen.getByText("Protected content")).toBeInTheDocument();
   });

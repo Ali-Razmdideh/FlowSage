@@ -25,9 +25,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const switchWorkspace = useCallback(async (workspaceId: string) => {
+    const updatedUser = await api.switchWorkspace(workspaceId);
+    setUser(updatedUser);
+  }, []);
+
   const value = useMemo<AuthState>(
-    () => ({ user, loading, login, logout }),
-    [user, loading, login, logout],
+    () => ({ user, loading, login, logout, switchWorkspace }),
+    [user, loading, login, logout, switchWorkspace],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

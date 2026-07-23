@@ -6,11 +6,13 @@ const NAV_ITEMS = [
   { to: "/predictive", label: "Predictive Engine", icon: "psychology" },
   { to: "/journey", label: "Journey Graph", icon: "timeline" },
   { to: "/calibration", label: "Calibration", icon: "tune" },
-  { to: "/settings/model-calibration", label: "Settings", icon: "settings" },
+  { to: "/settings/general", label: "General Settings", icon: "settings" },
+  { to: "/settings/team", label: "Team Access", icon: "group" },
+  { to: "/settings/model-calibration", label: "Model Calibration", icon: "tune" },
 ] as const;
 
 export function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, logout, switchWorkspace } = useAuth();
 
   return (
     <nav className="hidden md:flex h-screen w-72 flex-col fixed left-0 top-0 bg-surface-container-low text-sm z-40">
@@ -51,6 +53,29 @@ export function Sidebar() {
         </ul>
 
         <div className="mt-auto flex flex-col gap-3">
+          {user && user.workspaces.length > 1 ? (
+            <select
+              value={user.workspace_id}
+              onChange={(event) => {
+                // Every route fetches its data on mount with no shared cache/
+                // invalidation layer, so a full reload is the only way to get
+                // every currently-mounted page to refetch under the new
+                // workspace's session -- otherwise stale, wrong-tenant data
+                // stays on screen after switching.
+                void switchWorkspace(event.target.value).then(() => {
+                  window.location.reload();
+                });
+              }}
+              className="ghost-border rounded-lg px-3 py-2 bg-transparent text-sm"
+              aria-label="Switch workspace"
+            >
+              {user.workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="ghost-border rounded-lg p-3">
             <p className="text-xs text-on-surface-variant truncate">{user?.email}</p>
             <button

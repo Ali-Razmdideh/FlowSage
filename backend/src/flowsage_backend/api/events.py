@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from flowsage_graph.models import Event as GraphEvent
 from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.churn import (
@@ -21,7 +23,7 @@ from flowsage_backend.churn import (
     compare_cohorts,
     get_node_intelligence,
 )
-from flowsage_backend.deps import get_current_user, get_db_session, require_api_key
+from flowsage_backend.deps import get_current_membership, get_db_session, require_api_key
 from flowsage_backend.events import build_funnel_report, ingest_events
 from flowsage_backend.integrations.jira import (
     JiraDeliveryError,
@@ -33,13 +35,17 @@ from flowsage_backend.integrations.slack import (
     SlackNotConfiguredError,
     post_slack_message,
 )
+from flowsage_backend.models.user import User
+from flowsage_backend.models.workspace import Membership, Workspace
 
 logger = logging.getLogger(__name__)
 
 events_router = APIRouter(
     prefix="/v1/events", tags=["events"], dependencies=[Depends(require_api_key)]
 )
-graph_router = APIRouter(prefix="/graph", tags=["graph"], dependencies=[Depends(get_current_user)])
+graph_router = APIRouter(
+    prefix="/graph", tags=["graph"], dependencies=[Depends(get_current_membership)]
+)
 
 
 class EventIn(BaseModel):
@@ -55,18 +61,27 @@ class IngestResult(BaseModel):
     ingested: int
 
 
+async def _default_workspace_id(session: AsyncSession) -> uuid.UUID:
+    result = await session.execute(select(Workspace.id).where(Workspace.slug == "fs-default"))
+    workspace_id = result.scalar_one_or_none()
+    if workspace_id is None:
+        raise HTTPException(500, "No default workspace configured")
+    return workspace_id
+
+
 @events_router.post("", response_model=IngestResult, status_code=201)
 async def ingest(
     payload: list[EventIn],
     request: Request,
     session: AsyncSession = Depends(get_db_session),
 ) -> IngestResult:
+    workspace_id = await _default_workspace_id(session)
     graph_events = [GraphEvent.model_validate(e.model_dump()) for e in payload]
-    rows = await ingest_events(session, graph_events)
+    rows = await ingest_events(session, workspace_id, graph_events)
 
     graph_sink = request.app.state.graph_sink
     try:
-        await asyncio.to_thread(graph_sink.ingest, graph_events)
+        await asyncio.to_thread(graph_sink.ingest, graph_events, str(workspace_id))
     except Exception:  # noqa: BLE001 - Neo4j being unreachable shouldn't fail ingestion
         logger.warning(
             "Neo4j ingestion failed; events were still stored in Postgres", exc_info=True
@@ -80,9 +95,13 @@ async def funnel(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> FunnelReport:
-    return await build_funnel_report(session, cohort=cohort, device=device, since=since)
+    _, membership = membership_pair
+    return await build_funnel_report(
+        session, membership.workspace_id, cohort=cohort, device=device, since=since
+    )
 
 
 @graph_router.get("/cohorts/compare", response_model=CohortComparisonReport)
@@ -90,18 +109,26 @@ async def cohorts_compare(
     cohorts: list[str] = Query(default=[]),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> CohortComparisonReport:
-    return await compare_cohorts(session, cohorts, device=device, since=since)
+    _, membership = membership_pair
+    return await compare_cohorts(
+        session, membership.workspace_id, cohorts, device=device, since=since
+    )
 
 
 @graph_router.get("/churn-risk", response_model=list[ChurnRiskSegment])
 async def churn_risk(
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ChurnRiskSegment]:
-    return await build_churn_risk_segments(session, device=device, since=since)
+    _, membership = membership_pair
+    return await build_churn_risk_segments(
+        session, membership.workspace_id, device=device, since=since
+    )
 
 
 @graph_router.get("/nodes/{screen}", response_model=NodeIntelligence)
@@ -110,9 +137,13 @@ async def node_intelligence(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> NodeIntelligence:
-    result = await get_node_intelligence(session, screen, cohort=cohort, device=device, since=since)
+    _, membership = membership_pair
+    result = await get_node_intelligence(
+        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since
+    )
     if result is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
     return result
@@ -133,9 +164,13 @@ async def export_node_to_slack(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> SlackExportResult:
-    intel = await get_node_intelligence(session, screen, cohort=cohort, device=device, since=since)
+    _, membership = membership_pair
+    intel = await get_node_intelligence(
+        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since
+    )
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
 
@@ -157,9 +192,13 @@ async def export_node_to_jira(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> JiraExportResult:
-    intel = await get_node_intelligence(session, screen, cohort=cohort, device=device, since=since)
+    _, membership = membership_pair
+    intel = await get_node_intelligence(
+        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since
+    )
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
 

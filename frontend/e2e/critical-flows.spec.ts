@@ -40,7 +40,10 @@ test("journey graph loads without error", async ({ page }) => {
 
 test("calibration insights loads without error", async ({ page }) => {
   await login(page);
-  await page.getByRole("link", { name: "Calibration" }).click();
+  // Not getByRole(name: "Calibration") -- Task 10 added a "Model Calibration"
+  // nav entry whose accessible name also contains "Calibration", making that
+  // query ambiguous. href is unambiguous between the two.
+  await page.locator('nav a[href="/calibration"]').click();
   await expect(page).toHaveURL(/\/calibration/);
   // Whichever state the report is in (anomaly vs. optimized depends on whether
   // any completed simulation run + ingested events exist), the heading is

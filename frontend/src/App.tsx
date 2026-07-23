@@ -10,6 +10,8 @@ import { PersonaConfigurationPage } from "./routes/predictive/PersonaConfigurati
 import { JourneyGraphPage } from "./routes/journey/JourneyGraphPage";
 import { CalibrationPage } from "./routes/calibration/CalibrationPage";
 import { ModelCalibrationSettingsPage } from "./routes/settings/ModelCalibrationSettingsPage";
+import { GeneralSettingsPage } from "./routes/settings/GeneralSettingsPage";
+import { TeamSettingsPage } from "./routes/settings/TeamSettingsPage";
 
 export function App() {
   return (
@@ -30,6 +32,8 @@ export function App() {
           <Route path="/predictive/personas/:personaId" element={<PersonaConfigurationPage />} />
           <Route path="/journey" element={<JourneyGraphPage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
+          <Route path="/settings/general" element={<GeneralSettingsPage />} />
+          <Route path="/settings/team" element={<TeamSettingsPage />} />
           <Route path="/settings/model-calibration" element={<ModelCalibrationSettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

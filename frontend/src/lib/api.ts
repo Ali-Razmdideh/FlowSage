@@ -7,16 +7,22 @@ import type {
   FunnelFilters,
   FunnelReport,
   JiraExportResult,
+  Member,
+  MemberAddPayload,
   NodeIntelligence,
   Persona,
   PersonaCreatePayload,
   PersonaDetail,
   PersonaUpdatePayload,
   RetrainingJob,
+  Role,
   SimulationRun,
   SimulationRunDetail,
   SlackExportResult,
   User,
+  Workspace,
+  WorkspaceSummary,
+  WorkspaceUpdatePayload,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -199,5 +205,38 @@ export const api = {
     request<CalibrationSettings>("/settings/model-calibration", {
       method: "PATCH",
       body: JSON.stringify(payload),
+    }),
+
+  getWorkspaces: (): Promise<WorkspaceSummary[]> => request<WorkspaceSummary[]>("/workspaces"),
+
+  createWorkspace: (name: string): Promise<Workspace> =>
+    request<Workspace>("/workspaces", { method: "POST", body: JSON.stringify({ name }) }),
+
+  getCurrentWorkspace: (): Promise<Workspace> => request<Workspace>("/workspaces/current"),
+
+  updateCurrentWorkspace: (payload: WorkspaceUpdatePayload): Promise<Workspace> =>
+    request<Workspace>("/workspaces/current", { method: "PATCH", body: JSON.stringify(payload) }),
+
+  archiveCurrentWorkspace: (): Promise<Workspace> =>
+    request<Workspace>("/workspaces/current/archive", { method: "POST" }),
+
+  getMembers: (): Promise<Member[]> => request<Member[]>("/workspaces/current/members"),
+
+  addMember: (payload: MemberAddPayload): Promise<Member> =>
+    request<Member>("/workspaces/current/members", { method: "POST", body: JSON.stringify(payload) }),
+
+  updateMemberRole: (membershipId: string, role: Role): Promise<Member> =>
+    request<Member>(`/workspaces/current/members/${membershipId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  removeMember: (membershipId: string): Promise<void> =>
+    request<void>(`/workspaces/current/members/${membershipId}`, { method: "DELETE" }),
+
+  switchWorkspace: (workspaceId: string): Promise<User> =>
+    request<User>("/auth/switch-workspace", {
+      method: "POST",
+      body: JSON.stringify({ workspace_id: workspaceId }),
     }),
 };

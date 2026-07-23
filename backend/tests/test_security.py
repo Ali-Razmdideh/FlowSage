@@ -31,21 +31,28 @@ def test_verify_password_rejects_malformed_hash() -> None:
     assert verify_password("hunter2", "not-a-real-hash") is False
 
 
-def test_access_token_roundtrip() -> None:
+def test_create_and_decode_access_token_round_trips() -> None:
     user_id = uuid.uuid4()
+    workspace_id = uuid.uuid4()
     token = create_access_token(
-        user_id, secret="s3cret-test-secret-32-bytes-long!!", algorithm="HS256", expires_minutes=5
+        user_id, workspace_id, secret="test-secret", algorithm="HS256", expires_minutes=5
     )
-    decoded = decode_access_token(
-        token, secret="s3cret-test-secret-32-bytes-long!!", algorithm="HS256"
+    decoded_user_id, decoded_workspace_id = decode_access_token(
+        token, secret="test-secret", algorithm="HS256"
     )
-    assert decoded == user_id
+    assert decoded_user_id == user_id
+    assert decoded_workspace_id == workspace_id
 
 
 def test_access_token_rejects_wrong_secret() -> None:
     user_id = uuid.uuid4()
+    workspace_id = uuid.uuid4()
     token = create_access_token(
-        user_id, secret="s3cret-test-secret-32-bytes-long!!", algorithm="HS256", expires_minutes=5
+        user_id,
+        workspace_id,
+        secret="s3cret-test-secret-32-bytes-long!!",
+        algorithm="HS256",
+        expires_minutes=5,
     )
     with pytest.raises(jwt.PyJWTError):
         decode_access_token(
@@ -55,8 +62,13 @@ def test_access_token_rejects_wrong_secret() -> None:
 
 def test_access_token_rejects_expired_token() -> None:
     user_id = uuid.uuid4()
+    workspace_id = uuid.uuid4()
     token = create_access_token(
-        user_id, secret="s3cret-test-secret-32-bytes-long!!", algorithm="HS256", expires_minutes=-1
+        user_id,
+        workspace_id,
+        secret="s3cret-test-secret-32-bytes-long!!",
+        algorithm="HS256",
+        expires_minutes=-1,
     )
     with pytest.raises(jwt.ExpiredSignatureError):
         decode_access_token(token, secret="s3cret-test-secret-32-bytes-long!!", algorithm="HS256")

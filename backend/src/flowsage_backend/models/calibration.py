@@ -31,6 +31,9 @@ class RetrainingJob(Base):
     __tablename__ = "retraining_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     persona_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("personas.id", ondelete="CASCADE"))
     status: Mapped[RetrainingStatus] = mapped_column(
         SAEnum(RetrainingStatus, name="retraining_status"), default=RetrainingStatus.QUEUED

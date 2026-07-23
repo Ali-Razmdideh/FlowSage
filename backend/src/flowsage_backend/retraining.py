@@ -28,6 +28,7 @@ from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.persona import Persona, PersonaMemory
 from flowsage_backend.settings_store import get_or_create_calibration_settings
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 NUDGE_STEP = 0.05
@@ -65,12 +66,20 @@ def nudge_sliders(
     return _clamp01(technical_literacy), _clamp01(anxiety), _clamp01(patience)
 
 
-async def create_retraining_job(session: AsyncSession, persona_id: uuid.UUID) -> RetrainingJob:
-    persona = await session.get(Persona, persona_id)
+async def create_retraining_job(
+    session: AsyncSession, persona_id: uuid.UUID, *, workspace_id: uuid.UUID
+) -> RetrainingJob:
+    persona = (
+        await session.execute(
+            select(Persona).where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
+        )
+    ).scalar_one_or_none()
     if persona is None:
         raise RetrainingError(f"No persona with id {persona_id}")
 
-    job = RetrainingJob(persona_id=persona_id, status=RetrainingStatus.QUEUED)
+    job = RetrainingJob(
+        workspace_id=workspace_id, persona_id=persona_id, status=RetrainingStatus.QUEUED
+    )
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -91,12 +100,12 @@ async def execute_retraining(session: AsyncSession, job_id: uuid.UUID) -> None:
         if persona is None:
             raise RetrainingError(f"No persona with id {job.persona_id}")
 
-        latest_run = await latest_completed_run_for_persona(session, persona.id)
+        latest_run = await latest_completed_run_for_persona(session, job.workspace_id, persona.id)
         predicted = predicted_scores_by_screen(latest_run.issues) if latest_run else {}
 
-        events = await query_events(session)
+        events = await query_events(session, job.workspace_id)
         funnel = discover_funnel(events)
-        settings = await get_or_create_calibration_settings(session)
+        settings = await get_or_create_calibration_settings(session, job.workspace_id)
         screens = build_screen_calibrations(predicted, funnel, settings.anomaly_threshold)
         anomalies = [s for s in screens if s.anomaly]
 
@@ -125,6 +134,7 @@ async def execute_retraining(session: AsyncSession, job_id: uuid.UUID) -> None:
 
         session.add(
             PersonaMemory(
+                workspace_id=job.workspace_id,
                 persona_id=persona.id,
                 title=(
                     "Retrained from observed behavioral evidence"

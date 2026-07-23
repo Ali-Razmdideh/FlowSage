@@ -1,11 +1,14 @@
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.settings import DigestFrequency
+from flowsage_backend.models.workspace import Membership
 from flowsage_backend.seed import upsert_user
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 
@@ -18,6 +21,14 @@ async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterato
             "/auth/login", json={"email": "settings-api@example.com", "password": "hunter2"}
         )
         yield client
+
+
+async def _settings_api_workspace_id(db_session: AsyncSession) -> uuid.UUID:
+    user = await upsert_user(db_session, "settings-api@example.com", "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    return membership.workspace_id
 
 
 async def test_get_model_calibration_settings_requires_authentication(app: FastAPI) -> None:
@@ -44,7 +55,8 @@ async def test_get_model_calibration_settings_returns_defaults_on_first_access(
 async def test_patch_model_calibration_settings_persists_and_is_bounded(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    calibration_settings = await get_or_create_calibration_settings(db_session)
+    workspace_id = await _settings_api_workspace_id(db_session)
+    calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original = {
         "anomaly_threshold": calibration_settings.anomaly_threshold,
         "churn_risk_alert_threshold": calibration_settings.churn_risk_alert_threshold,

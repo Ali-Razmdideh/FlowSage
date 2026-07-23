@@ -26,7 +26,8 @@ ON CREATE SET
     t.device = $device,
     t.cohort = $cohort,
     t.first_seen = $timestamp,
-    t.last_seen = $timestamp
+    t.last_seen = $timestamp,
+    t.workspace_id = $workspace_id
 ON MATCH SET
     t.count = t.count + 1,
     t.last_seen = $timestamp
@@ -79,17 +80,19 @@ def session_transitions(events: list[Event]) -> list[tuple[Event, Event]]:
 
 
 class GraphSink(Protocol):
-    def ingest(self, events: list[Event]) -> None: ...
+    def ingest(self, events: list[Event], workspace_id: str) -> None: ...
 
 
 class NullGraphSink:
     """No-op sink used when Neo4j ingestion is skipped or unreachable."""
 
-    def ingest(self, events: list[Event]) -> None:
+    def ingest(self, events: list[Event], workspace_id: str) -> None:
         return None
 
 
-def _merge_transition_tx(tx: ManagedTransaction, from_event: Event, to_event: Event) -> None:
+def _merge_transition_tx(
+    tx: ManagedTransaction, from_event: Event, to_event: Event, workspace_id: str
+) -> None:
     tx.run(
         _MERGE_TRANSITION_QUERY,
         from_screen=from_event.screen,
@@ -98,6 +101,7 @@ def _merge_transition_tx(tx: ManagedTransaction, from_event: Event, to_event: Ev
         device=to_event.device,
         cohort=to_event.cohort,
         timestamp=to_event.timestamp.isoformat(),
+        workspace_id=workspace_id,
     )
 
 
@@ -116,8 +120,8 @@ class Neo4jGraphSink:
     def __exit__(self, *exc_info: object) -> None:
         self.close()
 
-    def ingest(self, events: list[Event]) -> None:
+    def ingest(self, events: list[Event], workspace_id: str) -> None:
         transitions = session_transitions(events)
         with self._driver.session() as session:
             for from_event, to_event in transitions:
-                session.execute_write(_merge_transition_tx, from_event, to_event)
+                session.execute_write(_merge_transition_tx, from_event, to_event, workspace_id)

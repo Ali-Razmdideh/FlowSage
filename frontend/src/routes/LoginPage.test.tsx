@@ -11,6 +11,7 @@ function renderWithAuth(overrides: Partial<AuthState> = {}) {
     loading: false,
     login: vi.fn(),
     logout: vi.fn(),
+    switchWorkspace: vi.fn(),
     ...overrides,
   };
   render(
@@ -49,7 +50,16 @@ describe("LoginPage", () => {
   });
 
   it("redirects away from the login form when already authenticated", () => {
-    renderWithAuth({ user: { id: "u1", email: "admin@flowsage.dev", created_at: "now" } });
+    renderWithAuth({
+      user: {
+        id: "u1",
+        email: "admin@flowsage.dev",
+        created_at: "now",
+        workspace_id: "w1",
+        role: "admin",
+        workspaces: [{ id: "w1", name: "Workspace 1" }],
+      },
+    });
 
     expect(screen.queryByRole("button", { name: /sign in/i })).not.toBeInTheDocument();
   });

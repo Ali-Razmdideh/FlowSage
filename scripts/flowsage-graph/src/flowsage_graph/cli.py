@@ -31,7 +31,7 @@ def _cmd_run(args: argparse.Namespace, sink: GraphSink) -> FunnelReport:
     events = load_events(Path(args.events))
 
     try:
-        sink.ingest(events)
+        sink.ingest(events, args.workspace_id)
     except Exception as exc:  # noqa: BLE001 - Neo4j being unreachable shouldn't block the report
         print(f"flowsage-graph: warning: Neo4j ingestion skipped ({exc})", file=sys.stderr)
 
@@ -65,6 +65,11 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--neo4j-password", default=None, help="Defaults to $NEO4J_PASSWORD")
     run_parser.add_argument(
         "--skip-neo4j", action="store_true", help="Only build the HTML report, skip ingestion"
+    )
+    run_parser.add_argument(
+        "--workspace-id",
+        default="cli-default",
+        help="Tags ingested TRANSITION edges for tenant isolation (defaults to 'cli-default')",
     )
 
     return parser

@@ -7,10 +7,12 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from flowsage_backend.api.simulations import stream_simulation_events
 from flowsage_backend.models.simulation import RunStatus, SimulationRun, SimulationStep
+from flowsage_backend.models.workspace import Membership, Workspace
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
 from flowsage_backend.simulations import create_run
 
@@ -25,6 +27,22 @@ async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterato
             "/auth/login", json={"email": "sim-api@example.com", "password": "hunter2"}
         )
         yield client
+
+
+async def _sim_api_workspace_id(db_session: AsyncSession) -> uuid.UUID:
+    user = await upsert_user(db_session, "sim-api@example.com", "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    return membership.workspace_id
+
+
+async def _create_workspace(db_session: AsyncSession) -> uuid.UUID:
+    workspace = Workspace(name="Test", slug=f"test-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.commit()
+    await db_session.refresh(workspace)
+    return workspace.id
 
 
 async def test_create_simulation_requires_authentication(app: FastAPI) -> None:
@@ -54,7 +72,8 @@ async def test_create_simulation_rejects_unknown_persona(
 async def test_create_simulation_rejects_disallowed_file_type(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _sim_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = personas[0]
 
     async with _authed_client(app, db_session) as client:
@@ -70,7 +89,8 @@ async def test_create_simulation_rejects_disallowed_file_type(
 async def test_create_simulation_sanitizes_path_traversal_filename(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _sim_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = personas[0]
 
     async with _authed_client(app, db_session) as client:
@@ -89,7 +109,8 @@ async def test_create_simulation_sanitizes_path_traversal_filename(
 
 
 async def test_create_and_get_simulation(app: FastAPI, db_session: AsyncSession) -> None:
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _sim_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = next(p for p in personas if p.slug == "novice")
 
     async with _authed_client(app, db_session) as client:
@@ -132,10 +153,12 @@ async def test_stream_simulation_events_emits_steps_then_done(
     screenshots_dir.mkdir()
     (screenshots_dir / "01.png").write_bytes(_PNG_BYTES)
 
-    personas = await seed_baseline_personas(db_session)
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
     persona = personas[0]
     run = await create_run(
         db_session,
+        workspace_id=workspace_id,
         persona_id=persona.id,
         flow_name="Checkout",
         goal="goal",
@@ -143,7 +166,9 @@ async def test_stream_simulation_events_emits_steps_then_done(
     )
 
     session_factory = async_sessionmaker(db_session.bind, expire_on_commit=False)
-    events = stream_simulation_events(session_factory, run.id, poll_interval_seconds=0.01)
+    events = stream_simulation_events(
+        session_factory, workspace_id, run.id, poll_interval_seconds=0.01
+    )
 
     # Add a step, then mark the run completed; the generator should surface both.
     async with session_factory() as session:
@@ -151,7 +176,12 @@ async def test_stream_simulation_events_emits_steps_then_done(
         assert db_run is not None
         session.add(
             SimulationStep(
-                run_id=run.id, sequence=0, screen="01", action="looked at cart", reasoning="r"
+                workspace_id=workspace_id,
+                run_id=run.id,
+                sequence=0,
+                screen="01",
+                action="looked at cart",
+                reasoning="r",
             )
         )
         db_run.status = RunStatus.COMPLETED
@@ -171,7 +201,9 @@ async def test_stream_simulation_events_emits_steps_then_done(
 
 async def test_stream_simulation_events_reports_unknown_run(db_session: AsyncSession) -> None:
     session_factory = async_sessionmaker(db_session.bind, expire_on_commit=False)
-    events = stream_simulation_events(session_factory, uuid.uuid4(), poll_interval_seconds=0.01)
+    events = stream_simulation_events(
+        session_factory, uuid.uuid4(), uuid.uuid4(), poll_interval_seconds=0.01
+    )
 
     frame = await asyncio.wait_for(events.__anext__(), timeout=2)
     assert "event: error" in frame

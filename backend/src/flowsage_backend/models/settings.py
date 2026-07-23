@@ -1,9 +1,8 @@
-"""Global calibration/alerting settings (Phase 2 chunk 4: `/settings/model-calibration`).
+"""Per-workspace calibration/alerting settings (`/settings/model-calibration`).
 
-Single-tenant, so this is a **singleton row** rather than per-workspace config
-(multi-tenant `Integration`/settings rows are Phase 3 scope). Values here override
-the hardcoded defaults in `flowsage_backend.calibration` / `flowsage_backend.alerts`
-when present -- see `flowsage_backend.settings_store.get_or_create_calibration_settings`.
+One row per workspace (see `flowsage_backend.settings_store.get_or_create_calibration_settings`).
+Values here override the hardcoded defaults in `flowsage_backend.calibration` /
+`flowsage_backend.alerts` when present.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,6 +27,9 @@ class CalibrationSettings(Base):
     __tablename__ = "calibration_settings"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
     anomaly_threshold: Mapped[float] = mapped_column(Float, default=0.35)
     churn_risk_alert_threshold: Mapped[float] = mapped_column(Float, default=0.5)
     auto_retrain_on_anomaly: Mapped[bool] = mapped_column(Boolean, default=False)
