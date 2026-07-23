@@ -77,19 +77,22 @@ async def test_webhook_delivery_cascades_on_webhook_delete(db_session: AsyncSess
     await db_session.commit()
     await db_session.refresh(webhook)
 
-    db_session.add(
-        WebhookDelivery(
-            webhook_id=webhook.id,
-            event_type="alert.triggered",
-            payload="{}",
-            status_code=200,
-            success=True,
-        )
+    delivery = WebhookDelivery(
+        webhook_id=webhook.id,
+        event_type="alert.triggered",
+        payload="{}",
+        status_code=200,
+        success=True,
     )
+    db_session.add(delivery)
     await db_session.commit()
+    await db_session.refresh(delivery)
+    delivery_id = delivery.id
 
     await db_session.delete(webhook)
     await db_session.commit()
 
-    remaining = await db_session.execute(select(WebhookDelivery))
-    assert remaining.scalars().all() == []
+    remaining = await db_session.execute(
+        select(WebhookDelivery).where(WebhookDelivery.id == delivery_id)
+    )
+    assert remaining.scalar_one_or_none() is None
