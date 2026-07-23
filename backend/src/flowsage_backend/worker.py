@@ -6,6 +6,7 @@ separately from the API process (`flowsage-backend`/`uvicorn`).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -22,10 +23,13 @@ from flowsage_backend.alerts import (
     build_alerts_report,
     build_digest_blocks,
     build_digest_text,
+    has_alerts,
 )
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
-from flowsage_backend.integrations.slack import SlackNotConfiguredError, post_slack_message
+from flowsage_backend.integrations.slack import post_slack_message
+from flowsage_backend.integrations.webhooks import deliver_webhook
+from flowsage_backend.integrations_store import get_slack_integration
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.settings import DigestFrequency
@@ -33,6 +37,9 @@ from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.retraining import create_retraining_job, execute_retraining
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 from flowsage_backend.simulations import execute_simulation
+from flowsage_backend.webhooks_store import list_enabled_webhooks_for_event, record_delivery
+
+logger = logging.getLogger(__name__)
 
 
 async def _startup(ctx: dict[str, Any]) -> None:
@@ -68,26 +75,30 @@ _DIGEST_INTERVALS = {
 
 async def run_digest_job(ctx: dict[str, Any]) -> None:
     """Fires daily off the cron schedule below, but only actually sends when due
-    per `CalibrationSettings.digest_frequency` -- real dynamic cadence without
-    arq's cron spec (fixed at process start) needing to change. Also enqueues
-    retraining for anomalous personas when `auto_retrain_on_anomaly` is set,
-    same job the manual "Retrain" button in `/calibration` uses.
-
-    Scoped to the single shared "fs-default" workspace, same one-workspace
-    rationale as `api/events.py`'s `_default_workspace_id` -- there's no
-    per-workspace cron scheduling infrastructure yet (Phase 3 chunk 2+ scope).
-    No-ops quietly if that workspace doesn't exist yet (e.g. a fresh install
-    before any migration/backfill has run)."""
-    app_settings = get_settings()
+    per each workspace's own `CalibrationSettings.digest_frequency` -- real dynamic
+    cadence without arq's cron spec (fixed at process start) needing to change.
+    Iterates every non-archived workspace independently: one workspace's Slack
+    failure/missing config doesn't stop the others (broad except -- a bad webhook
+    URL in one workspace must never abort digests for every other workspace in
+    the loop). Also delivers to each workspace's enabled `Webhook` rows when
+    `has_alerts(report)` is true."""
     session_factory = ctx["session_factory"]
     now = datetime.now(timezone.utc)
 
     async with session_factory() as session:
-        result = await session.execute(select(Workspace.id).where(Workspace.slug == "fs-default"))
-        workspace_id = result.scalar_one_or_none()
-        if workspace_id is None:
-            return
+        result = await session.execute(select(Workspace.id).where(Workspace.archived.is_(False)))
+        workspace_ids = list(result.scalars().all())
 
+    for workspace_id in workspace_ids:
+        await _run_digest_for_workspace(ctx, workspace_id, now)
+
+
+async def _run_digest_for_workspace(
+    ctx: dict[str, Any], workspace_id: uuid.UUID, now: datetime
+) -> None:
+    session_factory = ctx["session_factory"]
+
+    async with session_factory() as session:
         calibration_settings = await get_or_create_calibration_settings(session, workspace_id)
         report = await build_alerts_report(session, workspace_id)
 
@@ -103,16 +114,29 @@ async def run_digest_job(ctx: dict[str, Any]) -> None:
         calibration_settings.digest_last_sent_at = now
         await session.commit()
 
+        integration = await get_slack_integration(session, workspace_id)
+
     try:
         await post_slack_message(
-            app_settings.slack_webhook_url,
+            integration.webhook_url if integration else None,
             text=build_digest_text(report),
             blocks=build_digest_blocks(report),
         )
-    except SlackNotConfiguredError:
-        # No Slack configured -- a background job has no caller to surface this
-        # to, unlike POST /alerts/digest/run's 400. Quietly skip.
-        pass
+    except Exception:  # noqa: BLE001 - one workspace's broken/unreachable Slack
+        # config must not abort the loop over every other workspace.
+        logger.warning("Digest Slack delivery failed for workspace %s", workspace_id, exc_info=True)
+
+    if not has_alerts(report):
+        return
+
+    async with session_factory() as session:
+        webhooks = await list_enabled_webhooks_for_event(session, workspace_id, "alert.triggered")
+        payload = report.model_dump(mode="json")
+        for webhook in webhooks:
+            status_code, success = await deliver_webhook(
+                webhook.url, secret=webhook.secret, event_type="alert.triggered", payload=payload
+            )
+            await record_delivery(session, webhook.id, "alert.triggered", payload, status_code, success)
 
 
 async def _auto_retrain_anomalous_personas(

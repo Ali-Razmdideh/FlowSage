@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
 
-from .conftest import ensure_default_workspace, login_to_default_workspace
+from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -53,8 +53,8 @@ async def test_get_alerts_flags_a_churn_risk_segment(
     # runs before any other test in the suite has caused that row to be
     # created, so it must ensure it exists itself, not just via
     # `login_to_default_workspace` (which only runs after the ingest below).
-    await ensure_default_workspace(db_session)
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"alerts-api-{i}" for i in range(8)]
     events = [
         *[_event(session_ids[i], "landing", 0, "at_risk_alerts") for i in range(8)],
@@ -85,7 +85,6 @@ async def test_get_alerts_flags_a_churn_risk_segment(
 async def test_digest_run_returns_400_when_slack_not_configured(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    assert app.state.settings.slack_webhook_url is None
     async with _authed_client(app, db_session) as client:
         response = await client.post("/alerts/digest/run")
 

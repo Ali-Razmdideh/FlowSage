@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import secrets as _secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -11,6 +13,14 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerificationError
 
 _hasher = PasswordHasher()
+
+
+def generate_api_key() -> str:
+    return f"fs_live_{_secrets.token_urlsafe(32)}"
+
+
+def hash_api_key(raw_key: str) -> str:
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 
 def hash_password(password: str) -> str:

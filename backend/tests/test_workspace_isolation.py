@@ -223,3 +223,58 @@ async def test_create_simulation_rejects_persona_from_another_workspace(
         )
 
     assert response.status_code == 422
+
+
+async def test_api_key_created_in_one_workspace_does_not_authenticate_for_another(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    tenant_a_email = f"isolation-key-a-{uuid.uuid4().hex[:8]}@example.com"
+    await upsert_user(db_session, tenant_a_email, "hunter2")
+
+    async with _authed_client(app, tenant_a_email) as client_a:
+        create = await client_a.post("/settings/integrations/api-keys", json={"name": "tenant-a-key"})
+    raw_key = create.json()["key"]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/events",
+            json=[
+                {
+                    "session_id": "isolation-key-check",
+                    "screen": "landing",
+                    "event": "screen_view",
+                    "timestamp": "2026-07-23T00:00:00Z",
+                }
+            ],
+            headers={"X-API-Key": raw_key},
+        )
+
+    assert response.status_code == 201
+    # The event landed in tenant A's workspace specifically -- confirm via a second
+    # tenant's authenticated session never seeing it.
+    tenant_b_email = f"isolation-key-b-{uuid.uuid4().hex[:8]}@example.com"
+    await upsert_user(db_session, tenant_b_email, "hunter2")
+    async with _authed_client(app, tenant_b_email) as client_b:
+        funnel = await client_b.get("/graph/funnel")
+    assert funnel.json()["total_sessions"] == 0
+
+
+async def test_webhook_deliveries_do_not_leak_across_workspaces(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    tenant_a_email = f"isolation-webhook-a-{uuid.uuid4().hex[:8]}@example.com"
+    tenant_b_email = f"isolation-webhook-b-{uuid.uuid4().hex[:8]}@example.com"
+    await upsert_user(db_session, tenant_a_email, "hunter2")
+    await upsert_user(db_session, tenant_b_email, "hunter2")
+
+    async with _authed_client(app, tenant_a_email) as client_a:
+        create_a = await client_a.post(
+            "/settings/integrations/webhooks",
+            json={"url": "https://example.test/a", "event_types": ["alert.triggered"]},
+        )
+    webhook_a_id = create_a.json()["id"]
+
+    async with _authed_client(app, tenant_b_email) as client_b:
+        response = await client_b.get(f"/settings/integrations/webhooks/{webhook_a_id}/deliveries")
+
+    assert response.status_code == 404

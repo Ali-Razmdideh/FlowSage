@@ -1,12 +1,16 @@
 import type {
   AlertsReport,
+  ApiKey,
+  ApiKeyCreated,
   CalibrationReport,
   CalibrationSettings,
   ChurnRiskSegment,
   CohortComparisonReport,
   FunnelFilters,
   FunnelReport,
+  JiraConnectPayload,
   JiraExportResult,
+  JiraStatus,
   Member,
   MemberAddPayload,
   NodeIntelligence,
@@ -19,7 +23,13 @@ import type {
   SimulationRun,
   SimulationRunDetail,
   SlackExportResult,
+  SlackStatus,
   User,
+  Webhook,
+  WebhookCreated,
+  WebhookDelivery,
+  WebhookTestResult,
+  WebhookUpdatePayload,
   Workspace,
   WorkspaceSummary,
   WorkspaceUpdatePayload,
@@ -239,4 +249,57 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ workspace_id: workspaceId }),
     }),
+
+  getSlackStatus: (): Promise<SlackStatus> => request<SlackStatus>("/settings/integrations/slack"),
+
+  connectSlack: (webhookUrl: string): Promise<SlackStatus> =>
+    request<SlackStatus>("/settings/integrations/slack", {
+      method: "PUT",
+      body: JSON.stringify({ webhook_url: webhookUrl }),
+    }),
+
+  disconnectSlack: (): Promise<void> =>
+    request<void>("/settings/integrations/slack", { method: "DELETE" }),
+
+  getJiraStatus: (): Promise<JiraStatus> => request<JiraStatus>("/settings/integrations/jira"),
+
+  connectJira: (payload: JiraConnectPayload): Promise<JiraStatus> =>
+    request<JiraStatus>("/settings/integrations/jira", { method: "PUT", body: JSON.stringify(payload) }),
+
+  disconnectJira: (): Promise<void> =>
+    request<void>("/settings/integrations/jira", { method: "DELETE" }),
+
+  getApiKeys: (): Promise<ApiKey[]> => request<ApiKey[]>("/settings/integrations/api-keys"),
+
+  createApiKey: (name: string): Promise<ApiKeyCreated> =>
+    request<ApiKeyCreated>("/settings/integrations/api-keys", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+
+  revokeApiKey: (id: string): Promise<void> =>
+    request<void>(`/settings/integrations/api-keys/${id}`, { method: "DELETE" }),
+
+  getWebhooks: (): Promise<Webhook[]> => request<Webhook[]>("/settings/integrations/webhooks"),
+
+  createWebhook: (url: string, eventTypes: string[]): Promise<WebhookCreated> =>
+    request<WebhookCreated>("/settings/integrations/webhooks", {
+      method: "POST",
+      body: JSON.stringify({ url, event_types: eventTypes }),
+    }),
+
+  updateWebhook: (id: string, payload: WebhookUpdatePayload): Promise<Webhook> =>
+    request<Webhook>(`/settings/integrations/webhooks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteWebhook: (id: string): Promise<void> =>
+    request<void>(`/settings/integrations/webhooks/${id}`, { method: "DELETE" }),
+
+  getWebhookDeliveries: (id: string): Promise<WebhookDelivery[]> =>
+    request<WebhookDelivery[]>(`/settings/integrations/webhooks/${id}/deliveries`),
+
+  testWebhook: (id: string): Promise<WebhookTestResult> =>
+    request<WebhookTestResult>(`/settings/integrations/webhooks/${id}/test`, { method: "POST" }),
 };

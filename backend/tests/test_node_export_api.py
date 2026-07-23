@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
 
-from .conftest import login_to_default_workspace
+from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -51,7 +51,8 @@ async def test_export_node_to_slack_returns_404_for_unknown_screen(
 async def test_export_node_to_slack_returns_400_when_not_configured(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"node-export-{i}" for i in range(4)]
     events = [
         *[_event(session_ids[i], "landing", 0) for i in range(4)],
@@ -74,10 +75,62 @@ async def test_export_node_to_slack_returns_400_when_not_configured(
         await db_session.commit()
 
 
+async def test_export_node_to_slack_succeeds_with_workspace_integration(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """Plants a `SlackIntegration` row on the shared "fs-default" workspace --
+    same workspace every other test in this file uses via `login_to_default_workspace`
+    -- so it MUST delete that row again afterward (`finally`), same "mutate shared
+    state, restore in finally" convention `test_worker.py`'s `_force_due` already
+    uses for `CalibrationSettings`. Leaving it in place would make "fs-default" look
+    permanently Slack-connected to every later test in the suite."""
+    import respx
+    from httpx import Response
+    from sqlalchemy import select
+
+    from flowsage_backend.models.integration import SlackIntegration
+
+    workspace_id = await ensure_default_workspace(db_session)
+    integration = SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    db_session.add(integration)
+    await db_session.commit()
+
+    api_key = await create_api_key_for(db_session, workspace_id)
+    session_ids = [f"node-export-slack-{i}" for i in range(4)]
+    events = [
+        *[_event(session_ids[i], "landing", 0) for i in range(4)],
+        *[_event(session_ids[i], "checkout", 1) for i in range(4)],
+    ]
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            ingest_response = await client.post(
+                "/v1/events", json=events, headers={"X-API-Key": api_key}
+            )
+            assert ingest_response.status_code == 201
+
+        with respx.mock:
+            respx.post("https://hooks.slack.test/x").mock(return_value=Response(200, json={"ok": True}))
+            async with _authed_client(app, db_session) as client:
+                response = await client.post("/graph/nodes/checkout/export/slack")
+
+        assert response.status_code == 200
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        result = await db_session.execute(
+            select(SlackIntegration).where(SlackIntegration.workspace_id == workspace_id)
+        )
+        stale = result.scalar_one_or_none()
+        if stale is not None:
+            await db_session.delete(stale)
+        await db_session.commit()
+
+
 async def test_export_node_to_jira_returns_400_when_not_configured(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
-    api_key = app.state.settings.events_api_key
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
     session_ids = [f"node-export-jira-{i}" for i in range(4)]
     events = [
         *[_event(session_ids[i], "landing", 0) for i in range(4)],

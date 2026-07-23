@@ -12,6 +12,7 @@ import { CalibrationPage } from "./routes/calibration/CalibrationPage";
 import { ModelCalibrationSettingsPage } from "./routes/settings/ModelCalibrationSettingsPage";
 import { GeneralSettingsPage } from "./routes/settings/GeneralSettingsPage";
 import { TeamSettingsPage } from "./routes/settings/TeamSettingsPage";
+import { IntegrationsSettingsPage } from "./routes/settings/IntegrationsSettingsPage";
 
 export function App() {
   return (
@@ -35,6 +36,7 @@ export function App() {
           <Route path="/settings/general" element={<GeneralSettingsPage />} />
           <Route path="/settings/team" element={<TeamSettingsPage />} />
           <Route path="/settings/model-calibration" element={<ModelCalibrationSettingsPage />} />
+          <Route path="/settings/integrations" element={<IntegrationsSettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

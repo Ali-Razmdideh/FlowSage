@@ -17,6 +17,7 @@ from flowsage_backend.api.auth import router as auth_router
 from flowsage_backend.api.calibration import router as calibration_router
 from flowsage_backend.api.events import events_router, graph_router
 from flowsage_backend.api.exports import router as exports_router
+from flowsage_backend.api.integrations import router as integrations_router
 from flowsage_backend.api.personas import router as personas_router
 from flowsage_backend.api.settings import router as settings_router
 from flowsage_backend.api.simulations import router as simulations_router
@@ -53,6 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(exports_router)
     app.include_router(settings_router)
     app.include_router(workspaces_router)
+    app.include_router(integrations_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:

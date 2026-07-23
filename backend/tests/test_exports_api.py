@@ -100,7 +100,6 @@ async def test_export_issue_to_slack_returns_400_when_not_configured(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
     issue_id = await _make_issue(db_session)
-    assert app.state.settings.slack_webhook_url is None
 
     async with _authed_client(app, db_session) as client:
         response = await client.post(f"/friction-issues/{issue_id}/export/slack")

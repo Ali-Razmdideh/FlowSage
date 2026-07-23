@@ -8,7 +8,6 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_JWT_SECRET = "dev-secret-change-me-before-deploying-32bytes"
-_PLACEHOLDER_EVENTS_API_KEY = "dev-events-api-key-change-me-before-deploying"
 
 
 class Settings(BaseSettings):
@@ -37,22 +36,6 @@ class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = "flowsage_dev"
-    # POST /v1/events is meant for server-to-server ingestion (SDKs/webhooks), so it
-    # checks a shared secret via X-API-Key rather than the browser session cookie.
-    # This one shared key can't carry a workspace, so ingested events are hardcoded to
-    # the single "fs-default"-slug Workspace row (see api/events.py's
-    # `_default_workspace_id`) until per-workspace API keys land in Phase 3 chunk 2.
-    events_api_key: str = _PLACEHOLDER_EVENTS_API_KEY
-
-    # Alert export integrations (Phase 2 chunk 3). Optional -- unlike JWT_SECRET/
-    # EVENTS_API_KEY, exports are meant to work unconfigured: callers get a clean
-    # "not configured" error from flowsage_backend.integrations, not a startup
-    # failure. Per-workspace Integration rows + a settings UI are Phase 3 scope.
-    slack_webhook_url: str | None = None
-    jira_base_url: str | None = None
-    jira_email: str | None = None
-    jira_api_token: str | None = None
-    jira_project_key: str | None = None
 
     @model_validator(mode="after")
     def _reject_placeholder_secret_outside_dev(self) -> "Settings":
@@ -60,7 +43,6 @@ class Settings(BaseSettings):
             return self
         placeholders = {
             "JWT_SECRET": self.jwt_secret == _PLACEHOLDER_JWT_SECRET,
-            "EVENTS_API_KEY": self.events_api_key == _PLACEHOLDER_EVENTS_API_KEY,
         }
         still_placeholder = [name for name, is_default in placeholders.items() if is_default]
         if still_placeholder:
