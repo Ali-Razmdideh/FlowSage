@@ -18,8 +18,8 @@ from neo4j import Driver, GraphDatabase, ManagedTransaction
 from flowsage_graph.models import Event
 
 _MERGE_TRANSITION_QUERY = """
-MERGE (a:Screen {name: $from_screen})
-MERGE (b:Screen {name: $to_screen})
+MERGE (a:Screen {name: $from_screen, workspace_id: $workspace_id})
+MERGE (b:Screen {name: $to_screen, workspace_id: $workspace_id})
 MERGE (a)-[t:TRANSITION {session_id: $session_id}]->(b)
 ON CREATE SET
     t.count = 1,
