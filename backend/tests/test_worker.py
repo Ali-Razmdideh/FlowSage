@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -10,6 +11,7 @@ from flowsage_backend import worker as worker_module
 from flowsage_backend.alerts import AlertsReport, CalibrationAlert
 from flowsage_backend.models.calibration import RetrainingJob
 from flowsage_backend.models.persona import Persona
+from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 from flowsage_backend.worker import run_digest_job
 
@@ -185,3 +187,85 @@ async def test_run_digest_job_auto_retrains_anomalous_personas(
     finally:
         calibration_settings.auto_retrain_on_anomaly = original_auto_retrain
         await db_session.commit()
+
+
+async def test_run_digest_job_delivers_to_two_workspaces_independently(
+    db_session: AsyncSession,
+) -> None:
+    """Two fresh workspaces (never touched by any other test, so no shared-state
+    dance needed), each with its own Slack webhook and its own enabled Webhook,
+    each with its own churn-risk-triggering events. After one `run_digest_job`
+    call, each workspace's webhook has exactly one delivery -- scoped assertions
+    via `list_deliveries(webhook_id)`, so however many *other* leftover workspaces
+    also get processed in the same run is irrelevant."""
+    from flowsage_backend.models.event import Event
+    from flowsage_backend.models.integration import SlackIntegration
+    from flowsage_backend.models.webhook import Webhook
+    from flowsage_backend.webhooks_store import list_deliveries
+
+    async def _make_workspace_with_alerts(cohort: str) -> tuple[uuid.UUID, Webhook]:
+        workspace = Workspace(name=f"Digest Test {cohort}", slug=f"digest-{cohort}-{uuid.uuid4().hex[:8]}")
+        db_session.add(workspace)
+        await db_session.commit()
+        await db_session.refresh(workspace)
+
+        db_session.add(
+            SlackIntegration(workspace_id=workspace.id, webhook_url=f"https://hooks.slack.test/{cohort}")
+        )
+        webhook = Webhook(
+            workspace_id=workspace.id,
+            url=f"https://example.test/{cohort}",
+            secret="s3cr3t",
+            event_types=["alert.triggered"],
+        )
+        db_session.add(webhook)
+
+        base = datetime(2026, 7, 23, 12, 0, 0, tzinfo=timezone.utc)
+        session_ids = [f"{cohort}-{i}" for i in range(8)]
+        for sid in session_ids:
+            db_session.add(
+                Event(
+                    workspace_id=workspace.id, session_id=sid, screen="landing", event="screen_view",
+                    timestamp=base, device="mobile", cohort=cohort,
+                )
+            )
+        for sid in session_ids[:2]:
+            db_session.add(
+                Event(
+                    workspace_id=workspace.id, session_id=sid, screen="checkout", event="screen_view",
+                    timestamp=base, device="mobile", cohort=cohort,
+                )
+            )
+        db_session.add(
+            Event(
+                workspace_id=workspace.id, session_id=session_ids[0], screen="confirmation",
+                event="screen_view", timestamp=base, device="mobile", cohort=cohort,
+            )
+        )
+        await db_session.commit()
+        await db_session.refresh(webhook)
+        return workspace.id, webhook
+
+    async def _fake_deliver(
+        url: str, *, secret: str, event_type: str, payload: dict[str, object]
+    ) -> tuple[int, bool]:
+        return 200, True
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(worker_module, "deliver_webhook", _fake_deliver)
+
+    workspace_a_id, webhook_a = await _make_workspace_with_alerts("digestcohorta")
+    workspace_b_id, webhook_b = await _make_workspace_with_alerts("digestcohortb")
+
+    try:
+        ctx: dict[str, Any] = {"session_factory": lambda: db_session, "redis": _FakeRedis()}
+        await run_digest_job(ctx)
+
+        deliveries_a = await list_deliveries(db_session, webhook_a.id)
+        deliveries_b = await list_deliveries(db_session, webhook_b.id)
+        assert len(deliveries_a) == 1
+        assert len(deliveries_b) == 1
+        assert json.loads(deliveries_a[0].payload)["churn_alerts"][0]["cohort"] == "digestcohorta"
+        assert json.loads(deliveries_b[0].payload)["churn_alerts"][0]["cohort"] == "digestcohortb"
+    finally:
+        monkeypatch.undo()
