@@ -81,7 +81,7 @@ async def ingest(
 
     graph_sink = request.app.state.graph_sink
     try:
-        await asyncio.to_thread(graph_sink.ingest, graph_events)
+        await asyncio.to_thread(graph_sink.ingest, graph_events, str(workspace_id))
     except Exception:  # noqa: BLE001 - Neo4j being unreachable shouldn't fail ingestion
         logger.warning(
             "Neo4j ingestion failed; events were still stored in Postgres", exc_info=True

@@ -2973,17 +2973,17 @@ git commit -m "feat: add workspace switcher, General/Team nav entries and routes
 
 **Files:** none (verification only, plus whatever small fixes verification surfaces).
 
-- [ ] **Step 1: Full backend test suite + strict typecheck**
+- [x] **Step 1: Full backend test suite + strict typecheck**
 
 Run: `cd backend && uv run pytest -q && uv run mypy --strict src/`
 Expected: all green.
 
-- [ ] **Step 2: Full frontend test suite + typecheck**
+- [x] **Step 2: Full frontend test suite + typecheck**
 
 Run: `cd frontend && npm run typecheck && npm run test && npm run lint`
 Expected: all green.
 
-- [ ] **Step 3: `docker compose up -d --build`, run the migration for real**
+- [x] **Step 3: `docker compose up -d --build`, run the migration for real**
 
 Run:
 ```bash
@@ -2994,7 +2994,7 @@ docker compose -f infra/docker-compose.yml exec backend flowsage-backend seed-pe
 ```
 Expected: migration applies cleanly against the real seeded Postgres from prior chunks; `create-user` bootstraps a workspace for `demo@example.com`.
 
-- [ ] **Step 4: Manual cross-tenant curl check**
+- [x] **Step 4: Manual cross-tenant curl check**
 
 ```bash
 # Log in as demo@example.com, capture the cookie.
@@ -3014,12 +3014,12 @@ curl -b /tmp/cookie.txt http://localhost:8000/personas   # expect: []
 ```
 Expected: `[]` — confirms row-level isolation for real against the live stack, not just the test suite.
 
-- [ ] **Step 5: Playwright e2e — General/Team settings + workspace switch**
+- [x] **Step 5: Playwright e2e — General/Team settings + workspace switch**
 
 Run: `cd frontend && npx playwright test` (or the project's existing e2e npm script — check `package.json` for the exact command other chunks used). Drive: log in, navigate to `/settings/general`, edit name, save, confirm persisted on reload; navigate to `/settings/team`, invite a second pre-existing user, change their role, confirm the table updates; create a second workspace via the API directly (or via a `POST /workspaces` call in the test setup) and confirm the sidebar switcher appears and switching updates `/dashboard`'s data.
 Expected: PASS.
 
-- [ ] **Step 6: Tear down and final commit/push**
+- [x] **Step 6: Tear down and final commit/push**
 
 ```bash
 docker compose -f infra/docker-compose.yml down

@@ -11,12 +11,12 @@ class _RecordingSink:
     def __init__(self) -> None:
         self.ingested: list[Event] = []
 
-    def ingest(self, events: list[Event]) -> None:
+    def ingest(self, events: list[Event], workspace_id: str) -> None:
         self.ingested.extend(events)
 
 
 class _FailingSink:
-    def ingest(self, events: list[Event]) -> None:
+    def ingest(self, events: list[Event], workspace_id: str) -> None:
         raise RuntimeError("connection refused")
 
 
@@ -81,4 +81,4 @@ def test_main_run_reports_failure_for_bad_event_log(tmp_path: Path) -> None:
 def test_build_neo4j_sink_type_matches_protocol() -> None:
     # Sanity check that our test doubles satisfy the GraphSink protocol shape.
     sink: GraphSink = _RecordingSink()
-    sink.ingest([])
+    sink.ingest([], "ws-test")

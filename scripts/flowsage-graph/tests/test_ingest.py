@@ -103,4 +103,4 @@ def test_session_transitions_sorts_out_of_order_input() -> None:
 
 
 def test_null_graph_sink_does_nothing() -> None:
-    NullGraphSink().ingest([_event("s1", "cart", 0)])
+    NullGraphSink().ingest([_event("s1", "cart", 0)], "ws-test")

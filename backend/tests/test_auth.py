@@ -122,6 +122,29 @@ async def test_logout_cookie_attributes_match_login_cookie(app: FastAPI) -> None
     assert "samesite=lax" in set_cookie.lower()
 
 
+async def test_me_rejects_archived_workspace(app: FastAPI, db_session: AsyncSession) -> None:
+    from sqlalchemy import select
+
+    from flowsage_backend.models.workspace import Membership, Workspace
+
+    user = await upsert_user(db_session, "archived-workspace@example.com", "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    workspace = await db_session.get(Workspace, membership.workspace_id)
+    assert workspace is not None
+    workspace.archived = True
+    await db_session.commit()
+
+    async with await _client(app) as client:
+        await client.post(
+            "/auth/login", json={"email": "archived-workspace@example.com", "password": "hunter2"}
+        )
+        response = await client.get("/auth/me")
+
+    assert response.status_code == 403
+
+
 async def test_switch_workspace_rejects_non_member(app: FastAPI, db_session: AsyncSession) -> None:
     await upsert_user(db_session, "switch-reject@example.com", "hunter2")
     async with await _client(app) as client:

@@ -12,6 +12,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role
@@ -45,13 +46,15 @@ async def get_current_membership(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User no longer exists")
 
     result = await session.execute(
-        select(Membership).where(
-            Membership.user_id == user_id, Membership.workspace_id == workspace_id
-        )
+        select(Membership)
+        .where(Membership.user_id == user_id, Membership.workspace_id == workspace_id)
+        .options(selectinload(Membership.workspace))
     )
     membership = result.scalar_one_or_none()
     if membership is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "No membership in the active workspace")
+    if membership.workspace.archived:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This workspace has been archived")
 
     return user, membership
 
