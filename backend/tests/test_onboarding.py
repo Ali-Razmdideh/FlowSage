@@ -112,3 +112,72 @@ async def test_get_onboarding_status_ignores_revoked_api_keys(db_session: AsyncS
     status = await get_onboarding_status(db_session, workspace_id)
 
     assert status.has_api_key is False
+
+
+from pathlib import Path
+
+import pytest
+from sqlalchemy import select
+
+from flowsage_backend.onboarding import import_sample_data
+from flowsage_backend.simulations import SimulationError
+
+
+async def test_import_sample_data_ingests_events_and_creates_run(
+    db_session: AsyncSession, tmp_path: Path
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    await seed_baseline_personas(db_session, workspace_id)
+    screenshots_dir = tmp_path / "run-screens"
+
+    result = await import_sample_data(
+        db_session, workspace_id=workspace_id, screenshots_dest_dir=screenshots_dir
+    )
+
+    assert result.events_ingested == 44
+
+    events = (
+        await db_session.execute(select(Event).where(Event.workspace_id == workspace_id))
+    ).scalars().all()
+    assert len(events) == 44
+
+    run = await db_session.get(SimulationRun, result.run_id)
+    assert run is not None
+    assert run.workspace_id == workspace_id
+    assert run.flow_name == "Checkout Flow"
+    assert run.goal == "Complete purchase"
+    assert run.status == RunStatus.QUEUED
+
+    assert sorted(p.name for p in screenshots_dir.iterdir()) == [
+        "01_cart.png",
+        "02_shipping.png",
+        "03_confirm.png",
+    ]
+
+
+async def test_import_sample_data_uses_the_novice_baseline_persona(
+    db_session: AsyncSession, tmp_path: Path
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    novice = next(p for p in personas if p.slug == "novice")
+
+    result = await import_sample_data(
+        db_session, workspace_id=workspace_id, screenshots_dest_dir=tmp_path / "screens"
+    )
+
+    run = await db_session.get(SimulationRun, result.run_id)
+    assert run is not None
+    assert run.persona_id == novice.id
+
+
+async def test_import_sample_data_raises_without_seeded_personas(
+    db_session: AsyncSession, tmp_path: Path
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    # no seed_baseline_personas call -- this workspace has no "novice" persona
+
+    with pytest.raises(SimulationError):
+        await import_sample_data(
+            db_session, workspace_id=workspace_id, screenshots_dest_dir=tmp_path / "screens"
+        )
