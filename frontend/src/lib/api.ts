@@ -2,6 +2,7 @@ import type {
   AlertsReport,
   ApiKey,
   ApiKeyCreated,
+  AuditLogPage,
   CalibrationReport,
   CalibrationSettings,
   ChurnRiskSegment,
@@ -302,4 +303,12 @@ export const api = {
 
   testWebhook: (id: string): Promise<WebhookTestResult> =>
     request<WebhookTestResult>(`/settings/integrations/webhooks/${id}/test`, { method: "POST" }),
+
+  getAuditLogs: (params?: { action?: string; cursor?: string }): Promise<AuditLogPage> => {
+    const query = new URLSearchParams();
+    if (params?.action) query.set("action", params.action);
+    if (params?.cursor) query.set("cursor", params.cursor);
+    const qs = query.toString();
+    return request<AuditLogPage>(`/audit-logs${qs ? `?${qs}` : ""}`);
+  },
 };
