@@ -129,6 +129,23 @@ async def create_api_key_for(
     return raw_key
 
 
+async def create_workspace_and_admin(
+    session: AsyncSession, email: str, password: str = "hunter2"
+) -> tuple[User, Membership]:
+    """Creates a brand-new workspace with `email` as its sole admin -- for tests
+    that need an isolated workspace rather than reusing the shared 'fs-default'
+    one `login_to_default_workspace` targets."""
+    user = await upsert_user(session, email, password)
+    workspace = Workspace(name=f"Workspace for {email}", slug=f"ws-{uuid.uuid4().hex[:8]}")
+    session.add(workspace)
+    await session.flush()
+    membership = Membership(user_id=user.id, workspace_id=workspace.id, role=Role.ADMIN)
+    session.add(membership)
+    await session.commit()
+    await session.refresh(membership)
+    return user, membership
+
+
 async def login_to_default_workspace(
     client: AsyncClient, session: AsyncSession, email: str, password: str = "hunter2"
 ) -> uuid.UUID:
