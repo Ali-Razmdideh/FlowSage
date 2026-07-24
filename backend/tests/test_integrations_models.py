@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models import (
@@ -96,3 +96,47 @@ async def test_webhook_delivery_cascades_on_webhook_delete(db_session: AsyncSess
         select(WebhookDelivery).where(WebhookDelivery.id == delivery_id)
     )
     assert remaining.scalar_one_or_none() is None
+
+
+async def test_jira_api_token_is_encrypted_at_rest(db_session: AsyncSession) -> None:
+    workspace_id = await _make_workspace(db_session)
+    db_session.add(
+        JiraIntegration(
+            workspace_id=workspace_id,
+            base_url="https://acme.atlassian.net",
+            email="bot@acme.test",
+            api_token="plaintext-jira-token-value",
+            project_key="ACME",
+        )
+    )
+    await db_session.commit()
+
+    raw = await db_session.execute(
+        text("SELECT api_token FROM jira_integrations WHERE workspace_id = :wid"),
+        {"wid": workspace_id},
+    )
+    stored_value = raw.scalar_one()
+    assert stored_value != "plaintext-jira-token-value"
+
+    result = await db_session.execute(
+        select(JiraIntegration).where(JiraIntegration.workspace_id == workspace_id)
+    )
+    assert result.scalar_one().api_token == "plaintext-jira-token-value"
+
+
+async def test_webhook_secret_is_encrypted_at_rest(db_session: AsyncSession) -> None:
+    workspace_id = await _make_workspace(db_session)
+    db_session.add(
+        Webhook(
+            workspace_id=workspace_id,
+            url="https://example.test/hook",
+            secret="raw-secret-value",
+            event_types=["alert.triggered"],
+        )
+    )
+    await db_session.commit()
+
+    raw = await db_session.execute(
+        text("SELECT secret FROM webhooks WHERE workspace_id = :wid"), {"wid": workspace_id}
+    )
+    assert raw.scalar_one() != "raw-secret-value"
