@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.user import User
@@ -162,6 +163,15 @@ async def create_persona(
             status.HTTP_409_CONFLICT, f"A persona with slug {payload.slug!r} already exists"
         ) from exc
     await session.refresh(persona)
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="persona.created",
+        target_type="persona",
+        target_id=str(persona.id),
+        extra_data={"slug": persona.slug},
+    )
     return persona
 
 
@@ -240,9 +250,19 @@ async def delete_persona(
             status.HTTP_409_CONFLICT, "Baseline personas can't be deleted, only reset"
         )
 
+    persona_slug = persona.slug
     await session.delete(persona)
     try:
         await session.commit()
+        await record_audit_event(
+            session,
+            membership.workspace_id,
+            actor_user_id=membership.user_id,
+            action="persona.deleted",
+            target_type="persona",
+            target_id=str(persona_id),
+            extra_data={"slug": persona_slug},
+        )
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(

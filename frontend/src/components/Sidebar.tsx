@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: "/settings/team", label: "Team Access", icon: "group" },
   { to: "/settings/model-calibration", label: "Model Calibration", icon: "tune" },
   { to: "/settings/integrations", label: "Integrations", icon: "hub" },
+  { to: "/settings/security", label: "Security", icon: "shield" },
 ] as const;
 
 export function Sidebar() {

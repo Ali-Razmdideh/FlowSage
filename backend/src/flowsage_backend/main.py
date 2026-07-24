@@ -13,6 +13,7 @@ from flowsage_graph.ingest import Neo4jGraphSink
 from sqlalchemy import text
 
 from flowsage_backend.api.alerts import router as alerts_router
+from flowsage_backend.api.audit import router as audit_router
 from flowsage_backend.api.auth import router as auth_router
 from flowsage_backend.api.calibration import router as calibration_router
 from flowsage_backend.api.events import events_router, graph_router
@@ -24,6 +25,7 @@ from flowsage_backend.api.simulations import router as simulations_router
 from flowsage_backend.api.workspaces import router as workspaces_router
 from flowsage_backend.config import Settings, get_settings
 from flowsage_backend.db import create_engine, create_session_factory
+from flowsage_backend.rate_limit import configure_rate_limiting
 
 
 @asynccontextmanager
@@ -39,12 +41,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title="FlowSage API", lifespan=_lifespan)
     app.state.settings = settings
+    configure_rate_limiting(app, settings.redis_url)
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.graph_sink = Neo4jGraphSink(
         settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password
     )
     app.include_router(auth_router)
+    app.include_router(audit_router)
     app.include_router(personas_router)
     app.include_router(simulations_router)
     app.include_router(events_router)

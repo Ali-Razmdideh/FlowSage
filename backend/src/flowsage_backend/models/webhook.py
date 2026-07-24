@@ -10,6 +10,8 @@ from datetime import datetime
 from sqlalchemy import ARRAY, Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
+from flowsage_backend.config import get_settings
+from flowsage_backend.crypto import EncryptedString
 from flowsage_backend.models.base import Base
 
 
@@ -21,7 +23,9 @@ class Webhook(Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     url: Mapped[str] = mapped_column(String(500))
-    secret: Mapped[str] = mapped_column(String(64))
+    secret: Mapped[str] = mapped_column(
+        EncryptedString(lambda: get_settings().secret_encryption_key, length=500)
+    )
     event_types: Mapped[list[str]] = mapped_column(ARRAY(String))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

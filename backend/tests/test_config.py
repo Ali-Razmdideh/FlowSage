@@ -32,4 +32,12 @@ def test_placeholder_secrets_allowed_in_dev() -> None:
 def test_custom_secret_allowed_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("JWT_SECRET", "a-real-32-byte-secret-for-production!!")
+    monkeypatch.setenv("SECRET_ENCRYPTION_KEY", "a-real-encryption-passphrase-for-production")
     Settings()  # must not raise
+
+
+def test_placeholder_encryption_key_rejected_outside_dev(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("JWT_SECRET", "a-real-32-byte-secret-for-production!!")
+    with pytest.raises(ValueError, match="SECRET_ENCRYPTION_KEY"):
+        Settings()

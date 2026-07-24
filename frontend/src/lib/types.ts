@@ -342,3 +342,19 @@ export interface WebhookTestResult {
   status_code: number | null;
   success: boolean;
 }
+
+export interface AuditLogEntry {
+  id: string;
+  actor_user_id: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  extra_data: Record<string, unknown>;
+  ip_address: string | null;
+  created_at: string;
+}
+
+export interface AuditLogPage {
+  entries: AuditLogEntry[];
+  next_cursor: string | null;
+}

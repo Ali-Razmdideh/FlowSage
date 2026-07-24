@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
+from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.user import User
@@ -121,6 +122,15 @@ async def create_simulation(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
     await request.app.state.arq_pool.enqueue_job("run_simulation_job", str(run.id))
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="simulation.started",
+        target_type="simulation_run",
+        target_id=str(run.id),
+        extra_data={"flow_name": flow_name, "goal": goal},
+    )
     return run
 
 

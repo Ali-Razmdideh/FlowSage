@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace, WorkspacePrivacy
@@ -128,6 +129,9 @@ async def archive_current_workspace(
     workspace.archived = True
     await session.commit()
     await session.refresh(workspace)
+    await record_audit_event(
+        session, membership.workspace_id, actor_user_id=membership.user_id, action="workspace.archived"
+    )
     return workspace
 
 
@@ -212,6 +216,15 @@ async def add_member(
     session.add(new_membership)
     await session.commit()
     await session.refresh(new_membership)
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="member.invited",
+        target_type="membership",
+        target_id=str(new_membership.id),
+        extra_data={"email": target_user.email, "role": new_membership.role.value},
+    )
     return MemberOut(
         id=new_membership.id,
         user_id=target_user.id,
@@ -240,6 +253,15 @@ async def update_member_role(
     target.role = payload.role
     await session.commit()
     await session.refresh(target)
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="member.role_changed",
+        target_type="membership",
+        target_id=str(target.id),
+        extra_data={"to_role": target.role.value},
+    )
     user = await session.get(User, target.user_id)
     assert user is not None
     return MemberOut(
@@ -267,3 +289,11 @@ async def remove_member(
 
     await session.delete(target)
     await session.commit()
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="member.removed",
+        target_type="membership",
+        target_id=str(target.id),
+    )

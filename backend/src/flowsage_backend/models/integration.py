@@ -10,6 +10,8 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
+from flowsage_backend.config import get_settings
+from flowsage_backend.crypto import EncryptedString
 from flowsage_backend.models.base import Base
 
 
@@ -33,6 +35,8 @@ class JiraIntegration(Base):
     )
     base_url: Mapped[str] = mapped_column(String(500))
     email: Mapped[str] = mapped_column(String(320))
-    api_token: Mapped[str] = mapped_column(String(500))
+    api_token: Mapped[str] = mapped_column(
+        EncryptedString(lambda: get_settings().secret_encryption_key, length=1000)
+    )
     project_key: Mapped[str] = mapped_column(String(64))
     connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
