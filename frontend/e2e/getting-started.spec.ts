@@ -10,7 +10,7 @@ test("Getting Started: import sample data populates the Journey Graph", async ({
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 
-  await page.getByRole("link", { name: "Journey Graph" }).click();
+  await page.getByRole("navigation").getByRole("link", { name: "Journey Graph" }).click();
   await expect(page).toHaveURL(/\/journey/);
 
   const importButton = page.getByRole("button", { name: /import sample data/i });
