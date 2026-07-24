@@ -278,3 +278,25 @@ async def test_webhook_deliveries_do_not_leak_across_workspaces(
         response = await client_b.get(f"/settings/integrations/webhooks/{webhook_a_id}/deliveries")
 
     assert response.status_code == 404
+
+
+async def test_audit_log_is_workspace_scoped(app: FastAPI, db_session: AsyncSession) -> None:
+    from flowsage_backend.audit import record_audit_event
+    from tests.conftest import create_workspace_and_admin
+
+    tenant_a_email = f"isolation-audit-a-{uuid.uuid4().hex[:8]}@example.com"
+    tenant_b_email = f"isolation-audit-b-{uuid.uuid4().hex[:8]}@example.com"
+    user_a, membership_a = await create_workspace_and_admin(db_session, tenant_a_email)
+    await create_workspace_and_admin(db_session, tenant_b_email)
+
+    await record_audit_event(
+        db_session, membership_a.workspace_id, actor_user_id=user_a.id, action="auth.login"
+    )
+
+    async with _authed_client(app, tenant_b_email) as client_b:
+        response = await client_b.get("/audit-logs")
+
+    assert response.status_code == 200
+    # Tenant B's own /auth/login just recorded its own entry -- the assertion is
+    # that tenant A's entry never leaks in, not that the list is empty.
+    assert all(e["actor_user_id"] != str(user_a.id) for e in response.json()["entries"])
