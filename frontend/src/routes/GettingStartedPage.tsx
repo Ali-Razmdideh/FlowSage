@@ -16,6 +16,7 @@ export function GettingStartedPage() {
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(() => {
+    setError(null);
     api
       .getOnboardingStatus()
       .then(setStatus)
