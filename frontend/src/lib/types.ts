@@ -358,3 +358,15 @@ export interface AuditLogPage {
   entries: AuditLogEntry[];
   next_cursor: string | null;
 }
+
+export interface OnboardingStatus {
+  has_api_key: boolean;
+  has_events: boolean;
+  has_completed_simulation: boolean;
+  has_multiple_members: boolean;
+}
+
+export interface ImportSampleDataResult {
+  events_ingested: number;
+  run_id: string;
+}

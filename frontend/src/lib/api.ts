@@ -9,12 +9,14 @@ import type {
   CohortComparisonReport,
   FunnelFilters,
   FunnelReport,
+  ImportSampleDataResult,
   JiraConnectPayload,
   JiraExportResult,
   JiraStatus,
   Member,
   MemberAddPayload,
   NodeIntelligence,
+  OnboardingStatus,
   Persona,
   PersonaCreatePayload,
   PersonaDetail,
@@ -311,4 +313,10 @@ export const api = {
     const qs = query.toString();
     return request<AuditLogPage>(`/audit-logs${qs ? `?${qs}` : ""}`);
   },
+
+  getOnboardingStatus: (): Promise<OnboardingStatus> =>
+    request<OnboardingStatus>("/onboarding/status"),
+
+  importSampleData: (): Promise<ImportSampleDataResult> =>
+    request<ImportSampleDataResult>("/onboarding/import-sample-data", { method: "POST" }),
 };
