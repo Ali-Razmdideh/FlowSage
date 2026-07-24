@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role
@@ -93,11 +94,26 @@ async def login(
 
     membership = await _first_membership_or_401(session, user.id)
     _set_session_cookie(response, request, user.id, membership.workspace_id)
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=user.id,
+        action="auth.login",
+        ip_address=request.client.host if request.client else None,
+    )
     return await _build_me_out(session, user, membership)
 
 
 @router.post("/logout")
-async def logout(request: Request, response: Response) -> dict[str, str]:
+async def logout(
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, str]:
+    """Deliberately unauthenticated (unlike every other route here): logout must
+    stay safe to call even with no session or an already-expired one, so it can't
+    401 a client that's just trying to clear a stale cookie. It still audits the
+    logout when a valid session happens to be present."""
     settings = request.app.state.settings
     response.delete_cookie(
         settings.cookie_name,
@@ -105,6 +121,14 @@ async def logout(request: Request, response: Response) -> dict[str, str]:
         secure=settings.cookie_secure,
         samesite="lax",
     )
+    try:
+        user, membership = await get_current_membership(request, session)
+    except HTTPException:
+        pass
+    else:
+        await record_audit_event(
+            session, membership.workspace_id, actor_user_id=user.id, action="auth.logout"
+        )
     return {"status": "logged_out"}
 
 

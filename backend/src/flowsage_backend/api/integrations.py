@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.integrations.webhooks import deliver_webhook
 from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
@@ -150,6 +151,9 @@ async def connect_slack(
             SlackIntegration(workspace_id=membership.workspace_id, webhook_url=payload.webhook_url)
         )
     await session.commit()
+    await record_audit_event(
+        session, membership.workspace_id, actor_user_id=membership.user_id, action="slack.connected"
+    )
     return SlackStatusOut(connected=True, webhook_url_preview=_mask(payload.webhook_url))
 
 
@@ -163,6 +167,9 @@ async def disconnect_slack(
     if integration is not None:
         await session.delete(integration)
         await session.commit()
+        await record_audit_event(
+            session, membership.workspace_id, actor_user_id=membership.user_id, action="slack.disconnected"
+        )
 
 
 @router.get("/jira", response_model=JiraStatusOut)
@@ -206,6 +213,13 @@ async def connect_jira(
             )
         )
     await session.commit()
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="jira.connected",
+        extra_data={"base_url": payload.base_url, "project_key": payload.project_key},
+    )
     return JiraStatusOut(
         connected=True, base_url=payload.base_url, email=payload.email, project_key=payload.project_key
     )
@@ -221,6 +235,9 @@ async def disconnect_jira(
     if integration is not None:
         await session.delete(integration)
         await session.commit()
+        await record_audit_event(
+            session, membership.workspace_id, actor_user_id=membership.user_id, action="jira.disconnected"
+        )
 
 
 @router.get("/api-keys", response_model=list[ApiKeyListOut])
@@ -264,6 +281,15 @@ async def create_api_key(
     session.add(key)
     await session.commit()
     await session.refresh(key)
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="api_key.created",
+        target_type="api_key",
+        target_id=str(key.id),
+        extra_data={"name": key.name, "key_prefix": key.key_prefix},
+    )
     return ApiKeyCreateOut(
         id=key.id, name=key.name, key=raw_key, key_prefix=key.key_prefix, created_at=key.created_at
     )
@@ -286,6 +312,14 @@ async def revoke_api_key(
     key = await _get_owned_api_key(session, membership.workspace_id, key_id)
     key.revoked_at = datetime.now(tz=key.created_at.tzinfo)
     await session.commit()
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="api_key.revoked",
+        target_type="api_key",
+        target_id=str(key.id),
+    )
 
 
 @router.get("/webhooks", response_model=list[WebhookOut])
@@ -322,6 +356,15 @@ async def create_webhook(
     session.add(webhook)
     await session.commit()
     await session.refresh(webhook)
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="webhook.created",
+        target_type="webhook",
+        target_id=str(webhook.id),
+        extra_data={"url": webhook.url, "event_types": webhook.event_types},
+    )
     return WebhookCreateOut(
         id=webhook.id,
         url=webhook.url,
@@ -374,6 +417,14 @@ async def delete_webhook(
     webhook = await _get_owned_webhook(session, membership.workspace_id, webhook_id)
     await session.delete(webhook)
     await session.commit()
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="webhook.deleted",
+        target_type="webhook",
+        target_id=str(webhook_id),
+    )
 
 
 @router.get("/webhooks/{webhook_id}/deliveries", response_model=list[WebhookDeliveryOut])
