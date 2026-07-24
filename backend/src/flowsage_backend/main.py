@@ -25,6 +25,7 @@ from flowsage_backend.api.simulations import router as simulations_router
 from flowsage_backend.api.workspaces import router as workspaces_router
 from flowsage_backend.config import Settings, get_settings
 from flowsage_backend.db import create_engine, create_session_factory
+from flowsage_backend.rate_limit import configure_rate_limiting
 
 
 @asynccontextmanager
@@ -40,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title="FlowSage API", lifespan=_lifespan)
     app.state.settings = settings
+    configure_rate_limiting(app, settings.redis_url)
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.graph_sink = Neo4jGraphSink(

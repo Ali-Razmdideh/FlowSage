@@ -37,6 +37,7 @@ from flowsage_backend.integrations.slack import (
 from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
+from flowsage_backend.rate_limit import INGEST_RATE_LIMIT, limiter, resolve_signature
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ class IngestResult(BaseModel):
 
 
 @events_router.post("", response_model=IngestResult, status_code=201)
+@resolve_signature
+@limiter.limit(INGEST_RATE_LIMIT)
 async def ingest(
     payload: list[EventIn],
     request: Request,

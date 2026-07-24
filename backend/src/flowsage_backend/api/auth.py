@@ -16,6 +16,7 @@ from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role
+from flowsage_backend.rate_limit import AUTH_RATE_LIMIT, limiter, resolve_signature
 from flowsage_backend.security import create_access_token, dummy_password_hash, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -76,6 +77,8 @@ async def _first_membership_or_401(session: AsyncSession, user_id: uuid.UUID) ->
 
 
 @router.post("/login", response_model=MeOut)
+@resolve_signature
+@limiter.limit(AUTH_RATE_LIMIT)
 async def login(
     payload: LoginRequest,
     request: Request,

@@ -33,8 +33,21 @@ from flowsage_backend.models import Base
 from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace
+from flowsage_backend.rate_limit import limiter
 from flowsage_backend.security import generate_api_key, hash_api_key
 from flowsage_backend.seed import upsert_user
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter() -> None:
+    """The `limiter` in rate_limit.py is a module-level singleton shared by every
+    `app` fixture instance across the whole test session, backed by the same
+    session-scoped Redis container. Without a reset between tests, the tight
+    AUTH_RATE_LIMIT (5/minute, keyed by IP) would accumulate across every test
+    file that calls /auth/login -- since httpx's ASGITransport gives every test
+    client the same fallback remote address, unrelated tests would start
+    tripping each other's counters and failing with 429s."""
+    limiter.reset()
 
 
 @pytest.fixture(scope="session")
