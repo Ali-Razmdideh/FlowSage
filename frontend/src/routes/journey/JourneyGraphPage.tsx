@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../../lib/api";
+import { ImportSampleDataButton } from "../../components/ImportSampleDataButton";
 import type {
   ChurnRiskSegment,
   CohortComparisonReport,
@@ -27,7 +28,7 @@ export function JourneyGraphPage() {
   const [nodeIntel, setNodeIntel] = useState<NodeIntelligence | null>(null);
   const [nodeError, setNodeError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadFunnel = useCallback(() => {
     const filters = {
       ...(cohort && { cohort }),
       ...(device && { device }),
@@ -39,6 +40,10 @@ export function JourneyGraphPage() {
         setError(err instanceof ApiError ? err.message : "Failed to load journey graph.");
       });
   }, [cohort, device]);
+
+  useEffect(() => {
+    loadFunnel();
+  }, [loadFunnel]);
 
   useEffect(() => {
     const filters = { ...(device && { device }) };
@@ -93,7 +98,7 @@ export function JourneyGraphPage() {
         {error !== null ? <p className="text-error text-sm">{error}</p> : null}
 
         {report !== null && report.funnel.length === 0 ? (
-          <EmptyState />
+          <EmptyState onImported={loadFunnel} />
         ) : (
           <>
             <section className="bg-surface-container-lowest rounded-xl p-6">
@@ -368,14 +373,15 @@ function NodeIntelligenceAside({
   );
 }
 
-function EmptyState() {
+function EmptyState({ onImported }: { onImported: () => void }) {
   return (
-    <div className="bg-surface-container-lowest rounded-xl p-16 text-center">
+    <div className="bg-surface-container-lowest rounded-xl p-16 text-center flex flex-col items-center gap-4">
       <h2 className="font-headline text-2xl mb-2">Awaiting Event Ingestion</h2>
       <p className="text-on-surface-variant max-w-md mx-auto">
         The journey graph will materialize once events start arriving via{" "}
         <code className="font-mono text-sm">POST /v1/events</code>.
       </p>
+      <ImportSampleDataButton onImported={onImported} />
     </div>
   );
 }

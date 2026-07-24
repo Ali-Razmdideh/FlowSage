@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../lib/api";
 import type { FunnelReport, NodeIntelligence } from "../../lib/types";
 import { JourneyGraphPage } from "./JourneyGraphPage";
@@ -16,11 +16,16 @@ vi.mock("../../lib/api", async () => {
       getNodeIntelligence: vi.fn(),
       exportNodeToSlack: vi.fn(),
       exportNodeToJira: vi.fn(),
+      importSampleData: vi.fn(),
     },
   };
 });
 
 describe("JourneyGraphPage", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("shows the empty state when there is no funnel yet", async () => {
     vi.mocked(api.getFunnel).mockResolvedValue({
       funnel: [],
@@ -138,5 +143,22 @@ describe("JourneyGraphPage", () => {
 
     expect(await screen.findByText(/Exported to Slack/)).toBeInTheDocument();
     expect(api.exportNodeToSlack).toHaveBeenCalledWith("checkout");
+  });
+
+  it("shows an Import Sample Data button in the empty state and refetches the funnel on success", async () => {
+    vi.mocked(api.getFunnel).mockResolvedValue({
+      funnel: [],
+      friction_nodes: [],
+      total_sessions: 0,
+      total_events: 0,
+    });
+    vi.mocked(api.importSampleData).mockResolvedValue({ events_ingested: 44, run_id: "run-1" });
+
+    render(<JourneyGraphPage />);
+
+    const importButton = await screen.findByRole("button", { name: /import sample data/i });
+    fireEvent.click(importButton);
+
+    await waitFor(() => expect(vi.mocked(api.getFunnel)).toHaveBeenCalledTimes(2));
   });
 });
