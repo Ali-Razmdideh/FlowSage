@@ -8,6 +8,7 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_JWT_SECRET = "dev-secret-change-me-before-deploying-32bytes"
+_PLACEHOLDER_ENCRYPTION_KEY = "dev-encryption-key-change-me-before-deploy"
 
 
 class Settings(BaseSettings):
@@ -26,6 +27,12 @@ class Settings(BaseSettings):
     cookie_name: str = "flowsage_session"
     cookie_secure: bool = False  # set True once served over HTTPS
 
+    # Encrypts JiraIntegration.api_token / Webhook.secret at rest (crypto.py's
+    # EncryptedString). Any string works as input -- crypto.py stretches it into a
+    # valid Fernet key via SHA-256, so this can be a plain passphrase the same way
+    # JWT_SECRET is today, with no separate key-generation step required.
+    secret_encryption_key: str = _PLACEHOLDER_ENCRYPTION_KEY
+
     # Simulation jobs (arq/Redis worker) and where uploaded screenshots land.
     redis_url: str = "redis://localhost:6379/0"
     upload_dir: str = "./data/uploads"
@@ -43,6 +50,7 @@ class Settings(BaseSettings):
             return self
         placeholders = {
             "JWT_SECRET": self.jwt_secret == _PLACEHOLDER_JWT_SECRET,
+            "SECRET_ENCRYPTION_KEY": self.secret_encryption_key == _PLACEHOLDER_ENCRYPTION_KEY,
         }
         still_placeholder = [name for name, is_default in placeholders.items() if is_default]
         if still_placeholder:

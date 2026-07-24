@@ -21,6 +21,8 @@ dependencies = [
     "arq>=0.26,<0.27",
     "python-multipart>=0.0.12,<0.1",
     "httpx>=0.27,<0.28",
+    "cryptography>=43.0,<44.0",
+    "slowapi>=0.1.9,<0.2",
     "flowsage-predict",
     "flowsage-graph",
 ]
