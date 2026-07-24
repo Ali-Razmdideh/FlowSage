@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models. Import submodules here so Alembic autogenerate sees them."""
 
 from flowsage_backend.models.api_key import ApiKey
+from flowsage_backend.models.audit_log import AuditLog
 from flowsage_backend.models.base import Base
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.event import Event
@@ -36,6 +37,7 @@ __all__ = [
     "CalibrationSettings",
     "DigestFrequency",
     "ApiKey",
+    "AuditLog",
     "SlackIntegration",
     "JiraIntegration",
     "Webhook",
