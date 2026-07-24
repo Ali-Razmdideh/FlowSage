@@ -7,28 +7,16 @@ real user's upload goes through -- see the Phase 3 chunk 4 design spec.
 
 from __future__ import annotations
 
-import shutil
 import uuid
-from importlib import resources
-from pathlib import Path
 
-from flowsage_graph.ingest import load_events
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend.events import ingest_events
 from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.event import Event
-from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.workspace import Membership
-from flowsage_backend.simulations import SimulationError, create_run
-
-SAMPLE_DATA_PACKAGE = "flowsage_backend.resources.sample_data"
-SAMPLE_PERSONA_SLUG = "novice"
-SAMPLE_GOAL = "Complete purchase"
-SAMPLE_FLOW_NAME = "Checkout Flow"
 
 
 class OnboardingStatus(BaseModel):
@@ -36,11 +24,6 @@ class OnboardingStatus(BaseModel):
     has_events: bool
     has_completed_simulation: bool
     has_multiple_members: bool
-
-
-class ImportSampleDataResult(BaseModel):
-    events_ingested: int
-    run_id: uuid.UUID
 
 
 async def get_onboarding_status(session: AsyncSession, workspace_id: uuid.UUID) -> OnboardingStatus:
