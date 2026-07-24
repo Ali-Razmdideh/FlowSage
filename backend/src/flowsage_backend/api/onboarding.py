@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
@@ -60,4 +61,13 @@ async def import_sample_data_endpoint(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
     await request.app.state.arq_pool.enqueue_job("run_simulation_job", str(result.run_id))
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="onboarding.sample_data_imported",
+        target_type="simulation_run",
+        target_id=str(result.run_id),
+        extra_data={"events_ingested": result.events_ingested},
+    )
     return result
