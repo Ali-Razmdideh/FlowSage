@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 const NAV_ITEMS = [
+  { to: "/getting-started", label: "Getting Started", icon: "flag" },
   { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { to: "/predictive", label: "Predictive Engine", icon: "psychology" },
   { to: "/journey", label: "Journey Graph", icon: "timeline" },

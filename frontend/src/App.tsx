@@ -14,6 +14,7 @@ import { GeneralSettingsPage } from "./routes/settings/GeneralSettingsPage";
 import { TeamSettingsPage } from "./routes/settings/TeamSettingsPage";
 import { IntegrationsSettingsPage } from "./routes/settings/IntegrationsSettingsPage";
 import { SecurityLogsPage } from "./routes/settings/SecurityLogsPage";
+import { GettingStartedPage } from "./routes/GettingStartedPage";
 
 export function App() {
   return (
@@ -39,6 +40,7 @@ export function App() {
           <Route path="/settings/model-calibration" element={<ModelCalibrationSettingsPage />} />
           <Route path="/settings/integrations" element={<IntegrationsSettingsPage />} />
           <Route path="/settings/security" element={<SecurityLogsPage />} />
+          <Route path="/getting-started" element={<GettingStartedPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
