@@ -15,7 +15,7 @@ import arq
 from arq import cron
 from arq.connections import ArqRedis, RedisSettings
 from flowsage_predict.vision import AnthropicVisionClient, VisionClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.alerts import (
@@ -30,7 +30,9 @@ from flowsage_backend.db import create_engine, create_session_factory
 from flowsage_backend.integrations.slack import post_slack_message
 from flowsage_backend.integrations.webhooks import deliver_webhook
 from flowsage_backend.integrations_store import get_slack_integration
+from flowsage_backend.models.audit_log import AuditLog
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
+from flowsage_backend.models.event import Event
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.settings import DigestFrequency
 from flowsage_backend.models.workspace import Workspace
@@ -168,9 +170,45 @@ async def _auto_retrain_anomalous_personas(
         await redis.enqueue_job("run_retraining_job", str(job.id))
 
 
+async def run_retention_purge_job(ctx: dict[str, Any]) -> None:
+    """Fires daily. Enforces each workspace's own `retention_days` against
+    `AuditLog` and `Event` -- the two unbounded-growth tables this chunk's spec
+    calls out. One workspace's failure doesn't block the others, mirroring
+    run_digest_job's per-workspace loop."""
+    session_factory = ctx["session_factory"]
+
+    async with session_factory() as session:
+        result = await session.execute(select(Workspace.id, Workspace.retention_days))
+        workspaces = list(result.all())
+
+    for workspace_id, retention_days in workspaces:
+        try:
+            async with session_factory() as session:
+                await _purge_workspace_retention(session, workspace_id, retention_days)
+        except Exception:  # noqa: BLE001 - one workspace's purge failure must not
+            # stop the retention job from running for every other workspace.
+            logger.warning("Retention purge failed for workspace %s", workspace_id, exc_info=True)
+
+
+async def _purge_workspace_retention(
+    session: AsyncSession, workspace_id: uuid.UUID, retention_days: int
+) -> None:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    await session.execute(
+        delete(AuditLog).where(AuditLog.workspace_id == workspace_id, AuditLog.created_at < cutoff)
+    )
+    await session.execute(
+        delete(Event).where(Event.workspace_id == workspace_id, Event.timestamp < cutoff)
+    )
+    await session.commit()
+
+
 class WorkerSettings:
     functions = [run_simulation_job, run_retraining_job]
-    cron_jobs = [cron(run_digest_job, hour=9, minute=0)]
+    cron_jobs = [
+        cron(run_digest_job, hour=9, minute=0),
+        cron(run_retention_purge_job, hour=3, minute=0),
+    ]
     on_startup = _startup
     on_shutdown = _shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
