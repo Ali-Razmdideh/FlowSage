@@ -45,8 +45,8 @@ async def _send_one(
         }
         for _ in range(batch_size)
     ]
+    start = time.perf_counter()
     async with semaphore:
-        start = time.perf_counter()
         try:
             response = await client.post(url, json=payload, headers={"X-API-Key": api_key})
             elapsed_ms = (time.perf_counter() - start) * 1000
