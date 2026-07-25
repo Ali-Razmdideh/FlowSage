@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, Security
+from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from fastapi.security import APIKeyHeader
 from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel, ConfigDict
@@ -72,15 +72,18 @@ async def insights_friction_issues(
     workspace_id: uuid.UUID = Depends(require_workspace_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> FrictionIssuePageOut:
-    issues, next_cursor = await list_friction_issues(
-        session,
-        workspace_id,
-        severity=severity,
-        screen=screen,
-        since=since,
-        cursor=cursor,
-        limit=limit,
-    )
+    try:
+        issues, next_cursor = await list_friction_issues(
+            session,
+            workspace_id,
+            severity=severity,
+            screen=screen,
+            since=since,
+            cursor=cursor,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid cursor") from exc
     return FrictionIssuePageOut(
         issues=[FrictionIssueOut.model_validate(i) for i in issues], next_cursor=next_cursor
     )

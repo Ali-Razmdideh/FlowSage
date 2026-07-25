@@ -159,6 +159,25 @@ async def test_insights_friction_issues_returns_workspace_scoped_data(
     assert body["next_cursor"] is None
 
 
+async def test_insights_friction_issues_rejects_malformed_cursor(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    _, membership = await create_workspace_and_admin(
+        db_session, f"insights-api-badcursor-{uuid.uuid4().hex[:8]}@example.com"
+    )
+    api_key = await create_api_key_for(db_session, membership.workspace_id)
+    await db_session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            "/v1/insights/friction-issues",
+            params={"cursor": "not-a-valid-cursor"},
+            headers={"X-API-Key": api_key},
+        )
+
+    assert response.status_code == 400
+
+
 async def test_insights_friction_issues_paginates(app: FastAPI, db_session: AsyncSession) -> None:
     _, membership = await create_workspace_and_admin(
         db_session, f"insights-api-page-{uuid.uuid4().hex[:8]}@example.com"
