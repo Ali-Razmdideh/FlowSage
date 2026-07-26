@@ -10,8 +10,9 @@
 
 ## Global Constraints
 
-- No changes to `frontend/playwright.config.ts`, `infra/docker-compose.yml`, or any `frontend/e2e/*.spec.ts` file — they are already correct.
-- No changes to the existing `python` job in `.github/workflows/ci.yml`.
+- No changes to `frontend/playwright.config.ts` or any `frontend/e2e/*.spec.ts` file — they are already correct.
+- **Amended after Task 2:** `infra/docker-compose.yml` may receive exactly one narrow addition (an `AUTH_RATE_LIMIT_OVERRIDE` env passthrough, Task 2.5) — the original "no changes" constraint held through Tasks 1-2 and is now superseded for that single purpose only. No other changes to that file.
+- No changes to the existing `python` or `frontend` jobs in `.github/workflows/ci.yml`.
 - Node version: `22` (LTS), matching `actions/setup-node@v4`'s `node-version: "22"`.
 - Work happens in git worktree `.claude/worktrees/phase4-ci-hardening` (branch `worktree-phase4-ci-hardening`), one task per commit, final task merges to `main` and removes the worktree.
 - Every task must be verified by actually triggering GitHub Actions (push the worktree branch to origin) and confirming the relevant job is green in the Actions UI/`gh run view` — a workflow YAML change cannot be verified by local file inspection alone.
@@ -287,6 +288,165 @@ git push origin worktree-phase4-ci-hardening
 ```
 
 Expected: the revert commit's CI run shows all 3 jobs green again, confirming the deliberate-break commit's failure was real (not a false negative) and the teardown step is unconditional.
+
+---
+
+### Task 2.5: Env-gated auth rate limit override (discovered during Task 2)
+
+**Why this task exists:** Task 2's implementer discovered that the `e2e` job as wired cannot pass — the 5 e2e spec files run 13 tests, most of which independently call `/auth/login` as their first action, and the backend's `AUTH_RATE_LIMIT = "5/minute"` (per-IP) in `backend/src/flowsage_backend/rate_limit.py:22` trips after the 5th login within a rolling minute, deterministically failing ~7 of the remaining tests with a stuck-on-`/login` symptom. Confirmed via direct curl probing (requests 1-5: `200`/`401`, request 6+: `429`) and a full Playwright run (6 passed / 7 failed, all 7 failures being the same symptom). This reproduces identically on GitHub-hosted runners — it is not sandbox-specific.
+
+The user chose an env-gated bypass: production behavior (`5/minute`, unconditionally) stays exactly as-is; only the `e2e` CI job's backend gets a higher effective limit, via one new optional environment variable the code already has no reason to reject.
+
+**Files:**
+- Modify: `backend/src/flowsage_backend/rate_limit.py:22`
+- Modify: `infra/docker-compose.yml` (the `backend_env` anchor only — the one exception to the otherwise-unmodified-compose-file constraint)
+- Modify: `.github/workflows/ci.yml` (the `e2e` job's stack-startup step only)
+- Test: `backend/tests/test_rate_limit.py` (add one new test; the two existing tests must keep passing unmodified, since they rely on the unset-env-var default staying `"5/minute"`)
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces: `AUTH_RATE_LIMIT` in `rate_limit.py` becomes `os.environ.get("AUTH_RATE_LIMIT_OVERRIDE", "5/minute")` instead of a bare string literal — same name, same import site (`from flowsage_backend.rate_limit import AUTH_RATE_LIMIT, limiter, resolve_signature` in `backend/src/flowsage_backend/api/auth.py:19` needs no change, since `AUTH_RATE_LIMIT` is still a plain string evaluated at import time, just now env-sensitive).
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `backend/tests/test_rate_limit.py` (new test, appended after the existing two):
+
+```python
+async def test_auth_rate_limit_override_env_var_raises_the_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AUTH_RATE_LIMIT_OVERRIDE", "1000/minute")
+    import importlib
+
+    import flowsage_backend.rate_limit as rate_limit_module
+
+    importlib.reload(rate_limit_module)
+    try:
+        assert rate_limit_module.AUTH_RATE_LIMIT == "1000/minute"
+    finally:
+        monkeypatch.delenv("AUTH_RATE_LIMIT_OVERRIDE", raising=False)
+        importlib.reload(rate_limit_module)
+```
+
+Add `import pytest` at the top of `backend/tests/test_rate_limit.py` if not already present (it isn't, per the existing file — only `uuid`, `fastapi`, `httpx`, `sqlalchemy`, and two local imports are there today).
+
+- [ ] **Step 2: Run test to verify it fails**
+
+```bash
+cd backend && uv run pytest tests/test_rate_limit.py -v
+```
+
+Expected: the new test FAILs with `AssertionError: assert '5/minute' == '1000/minute'` (module-level constant doesn't read the env var yet). The two existing tests still pass.
+
+- [ ] **Step 3: Write the implementation**
+
+Modify `backend/src/flowsage_backend/rate_limit.py` — add `import os` to the existing import block (alongside `inspect`, `typing`), and change line 22:
+
+```python
+AUTH_RATE_LIMIT = "5/minute"
+```
+
+to:
+
+```python
+AUTH_RATE_LIMIT = os.environ.get("AUTH_RATE_LIMIT_OVERRIDE", "5/minute")
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+```bash
+cd backend && uv run pytest tests/test_rate_limit.py -v
+```
+
+Expected: PASS, all 3 tests (2 existing + 1 new).
+
+- [ ] **Step 5: Run the full backend suite (env-var reload must not leak into other tests)**
+
+```bash
+cd backend && uv run pytest -q
+```
+
+Expected: all 208 tests pass — the new test's `importlib.reload` + `finally`-block cleanup must leave `AUTH_RATE_LIMIT` back at `"5/minute"` for every other test in the session (this suite's Postgres fixture is session-scoped with no per-test DB isolation per this project's established gotcha, and `rate_limit.py`'s module-level constant is exactly as global — the `finally` block is not optional).
+
+- [ ] **Step 6: Type-check and format**
+
+```bash
+cd backend
+uv run autoflake8 --in-place --remove-all-unused-imports src/flowsage_backend/rate_limit.py tests/test_rate_limit.py
+uv run black src/flowsage_backend/rate_limit.py tests/test_rate_limit.py
+uv run mypy --strict src
+```
+
+Expected: mypy reports no issues.
+
+- [ ] **Step 7: Pass the override through docker-compose's shared backend environment**
+
+Modify `infra/docker-compose.yml` — add one line to the `backend_env` YAML anchor (the block starting `environment: &backend_env` under the `backend` service), immediately after the existing `ANTHROPIC_API_KEY` line:
+
+```yaml
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      AUTH_RATE_LIMIT_OVERRIDE: "${AUTH_RATE_LIMIT_OVERRIDE:-}"
+```
+
+An unset/empty `AUTH_RATE_LIMIT_OVERRIDE` on the host means the container also sees it unset (Docker Compose does not pass an empty-string env var through as literally empty in a way that changes `os.environ.get`'s behavior here — an empty string is still "set", so to keep local `docker compose up` with no env var exported behaving exactly as today, `rate_limit.py`'s `os.environ.get(..., "5/minute")` must treat an empty string the same as unset). Revise Step 3's implementation to guard against that:
+
+```python
+AUTH_RATE_LIMIT = os.environ.get("AUTH_RATE_LIMIT_OVERRIDE") or "5/minute"
+```
+
+(`or` treats both "unset" and `""` as "use the default" — re-run Steps 2 and 4's tests after this revision to confirm they still pass; the test already asserts the non-empty-override case, so this change is safe.)
+
+- [ ] **Step 8: Verify docker-compose still parses and the default behavior is unchanged**
+
+```bash
+cd /home/asus/Projects/personal/FlowSage/.claude/worktrees/phase4-ci-hardening
+docker compose -f infra/docker-compose.yml config > /dev/null && echo "compose config OK"
+```
+
+Expected: prints `compose config OK` with no error (validates YAML + variable interpolation syntax without starting anything).
+
+- [ ] **Step 9: Set the override in the `e2e` CI job only**
+
+Modify `.github/workflows/ci.yml` — the `e2e` job's `Build and start the full stack` step (added in Task 2) gets an `env:` key:
+
+```yaml
+      - name: Build and start the full stack
+        env:
+          AUTH_RATE_LIMIT_OVERRIDE: "1000/minute"
+        run: docker compose -f infra/docker-compose.yml up -d --build
+```
+
+This exports `AUTH_RATE_LIMIT_OVERRIDE` into that step's shell environment, which Docker Compose then substitutes into `${AUTH_RATE_LIMIT_OVERRIDE:-}` when it renders `infra/docker-compose.yml`, which becomes the `backend` container's actual env var, which `rate_limit.py` reads at import time inside that container. No other step or job sets this variable, so `python`, `frontend`, and any local `docker compose up` without it exported all keep the real `5/minute` production behavior.
+
+- [ ] **Step 10: Re-run the local e2e dry-run with the override set, confirm the full suite passes**
+
+```bash
+cd /home/asus/Projects/personal/FlowSage/.claude/worktrees/phase4-ci-hardening
+AUTH_RATE_LIMIT_OVERRIDE=1000/minute docker compose -f infra/docker-compose.yml up -d --build
+for i in $(seq 1 30); do curl -sf http://localhost:8000/healthz > /dev/null && break; sleep 2; done
+docker compose -f infra/docker-compose.yml exec -T backend /workspace/.venv/bin/python -m alembic -c /workspace/backend/alembic.ini upgrade head
+docker compose -f infra/docker-compose.yml exec -T backend /workspace/.venv/bin/flowsage-backend seed-personas
+docker compose -f infra/docker-compose.yml exec -T backend /workspace/.venv/bin/flowsage-backend create-user e2e@flowsage.dev supersecret123
+cd frontend && npx playwright test
+cd .. && docker compose -f infra/docker-compose.yml down -v
+```
+
+Expected: all 5 e2e spec files pass (13/13), no `429`s. If this sandbox still can't reach `fonts.googleapis.com` (a network quirk Task 2 already documented as sandbox-local, not a real bug), that specific symptom is a known non-issue — confirm login/navigation succeeds up to that point instead of insisting on a literal 13/13 in a sandbox with that quirk, and say so explicitly in the report.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add backend/src/flowsage_backend/rate_limit.py backend/tests/test_rate_limit.py infra/docker-compose.yml .github/workflows/ci.yml
+git commit -m "fix: allow AUTH_RATE_LIMIT_OVERRIDE so CI's e2e job doesn't trip the login rate limit"
+```
+
+- [ ] **Step 12: Push**
+
+```bash
+git push origin worktree-phase4-ci-hardening
+```
+
+(No `gh run list` step here either, per the same no-`gh`-in-this-sandbox situation as Tasks 1-2 — the human verifies this push's Actions run the same way as before.)
 
 ---
 
