@@ -18,6 +18,7 @@ from flowsage_backend.api.auth import router as auth_router
 from flowsage_backend.api.calibration import router as calibration_router
 from flowsage_backend.api.events import events_router, graph_router
 from flowsage_backend.api.exports import router as exports_router
+from flowsage_backend.api.insights import insights_router
 from flowsage_backend.api.integrations import router as integrations_router
 from flowsage_backend.api.onboarding import router as onboarding_router
 from flowsage_backend.api.personas import router as personas_router
@@ -40,7 +41,23 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title="FlowSage API", lifespan=_lifespan)
+    app = FastAPI(
+        title="FlowSage API",
+        description=(
+            "FlowSage's predictive & observed UX intelligence platform. "
+            "`/v1/insights/*` endpoints are public, API-key-authenticated "
+            "(`X-API-Key` header) read endpoints for external integrations; "
+            "everything else requires a browser session."
+        ),
+        version="0.4.0",
+        openapi_tags=[
+            {
+                "name": "insights",
+                "description": "Public, API-key-authenticated read endpoints for external integrations.",
+            }
+        ],
+        lifespan=_lifespan,
+    )
     app.state.settings = settings
     configure_rate_limiting(app, settings.redis_url)
     app.state.engine = create_engine(settings)
@@ -61,6 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(workspaces_router)
     app.include_router(integrations_router)
     app.include_router(onboarding_router)
+    app.include_router(insights_router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
