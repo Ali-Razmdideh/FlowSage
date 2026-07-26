@@ -21,11 +21,11 @@ docker compose -f ../infra/docker-compose.yml up -d postgres redis neo4j backend
 docker compose -f ../infra/docker-compose.yml exec backend \
   python -m alembic -c /workspace/backend/alembic.ini upgrade head
 docker compose -f ../infra/docker-compose.yml exec backend \
-  flowsage-backend seed-personas
-docker compose -f ../infra/docker-compose.yml exec backend \
   flowsage-backend create-user e2e@flowsage.dev supersecret123
 docker compose -f ../infra/docker-compose.yml exec backend \
   flowsage-backend create-user e2e-teammate@flowsage.dev supersecret123
+docker compose -f ../infra/docker-compose.yml exec backend \
+  flowsage-backend seed-personas
 
 # 3. Start the frontend
 npm run dev

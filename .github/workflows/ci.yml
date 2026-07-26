@@ -125,11 +125,6 @@ jobs:
           docker compose -f infra/docker-compose.yml exec -T backend \
             /workspace/.venv/bin/python -m alembic -c /workspace/backend/alembic.ini upgrade head
 
-      - name: Seed baseline personas
-        run: |
-          docker compose -f infra/docker-compose.yml exec -T backend \
-            /workspace/.venv/bin/flowsage-backend seed-personas
-
       - name: Create e2e test user
         run: |
           docker compose -f infra/docker-compose.yml exec -T backend \
@@ -139,6 +134,11 @@ jobs:
         run: |
           docker compose -f infra/docker-compose.yml exec -T backend \
             /workspace/.venv/bin/flowsage-backend create-user e2e-teammate@flowsage.dev supersecret123
+
+      - name: Seed baseline personas
+        run: |
+          docker compose -f infra/docker-compose.yml exec -T backend \
+            /workspace/.venv/bin/flowsage-backend seed-personas
 
       - name: Run Playwright e2e tests
         working-directory: frontend
