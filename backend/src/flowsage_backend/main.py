@@ -18,8 +18,8 @@ from flowsage_backend.api.auth import router as auth_router
 from flowsage_backend.api.calibration import router as calibration_router
 from flowsage_backend.api.events import events_router, graph_router
 from flowsage_backend.api.exports import router as exports_router
-from flowsage_backend.api.integrations import router as integrations_router
 from flowsage_backend.api.insights import insights_router
+from flowsage_backend.api.integrations import router as integrations_router
 from flowsage_backend.api.onboarding import router as onboarding_router
 from flowsage_backend.api.personas import router as personas_router
 from flowsage_backend.api.settings import router as settings_router
@@ -49,7 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "(`X-API-Key` header) read endpoints for external integrations; "
             "everything else requires a browser session."
         ),
-        version="0.1.0",
+        version="0.4.0",
         openapi_tags=[
             {
                 "name": "insights",

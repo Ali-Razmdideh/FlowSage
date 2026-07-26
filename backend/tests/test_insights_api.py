@@ -132,6 +132,58 @@ async def test_insights_funnel_returns_workspace_scoped_data(
     assert {step["screen"] for step in body["funnel"]} == {"landing", "checkout"}
 
 
+async def test_insights_funnel_isolates_by_workspace(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    _, membership_a = await create_workspace_and_admin(
+        db_session, f"insights-api-funnel-a-{uuid.uuid4().hex[:8]}@example.com"
+    )
+    _, membership_b = await create_workspace_and_admin(
+        db_session, f"insights-api-funnel-b-{uuid.uuid4().hex[:8]}@example.com"
+    )
+    api_key_a = await create_api_key_for(db_session, membership_a.workspace_id)
+    db_session.add_all(
+        [
+            Event(
+                workspace_id=membership_a.workspace_id,
+                session_id="a1",
+                screen="landing",
+                event="screen_view",
+                timestamp=_T0,
+                device="mobile",
+                cohort="paid_users",
+            ),
+            Event(
+                workspace_id=membership_a.workspace_id,
+                session_id="a1",
+                screen="checkout",
+                event="screen_view",
+                timestamp=_T0 + timedelta(minutes=1),
+                device="mobile",
+                cohort="paid_users",
+            ),
+            Event(
+                workspace_id=membership_b.workspace_id,
+                session_id="b1",
+                screen="pricing",
+                event="screen_view",
+                timestamp=_T0,
+                device="mobile",
+                cohort="paid_users",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/v1/insights/funnel", headers={"X-API-Key": api_key_a})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_sessions"] == 1
+    assert {step["screen"] for step in body["funnel"]} == {"landing", "checkout"}
+
+
 async def test_insights_friction_issues_returns_workspace_scoped_data(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
