@@ -135,6 +135,11 @@ jobs:
           docker compose -f infra/docker-compose.yml exec -T backend \
             /workspace/.venv/bin/flowsage-backend create-user e2e@flowsage.dev supersecret123
 
+      - name: Create e2e teammate user
+        run: |
+          docker compose -f infra/docker-compose.yml exec -T backend \
+            /workspace/.venv/bin/flowsage-backend create-user e2e-teammate@flowsage.dev supersecret123
+
       - name: Run Playwright e2e tests
         working-directory: frontend
         run: npx playwright test --reporter=list,html

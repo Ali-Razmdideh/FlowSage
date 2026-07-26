@@ -7,11 +7,12 @@ import asyncio
 
 import uvicorn
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
 from flowsage_backend.models.api_key import ApiKey
-from flowsage_backend.models.workspace import Workspace
+from flowsage_backend.models.workspace import Membership, Workspace
 from flowsage_backend.security import generate_api_key, hash_api_key
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
@@ -26,13 +27,26 @@ async def _create_user(email: str, password: str) -> None:
     print(f"User ready: {user.email} ({user.id})")
 
 
+async def _find_seedable_workspace(session: AsyncSession) -> Workspace | None:
+    """The oldest workspace that actually has at least one member -- skips
+    over the empty 'Default' workspace `e463496b1d0f_backfill_default_workspace`
+    unconditionally creates on every fresh install, which otherwise always wins
+    a naive "oldest workspace" query since it's created before any real user."""
+    result = await session.execute(
+        select(Workspace)
+        .join(Membership, Membership.workspace_id == Workspace.id)
+        .order_by(Workspace.created_at)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def _seed_personas() -> None:
     settings = get_settings()
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
     async with session_factory() as session:
-        result = await session.execute(select(Workspace).order_by(Workspace.created_at).limit(1))
-        workspace = result.scalar_one_or_none()
+        workspace = await _find_seedable_workspace(session)
         if workspace is None:
             raise SystemExit("No workspace exists yet -- run `create-user` first.")
         personas = await seed_baseline_personas(session, workspace.id)
