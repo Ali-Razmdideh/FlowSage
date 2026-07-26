@@ -137,15 +137,21 @@ jobs:
 
       - name: Run Playwright e2e tests
         working-directory: frontend
-        run: npx playwright test
+        run: npx playwright test --reporter=list,html
 
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: frontend/playwright-report/
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
           retention-days: 7
+
+      - name: Dump stack logs
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml logs --no-color --tail=300
 
       - name: Tear down the stack
         if: always()

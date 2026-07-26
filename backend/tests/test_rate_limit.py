@@ -45,17 +45,19 @@ async def test_non_auth_routes_are_not_rate_limited_at_auth_threshold(
     assert all(s == 200 for s in statuses)
 
 
-async def test_auth_rate_limit_override_env_var_raises_the_threshold(
+def test_auth_rate_limit_override_env_var_raises_the_threshold(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from flowsage_backend.rate_limit import _resolve_auth_rate_limit
+
     monkeypatch.setenv("AUTH_RATE_LIMIT_OVERRIDE", "1000/minute")
-    import importlib
+    assert _resolve_auth_rate_limit() == "1000/minute"
 
-    import flowsage_backend.rate_limit as rate_limit_module
 
-    importlib.reload(rate_limit_module)
-    try:
-        assert rate_limit_module.AUTH_RATE_LIMIT == "1000/minute"
-    finally:
-        monkeypatch.delenv("AUTH_RATE_LIMIT_OVERRIDE", raising=False)
-        importlib.reload(rate_limit_module)
+def test_auth_rate_limit_override_treats_empty_string_as_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flowsage_backend.rate_limit import _resolve_auth_rate_limit
+
+    monkeypatch.setenv("AUTH_RATE_LIMIT_OVERRIDE", "")
+    assert _resolve_auth_rate_limit() == "5/minute"

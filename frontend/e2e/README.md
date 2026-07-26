@@ -6,9 +6,10 @@ of bug unit tests can't (wrong API paths, cookie/CORS issues, the SSE stream
 actually working end to end), the same way the backend milestones were each
 verified by hand against live infra before committing.
 
-As of this chunk, these run automatically in CI on every push and pull request
-(see the `e2e` job in `.github/workflows/ci.yml`) using the built Docker images,
-not `npm run dev`. The manual setup below is for local iteration.
+As of this chunk, these run automatically in CI on every push to `main` and
+every pull request targeting `main` (see the `e2e` job in
+`.github/workflows/ci.yml`) using the built Docker images, not `npm run dev`.
+The manual setup below is for local iteration.
 
 ## Setup
 
