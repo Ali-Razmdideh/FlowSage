@@ -42,15 +42,25 @@ async def test_find_seedable_workspace_skips_memberless_workspaces(
     await db_session.execute(delete(Workspace))
     await db_session.commit()
 
+    # Commit (not just flush) the phantom on its own, so its `created_at`
+    # (Postgres `now()`, transaction-scoped) lands in a distinct, earlier
+    # committed transaction than the real workspace `upsert_user` creates
+    # below -- matching the real-world scenario where the migration commits
+    # in one process and `create-user` runs later in a separate one. A mere
+    # `flush()` here would leave the phantom's insert in the same still-open
+    # transaction as `upsert_user`'s, giving both rows the exact same
+    # `created_at` timestamp and making the ordering assertion below
+    # unreliable (unpredictable Postgres tie-break, not the real bug).
     phantom = Workspace(name="Default", slug="fs-default-test")
     db_session.add(phantom)
-    await db_session.flush()
+    await db_session.commit()
 
-    # A real workspace, created later, but WITH a membership -- must still win.
-    # `upsert_user` is exactly the function the `create-user` CLI command calls,
-    # and (per `seed.py`) it bootstraps a new user with its own personal
-    # workspace + admin membership -- the same real-world path that leaves the
-    # migration's phantom "Default" workspace stranded without members.
+    # A real workspace, created later (see above), but WITH a membership --
+    # must still win. `upsert_user` is exactly the function the `create-user`
+    # CLI command calls, and (per `seed.py`) it bootstraps a new user with its
+    # own personal workspace + admin membership -- the same real-world path
+    # that leaves the migration's phantom "Default" workspace stranded
+    # without members.
     user = await upsert_user(db_session, "seed-personas-test@example.com", "hunter2")
     membership_result = await db_session.execute(
         select(Membership).where(Membership.user_id == user.id)
