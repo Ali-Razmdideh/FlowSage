@@ -6,6 +6,7 @@ depending on which decorator a route uses."""
 from __future__ import annotations
 
 import inspect
+import os
 import typing
 from typing import Any, Callable, TypeVar
 
@@ -19,7 +20,12 @@ import jwt
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-AUTH_RATE_LIMIT = "5/minute"
+
+def _resolve_auth_rate_limit() -> str:
+    return os.environ.get("AUTH_RATE_LIMIT_OVERRIDE") or "5/minute"
+
+
+AUTH_RATE_LIMIT = _resolve_auth_rate_limit()
 INGEST_RATE_LIMIT = "120/minute"
 DEFAULT_RATE_LIMIT = "300/minute"
 

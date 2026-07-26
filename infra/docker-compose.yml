@@ -61,6 +61,7 @@ services:
       JWT_SECRET: "${JWT_SECRET:-dev-secret-change-me-before-deploying-32bytes}"
       COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      AUTH_RATE_LIMIT_OVERRIDE: "${AUTH_RATE_LIMIT_OVERRIDE:-}"
     volumes:
       - uploads_data:/data/uploads
     depends_on:

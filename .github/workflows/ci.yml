@@ -46,3 +46,113 @@ jobs:
       - name: pytest
         working-directory: ${{ matrix.package }}
         run: uv run pytest -v
+
+  frontend:
+    name: Frontend lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: oxlint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: vitest
+        working-directory: frontend
+        run: npm test
+
+      - name: build
+        working-directory: frontend
+        run: npm run build
+
+  e2e:
+    name: Playwright e2e (full stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and start the full stack
+        env:
+          AUTH_RATE_LIMIT_OVERRIDE: "1000/minute"
+        run: docker compose -f infra/docker-compose.yml up -d --build
+
+      - name: Wait for backend to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/healthz > /dev/null; then
+              echo "backend is up"
+              exit 0
+            fi
+            echo "waiting for backend ($i/30)..."
+            sleep 2
+          done
+          echo "backend never became ready"
+          docker compose -f infra/docker-compose.yml logs backend
+          exit 1
+
+      - name: Migrate database
+        run: |
+          docker compose -f infra/docker-compose.yml exec -T backend \
+            /workspace/.venv/bin/python -m alembic -c /workspace/backend/alembic.ini upgrade head
+
+      - name: Seed baseline personas
+        run: |
+          docker compose -f infra/docker-compose.yml exec -T backend \
+            /workspace/.venv/bin/flowsage-backend seed-personas
+
+      - name: Create e2e test user
+        run: |
+          docker compose -f infra/docker-compose.yml exec -T backend \
+            /workspace/.venv/bin/flowsage-backend create-user e2e@flowsage.dev supersecret123
+
+      - name: Run Playwright e2e tests
+        working-directory: frontend
+        run: npx playwright test --reporter=list,html
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+
+      - name: Dump stack logs
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml logs --no-color --tail=300
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose -f infra/docker-compose.yml down -v

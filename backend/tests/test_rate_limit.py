@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,3 +43,21 @@ async def test_non_auth_routes_are_not_rate_limited_at_auth_threshold(
         statuses = [(await client.get("/auth/me")).status_code for _ in range(8)]
 
     assert all(s == 200 for s in statuses)
+
+
+def test_auth_rate_limit_override_env_var_raises_the_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flowsage_backend.rate_limit import _resolve_auth_rate_limit
+
+    monkeypatch.setenv("AUTH_RATE_LIMIT_OVERRIDE", "1000/minute")
+    assert _resolve_auth_rate_limit() == "1000/minute"
+
+
+def test_auth_rate_limit_override_treats_empty_string_as_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from flowsage_backend.rate_limit import _resolve_auth_rate_limit
+
+    monkeypatch.setenv("AUTH_RATE_LIMIT_OVERRIDE", "")
+    assert _resolve_auth_rate_limit() == "5/minute"
