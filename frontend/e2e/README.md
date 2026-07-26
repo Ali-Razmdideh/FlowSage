@@ -24,6 +24,8 @@ docker compose -f ../infra/docker-compose.yml exec backend \
   flowsage-backend seed-personas
 docker compose -f ../infra/docker-compose.yml exec backend \
   flowsage-backend create-user e2e@flowsage.dev supersecret123
+docker compose -f ../infra/docker-compose.yml exec backend \
+  flowsage-backend create-user e2e-teammate@flowsage.dev supersecret123
 
 # 3. Start the frontend
 npm run dev
