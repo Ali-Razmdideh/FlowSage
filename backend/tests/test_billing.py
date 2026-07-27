@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend.billing import TIER_LIMITS, get_usage
+from flowsage_backend.billing import TIER_LIMITS, check_within_limits, get_usage
 from flowsage_backend.models.billing import SubscriptionTier, WorkspaceSubscription
 from flowsage_backend.models.event import Event
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
@@ -112,3 +114,51 @@ async def test_get_usage_reflects_upgraded_tier(db_session: AsyncSession) -> Non
 
     assert usage.tier == SubscriptionTier.PRO
     assert usage.events_limit == TIER_LIMITS[SubscriptionTier.PRO].events_per_month
+
+
+async def test_check_within_limits_passes_when_under_cap(db_session: AsyncSession) -> None:
+    workspace = Workspace(name="Under Cap", slug=f"under-cap-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.commit()
+
+    await check_within_limits(db_session, workspace.id, "events")
+    await check_within_limits(db_session, workspace.id, "runs")
+    await check_within_limits(db_session, workspace.id, "seats")
+
+
+async def test_check_within_limits_raises_402_at_cap(db_session: AsyncSession) -> None:
+    workspace = Workspace(name="At Cap", slug=f"at-cap-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            Event(
+                workspace_id=workspace.id,
+                session_id=f"s{i}",
+                screen="landing",
+                event="screen_view",
+                timestamp=now,
+            )
+            for i in range(TIER_LIMITS[SubscriptionTier.FREE].events_per_month)
+        ]
+    )
+    await db_session.commit()
+
+    with pytest.raises(HTTPException) as excinfo:
+        await check_within_limits(db_session, workspace.id, "events")
+    assert excinfo.value.status_code == 402
+
+
+async def test_check_within_limits_seats_unlimited_on_team_tier(db_session: AsyncSession) -> None:
+    workspace = Workspace(name="Team Unlimited", slug=f"team-unlimited-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.flush()
+    db_session.add(WorkspaceSubscription(workspace_id=workspace.id, tier=SubscriptionTier.TEAM))
+    await db_session.commit()
+
+    # No memberships exist for this workspace at all, but the point is the -1
+    # sentinel never trips regardless of count -- Team tier's seats=-1 must
+    # short-circuit before the count comparison.
+    await check_within_limits(db_session, workspace.id, "seats")

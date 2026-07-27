@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
+from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,3 +89,33 @@ async def get_usage(session: AsyncSession, workspace_id: uuid.UUID) -> UsageSnap
         seats_used=seats_used,
         seats_limit=limits.seats,
     )
+
+
+async def check_within_limits(
+    session: AsyncSession, workspace_id: uuid.UUID, resource: Literal["events", "runs", "seats"]
+) -> None:
+    """Raises 402 if the workspace is already at/over its tier's cap for
+    `resource`. Checked BEFORE the action that would add one more unit (an
+    event batch, a simulation run, a member) -- for event batches this means
+    the check is a point-in-time gate, not a precise per-event cutoff: a
+    workspace at 999/1000 posting a 50-event batch still gets the whole batch
+    through. That's an intentional simplification, not a bug -- precise
+    mid-batch cutoff isn't worth the complexity for a hard-cap freemium gate.
+    """
+    usage = await get_usage(session, workspace_id)
+    used, limit = {
+        "events": (usage.events_used, usage.events_limit),
+        "runs": (usage.runs_used, usage.runs_limit),
+        "seats": (usage.seats_used, usage.seats_limit),
+    }[resource]
+
+    if limit == -1:
+        return
+    if used >= limit:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"{usage.tier.value.title()} plan limit reached for {resource} "
+                f"({used}/{limit}). Upgrade to continue."
+            ),
+        )
