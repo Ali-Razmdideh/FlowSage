@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = "flowsage_dev"
 
+    # Stripe billing (optional -- unconfigured means checkout/portal 400 cleanly,
+    # same as Slack/Jira; no startup placeholder-guard, unlike JWT_SECRET/
+    # SECRET_ENCRYPTION_KEY, since this feature must work fully unconfigured).
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_price_id_pro: str | None = None
+    stripe_price_id_team: str | None = None
+    # Absolute origin the frontend is served from -- used to build Stripe
+    # Checkout's success_url/cancel_url. Defaults to the docker-compose
+    # frontend service's exposed port (see infra/docker-compose.yml).
+    app_base_url: str = "http://localhost:5173"
+
     @model_validator(mode="after")
     def _reject_placeholder_secret_outside_dev(self) -> "Settings":
         if self.environment == "development":
