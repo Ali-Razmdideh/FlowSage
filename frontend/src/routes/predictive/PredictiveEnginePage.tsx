@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { UsageLimitBanner } from "../../components/UsageLimitBanner";
 import { api, ApiError } from "../../lib/api";
 import type { Persona } from "../../lib/types";
 
@@ -11,6 +12,7 @@ export function PredictiveEnginePage() {
   const [flowName, setFlowName] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [usageLimitMessage, setUsageLimitMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -33,12 +35,17 @@ export function PredictiveEnginePage() {
       return;
     }
     setError(null);
+    setUsageLimitMessage(null);
     setSubmitting(true);
     try {
       const run = await api.createSimulation({ personaId, goal, flowName, files });
       navigate(`/predictive/runs/${run.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to start simulation.");
+      if (err instanceof ApiError && err.status === 402) {
+        setUsageLimitMessage(err.message);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Failed to start simulation.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -144,6 +151,8 @@ export function PredictiveEnginePage() {
               {error}
             </p>
           ) : null}
+
+          <UsageLimitBanner message={usageLimitMessage} />
 
           <button
             type="submit"

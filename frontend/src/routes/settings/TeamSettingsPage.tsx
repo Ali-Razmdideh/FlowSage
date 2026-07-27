@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { UsageLimitBanner } from "../../components/UsageLimitBanner";
 import { api, ApiError } from "../../lib/api";
 import type { Member, Role } from "../../lib/types";
 
@@ -7,6 +8,7 @@ const ROLE_OPTIONS: Role[] = ["admin", "researcher", "viewer"];
 export function TeamSettingsPage() {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [usageLimitMessage, setUsageLimitMessage] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("viewer");
@@ -25,6 +27,7 @@ export function TeamSettingsPage() {
 
   async function handleInvite() {
     setError(null);
+    setUsageLimitMessage(null);
     setInviting(true);
     try {
       await api.addMember({ email: inviteEmail, role: inviteRole });
@@ -32,7 +35,11 @@ export function TeamSettingsPage() {
       setShowInvite(false);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to add member.");
+      if (err instanceof ApiError && err.status === 402) {
+        setUsageLimitMessage(err.message);
+      } else {
+        setError(err instanceof ApiError ? err.message : "Failed to add member.");
+      }
     } finally {
       setInviting(false);
     }
@@ -89,6 +96,8 @@ export function TeamSettingsPage() {
           {error}
         </p>
       ) : null}
+
+      <UsageLimitBanner message={usageLimitMessage} />
 
       {showInvite ? (
         <section className="bg-surface-container-lowest rounded-xl p-6 flex flex-col gap-4">
