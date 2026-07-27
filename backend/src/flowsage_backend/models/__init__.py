@@ -3,6 +3,11 @@
 from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.audit_log import AuditLog
 from flowsage_backend.models.base import Base
+from flowsage_backend.models.billing import (
+    SubscriptionStatus,
+    SubscriptionTier,
+    WorkspaceSubscription,
+)
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.event import Event
 from flowsage_backend.models.integration import JiraIntegration, SlackIntegration
@@ -42,4 +47,7 @@ __all__ = [
     "JiraIntegration",
     "Webhook",
     "WebhookDelivery",
+    "SubscriptionTier",
+    "SubscriptionStatus",
+    "WorkspaceSubscription",
 ]
