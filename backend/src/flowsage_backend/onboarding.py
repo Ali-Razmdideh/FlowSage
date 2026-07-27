@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.billing import check_within_limits
 from flowsage_backend.events import ingest_events
 from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.event import Event
@@ -91,6 +92,12 @@ async def import_sample_data(
     screenshots_dest_dir: Path,
     run_id: uuid.UUID | None = None,
 ) -> ImportSampleDataResult:
+    # Same freemium gate the real `POST /v1/events` and `POST /simulations`
+    # routes apply -- this endpoint ingests events and creates a run through
+    # the exact same pipeline, so it must not be a cap-free side door.
+    await check_within_limits(session, workspace_id, "events")
+    await check_within_limits(session, workspace_id, "runs")
+
     persona = (
         await session.execute(
             select(Persona).where(
