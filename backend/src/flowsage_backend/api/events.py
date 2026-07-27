@@ -14,6 +14,7 @@ from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.billing import check_within_limits
 from flowsage_backend.churn import (
     ChurnRiskSegment,
     CohortComparisonReport,
@@ -69,6 +70,7 @@ async def ingest(
     workspace_id: uuid.UUID = Depends(require_workspace_api_key),
     session: AsyncSession = Depends(get_db_session),
 ) -> IngestResult:
+    await check_within_limits(session, workspace_id, "events")
     graph_events = [GraphEvent.model_validate(e.model_dump()) for e in payload]
     rows = await ingest_events(session, workspace_id, graph_events)
 

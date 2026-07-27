@@ -8,8 +8,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend.models.billing import SubscriptionTier, WorkspaceSubscription
+from flowsage_backend.models.workspace import Membership
 from flowsage_backend.seed import upsert_user
 
 
@@ -21,6 +24,15 @@ async def _authed_client(
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await client.post("/auth/login", json={"email": email, "password": "hunter2"})
         yield client
+
+
+async def _upgrade_to_team(db_session: AsyncSession, workspace_id: uuid.UUID) -> None:
+    """These tests exercise add_member's email/duplicate/role-authorization
+    logic, not billing -- give the workspace a Team-tier (unlimited seats)
+    subscription first so the new seat cap (billing.check_within_limits)
+    doesn't block the 2nd invite these tests need to make their real point."""
+    db_session.add(WorkspaceSubscription(workspace_id=workspace_id, tier=SubscriptionTier.TEAM))
+    await db_session.commit()
 
 
 async def test_get_current_workspace(app: FastAPI, db_session: AsyncSession) -> None:
@@ -96,6 +108,11 @@ async def test_add_member_by_email(app: FastAPI, db_session: AsyncSession) -> No
     admin_email = f"ws-member-admin-{uuid.uuid4().hex[:8]}@example.com"
     invitee_email = f"ws-member-invitee-{uuid.uuid4().hex[:8]}@example.com"
     await upsert_user(db_session, invitee_email, "hunter2")
+    admin_user = await upsert_user(db_session, admin_email, "hunter2")
+    admin_membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == admin_user.id))
+    ).scalar_one()
+    await _upgrade_to_team(db_session, admin_membership.workspace_id)
 
     async with _authed_client(app, db_session, admin_email) as client:
         response = await client.post(
@@ -108,9 +125,14 @@ async def test_add_member_by_email(app: FastAPI, db_session: AsyncSession) -> No
 
 
 async def test_add_member_rejects_unknown_email(app: FastAPI, db_session: AsyncSession) -> None:
-    async with _authed_client(
-        app, db_session, f"ws-member-404-{uuid.uuid4().hex[:8]}@example.com"
-    ) as client:
+    admin_email = f"ws-member-404-{uuid.uuid4().hex[:8]}@example.com"
+    admin_user = await upsert_user(db_session, admin_email, "hunter2")
+    admin_membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == admin_user.id))
+    ).scalar_one()
+    await _upgrade_to_team(db_session, admin_membership.workspace_id)
+
+    async with _authed_client(app, db_session, admin_email) as client:
         response = await client.post(
             "/workspaces/current/members",
             json={"email": "nobody-registered@example.com", "role": "viewer"},
@@ -123,6 +145,11 @@ async def test_add_member_rejects_duplicate(app: FastAPI, db_session: AsyncSessi
     admin_email = f"ws-member-dup-admin-{uuid.uuid4().hex[:8]}@example.com"
     invitee_email = f"ws-member-dup-invitee-{uuid.uuid4().hex[:8]}@example.com"
     await upsert_user(db_session, invitee_email, "hunter2")
+    admin_user = await upsert_user(db_session, admin_email, "hunter2")
+    admin_membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == admin_user.id))
+    ).scalar_one()
+    await _upgrade_to_team(db_session, admin_membership.workspace_id)
 
     async with _authed_client(app, db_session, admin_email) as client:
         first = await client.post(
@@ -153,6 +180,11 @@ async def test_non_admin_cannot_add_member(app: FastAPI, db_session: AsyncSessio
     admin_email = f"ws-role-admin-{uuid.uuid4().hex[:8]}@example.com"
     viewer_email = f"ws-role-viewer-{uuid.uuid4().hex[:8]}@example.com"
     await upsert_user(db_session, viewer_email, "hunter2")
+    admin_user = await upsert_user(db_session, admin_email, "hunter2")
+    admin_membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == admin_user.id))
+    ).scalar_one()
+    await _upgrade_to_team(db_session, admin_membership.workspace_id)
 
     async with _authed_client(app, db_session, admin_email) as admin_client:
         await admin_client.post(

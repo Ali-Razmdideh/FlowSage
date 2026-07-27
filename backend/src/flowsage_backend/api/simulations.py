@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from flowsage_backend.audit import record_audit_event
+from flowsage_backend.billing import check_within_limits
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.user import User
@@ -93,6 +94,7 @@ async def create_simulation(
     session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
     _, membership = membership_pair
+    await check_within_limits(session, membership.workspace_id, "runs")
     settings = request.app.state.settings
     run_id = uuid.uuid4()
     screenshots_dir = Path(settings.upload_dir) / str(run_id)

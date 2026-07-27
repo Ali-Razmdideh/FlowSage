@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.audit import record_audit_event
+from flowsage_backend.billing import check_within_limits
 from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace, WorkspacePrivacy
@@ -200,6 +201,7 @@ async def add_member(
     session: AsyncSession = Depends(get_db_session),
 ) -> MemberOut:
     _, membership = membership_pair
+    await check_within_limits(session, membership.workspace_id, "seats")
     result = await session.execute(select(User).where(User.email == payload.email))
     target_user = result.scalar_one_or_none()
     if target_user is None:
