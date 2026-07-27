@@ -31,6 +31,7 @@ from flowsage_backend.config import Settings
 from flowsage_backend.main import create_app
 from flowsage_backend.models import Base
 from flowsage_backend.models.api_key import ApiKey
+from flowsage_backend.models.billing import SubscriptionTier, WorkspaceSubscription
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace
 from flowsage_backend.rate_limit import limiter
@@ -121,6 +122,15 @@ async def ensure_default_workspace(session: AsyncSession) -> uuid.UUID:
     session.add(workspace)
     await session.commit()
     await session.refresh(workspace)
+    # This workspace is reused by every event-ingestion test in the whole
+    # session (no per-test truncation -- see this suite's session-scoped
+    # Postgres fixture). Pin it to Team tier so accumulated event volume
+    # across unrelated test files never trips the real Free-tier cap once
+    # billing.check_within_limits is wired into POST /v1/events -- dedicated
+    # billing tests use their own freshly-created, deliberately Free-tier
+    # workspaces instead (see test_billing_enforcement_api.py).
+    session.add(WorkspaceSubscription(workspace_id=workspace.id, tier=SubscriptionTier.TEAM))
+    await session.commit()
     return workspace.id
 
 
