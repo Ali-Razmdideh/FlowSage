@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import time
 import uuid
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import stripe
@@ -32,7 +32,10 @@ async def test_create_checkout_session_requires_secret_key() -> None:
 
 async def test_create_checkout_session_returns_url() -> None:
     fake_session = MagicMock(url="https://checkout.stripe.com/pay/cs_test_123")
-    with patch("stripe.checkout.Session.create", return_value=fake_session) as mock_create:
+    # `create_async`, not `create`: the wrapper deliberately uses the SDK's
+    # coroutine variant so the blocking HTTP call can't stall the event loop.
+    mock_create = AsyncMock(return_value=fake_session)
+    with patch("stripe.checkout.Session.create_async", mock_create):
         url = await create_checkout_session(
             secret_key="sk_test_fake",
             price_id="price_123",
@@ -59,7 +62,7 @@ async def test_create_portal_session_requires_secret_key() -> None:
 
 async def test_create_portal_session_returns_url() -> None:
     fake_session = MagicMock(url="https://billing.stripe.com/session/bps_test_123")
-    with patch("stripe.billing_portal.Session.create", return_value=fake_session):
+    with patch("stripe.billing_portal.Session.create_async", AsyncMock(return_value=fake_session)):
         url = await create_portal_session(
             secret_key="sk_test_fake",
             customer_id="cus_123",

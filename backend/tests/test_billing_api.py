@@ -18,7 +18,7 @@ from flowsage_backend.models.billing import (
     SubscriptionTier,
     WorkspaceSubscription,
 )
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 from flowsage_backend.seed import upsert_user
 
 
@@ -38,6 +38,23 @@ async def _billing_api_workspace_id(db_session: AsyncSession) -> uuid.UUID:
         await db_session.execute(select(Membership).where(Membership.user_id == user.id))
     ).scalar_one()
     return membership.workspace_id
+
+
+async def _fresh_membership(
+    db_session: AsyncSession, prefix: str, role: Role = Role.ADMIN
+) -> tuple[str, uuid.UUID]:
+    """A brand-new user with their own personal workspace at `role`. `/auth/login`
+    lands on that workspace (it picks the user's oldest membership), so this is
+    the cheapest way to drive the billing routes as a specific role."""
+    email = f"{prefix}-{uuid.uuid4().hex[:8]}@example.com"
+    user = await upsert_user(db_session, email, "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    if membership.role is not role:
+        membership.role = role
+        await db_session.commit()
+    return email, membership.workspace_id
 
 
 async def test_get_usage_requires_authentication(app: FastAPI) -> None:
@@ -178,3 +195,175 @@ async def test_webhook_subscription_deleted_resets_to_free(
     subscription = result.scalar_one()
     assert subscription.tier == SubscriptionTier.FREE
     assert subscription.status == SubscriptionStatus.CANCELED
+
+
+async def test_checkout_requires_admin_role(app: FastAPI, db_session: AsyncSession) -> None:
+    email, _ = await _fresh_membership(db_session, "billing-viewer-checkout", Role.VIEWER)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/auth/login", json={"email": email, "password": "hunter2"})
+        response = await client.post("/billing/checkout", json={"tier": "pro"})
+
+    assert response.status_code == 403
+
+
+async def test_portal_requires_admin_role(app: FastAPI, db_session: AsyncSession) -> None:
+    email, _ = await _fresh_membership(db_session, "billing-viewer-portal", Role.VIEWER)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/auth/login", json={"email": email, "password": "hunter2"})
+        response = await client.post("/billing/portal")
+
+    assert response.status_code == 403
+
+
+async def test_usage_stays_readable_by_non_admins(app: FastAPI, db_session: AsyncSession) -> None:
+    email, _ = await _fresh_membership(db_session, "billing-viewer-usage", Role.VIEWER)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/auth/login", json={"email": email, "password": "hunter2"})
+        response = await client.get("/billing/usage")
+
+    assert response.status_code == 200
+
+
+async def test_checkout_returns_409_when_subscription_already_active(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """A Pro -> Team switch must not mint a second Stripe subscription (that
+    would double-bill and orphan the old one); the caller is sent to the
+    Customer Portal instead."""
+    email, workspace_id = await _fresh_membership(db_session, "billing-already-subbed")
+    subscription = await get_or_create_subscription(db_session, workspace_id)
+    subscription.tier = SubscriptionTier.PRO
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.stripe_customer_id = "cus_already_123"
+    subscription.stripe_subscription_id = "sub_already_123"
+    await db_session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.post("/auth/login", json={"email": email, "password": "hunter2"})
+        response = await client.post("/billing/checkout", json={"tier": "team"})
+
+    assert response.status_code == 409
+    assert "Manage Billing" in response.json()["detail"]
+
+
+async def test_webhook_returns_200_on_malformed_metadata(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """A 5xx back at Stripe triggers retry-storm-then-auto-disable, so even a
+    garbage workspace_id must come back 200."""
+    app.state.settings.stripe_webhook_secret = "whsec_test_fake"
+    payload = json.dumps(
+        {
+            "id": "evt_test_bad_metadata",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "customer": "cus_bad",
+                    "subscription": "sub_bad",
+                    "metadata": {"workspace_id": "not-a-uuid", "tier": "pro"},
+                }
+            },
+        }
+    ).encode()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/billing/webhook",
+            content=payload,
+            headers={"stripe-signature": _sign(payload, "whsec_test_fake")},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "error"}
+
+
+async def test_webhook_paused_status_does_not_downgrade_tier(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """`paused` / `incomplete` (SCA/3DS in flight) are transient -- the paid
+    tier must survive them. Only `canceled`/`incomplete_expired` reset to Free."""
+    _, workspace_id = await _fresh_membership(db_session, "billing-paused")
+    subscription = await get_or_create_subscription(db_session, workspace_id)
+    subscription.tier = SubscriptionTier.PRO
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.stripe_customer_id = "cus_paused_123"
+    subscription.stripe_subscription_id = "sub_paused_123"
+    await db_session.commit()
+    app.state.settings.stripe_webhook_secret = "whsec_test_fake"
+
+    payload = json.dumps(
+        {
+            "id": "evt_test_paused",
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "id": "sub_paused_123",
+                    "customer": "cus_paused_123",
+                    "status": "paused",
+                }
+            },
+        }
+    ).encode()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/billing/webhook",
+            content=payload,
+            headers={"stripe-signature": _sign(payload, "whsec_test_fake")},
+        )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    updated = (
+        await db_session.execute(
+            select(WorkspaceSubscription).where(WorkspaceSubscription.workspace_id == workspace_id)
+        )
+    ).scalar_one()
+    assert updated.tier == SubscriptionTier.PRO
+
+
+async def test_webhook_canceled_status_does_downgrade_tier(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    _, workspace_id = await _fresh_membership(db_session, "billing-canceled")
+    subscription = await get_or_create_subscription(db_session, workspace_id)
+    subscription.tier = SubscriptionTier.PRO
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.stripe_customer_id = "cus_canceled_123"
+    subscription.stripe_subscription_id = "sub_canceled_123"
+    await db_session.commit()
+    app.state.settings.stripe_webhook_secret = "whsec_test_fake"
+
+    payload = json.dumps(
+        {
+            "id": "evt_test_canceled",
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "id": "sub_canceled_123",
+                    "customer": "cus_canceled_123",
+                    "status": "canceled",
+                }
+            },
+        }
+    ).encode()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/billing/webhook",
+            content=payload,
+            headers={"stripe-signature": _sign(payload, "whsec_test_fake")},
+        )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    updated = (
+        await db_session.execute(
+            select(WorkspaceSubscription).where(WorkspaceSubscription.workspace_id == workspace_id)
+        )
+    ).scalar_one()
+    assert updated.tier == SubscriptionTier.FREE
+    assert updated.status == SubscriptionStatus.CANCELED

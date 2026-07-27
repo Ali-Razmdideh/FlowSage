@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../../auth/AuthContext";
 import { api, ApiError } from "../../lib/api";
 import type { UsageSnapshot } from "../../lib/types";
 
@@ -29,6 +30,10 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
 }
 
 export function BillingSettingsPage() {
+  const { user } = useAuth();
+  // POST /billing/checkout and /billing/portal require Role.ADMIN on the
+  // backend; hide the controls rather than let non-admins click into a 403.
+  const isAdmin = user?.role === "admin";
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState(false);
@@ -98,36 +103,42 @@ export function BillingSettingsPage() {
 
       <section className="bg-surface-container-lowest rounded-xl p-6 flex flex-col gap-4">
         <h2 className="font-headline text-xl">Manage Plan</h2>
-        <div className="flex gap-3 flex-wrap">
-          {usage.tier !== "pro" && usage.tier !== "team" ? (
+        {!isAdmin ? (
+          <p className="text-on-surface-variant text-sm">
+            Only workspace admins can change the plan or manage billing.
+          </p>
+        ) : (
+          <div className="flex gap-3 flex-wrap">
+            {usage.tier !== "pro" && usage.tier !== "team" ? (
+              <button
+                type="button"
+                onClick={() => void handleUpgrade("pro")}
+                disabled={redirecting}
+                className="rounded-lg bg-primary py-2.5 px-6 text-on-primary font-medium hover:opacity-90 transition disabled:opacity-50"
+              >
+                Upgrade to Pro
+              </button>
+            ) : null}
+            {usage.tier !== "team" ? (
+              <button
+                type="button"
+                onClick={() => void handleUpgrade("team")}
+                disabled={redirecting}
+                className="rounded-lg ghost-border py-2.5 px-6 font-medium hover:bg-surface-container transition disabled:opacity-50"
+              >
+                Upgrade to Team
+              </button>
+            ) : null}
             <button
               type="button"
-              onClick={() => void handleUpgrade("pro")}
-              disabled={redirecting}
-              className="rounded-lg bg-primary py-2.5 px-6 text-on-primary font-medium hover:opacity-90 transition disabled:opacity-50"
-            >
-              Upgrade to Pro
-            </button>
-          ) : null}
-          {usage.tier !== "team" ? (
-            <button
-              type="button"
-              onClick={() => void handleUpgrade("team")}
+              onClick={() => void handleManageBilling()}
               disabled={redirecting}
               className="rounded-lg ghost-border py-2.5 px-6 font-medium hover:bg-surface-container transition disabled:opacity-50"
             >
-              Upgrade to Team
+              Manage Billing
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void handleManageBilling()}
-            disabled={redirecting}
-            className="rounded-lg ghost-border py-2.5 px-6 font-medium hover:bg-surface-container transition disabled:opacity-50"
-          >
-            Manage Billing
-          </button>
-        </div>
+          </div>
+        )}
       </section>
     </div>
   );

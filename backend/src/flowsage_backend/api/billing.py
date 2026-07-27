@@ -1,10 +1,18 @@
 # backend/src/flowsage_backend/api/billing.py
 """Billing endpoints: usage snapshot, Stripe Checkout/Portal redirects, and the
-Stripe webhook that keeps `WorkspaceSubscription` in sync. The webhook route
-has no auth dependency -- Stripe calls it directly -- and always returns 200
-on a recognized-but-irrelevant event or a workspace lookup miss (never lets a
-downstream bug surface as a 5xx that triggers Stripe's retry storm); it 400s
-only on signature failure, mirroring `record_audit_event`'s best-effort spirit."""
+Stripe webhook that keeps `WorkspaceSubscription` in sync.
+
+`GET /billing/usage` is readable by any member (it's a read-only snapshot);
+`POST /billing/checkout` and `POST /billing/portal` spend real money / expose a
+Stripe-hosted management surface, so they require `Role.ADMIN` exactly like every
+other mutating workspace-settings endpoint (see `api/workspaces.py::add_member`).
+
+The webhook route has no auth dependency -- Stripe calls it directly -- and
+always returns 200 on a recognized-but-irrelevant event, a workspace lookup
+miss, *or an unexpected exception while processing* (never lets a downstream bug
+surface as a 5xx that triggers Stripe's retry-storm-then-auto-disable
+behavior); it 400s only on signature failure or missing webhook-secret config,
+mirroring `record_audit_event`'s best-effort spirit."""
 
 from __future__ import annotations
 
@@ -22,7 +30,7 @@ import stripe
 from flowsage_backend.audit import record_audit_event
 from flowsage_backend.billing import UsageSnapshot, get_usage
 from flowsage_backend.billing_store import get_or_create_subscription
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.integrations.stripe_client import (
     StripeNotConfiguredError,
     create_checkout_session,
@@ -35,7 +43,7 @@ from flowsage_backend.models.billing import (
     WorkspaceSubscription,
 )
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +70,15 @@ _STRIPE_STATUS_MAP: dict[str, SubscriptionStatus] = {
 }
 
 
+# The only Stripe subscription statuses that mean "this workspace has genuinely
+# lost its paid plan". Everything else unrecognized (`incomplete` while a card
+# is going through SCA/3DS, `paused` while collection is paused) is a
+# *transient* state: `_map_stripe_status` still falls back to CANCELED for the
+# `status` column, but the workspace's `tier` must NOT be reset to Free, or a
+# customer mid-3DS-challenge gets silently downgraded and locked out.
+_TERMINAL_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
+
+
 def _map_stripe_status(stripe_status: str) -> SubscriptionStatus:
     return _STRIPE_STATUS_MAP.get(stripe_status, SubscriptionStatus.CANCELED)
 
@@ -75,13 +92,11 @@ async def get_billing_usage(
     return await get_usage(session, membership.workspace_id)
 
 
-@router.post(
-    "/checkout", response_model=CheckoutResult, dependencies=[Depends(get_current_membership)]
-)
+@router.post("/checkout", response_model=CheckoutResult)
 async def create_checkout(
     payload: CheckoutRequest,
     request: Request,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
     session: AsyncSession = Depends(get_db_session),
 ) -> CheckoutResult:
     user, membership = membership_pair
@@ -91,6 +106,22 @@ async def create_checkout(
     )
 
     subscription = await get_or_create_subscription(session, membership.workspace_id)
+
+    # A Checkout Session in mode="subscription" always *creates* a new Stripe
+    # subscription -- it never modifies an existing one. Running it for a
+    # workspace that already has a live subscription (e.g. a Pro -> Team
+    # upgrade) would double-bill the customer and orphan the old subscription
+    # id. Plan switches belong in the Stripe Customer Portal, which handles
+    # proration correctly, so send the caller there instead.
+    if (
+        subscription.stripe_subscription_id is not None
+        and subscription.status == SubscriptionStatus.ACTIVE
+    ):
+        raise HTTPException(
+            409,
+            "You already have an active subscription. Use 'Manage Billing' to change your plan.",
+        )
+
     base_url = settings.app_base_url
 
     try:
@@ -110,10 +141,10 @@ async def create_checkout(
     return CheckoutResult(url=url)
 
 
-@router.post("/portal", response_model=PortalResult, dependencies=[Depends(get_current_membership)])
+@router.post("/portal", response_model=PortalResult)
 async def create_portal(
     request: Request,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
     session: AsyncSession = Depends(get_db_session),
 ) -> PortalResult:
     _, membership = membership_pair
@@ -162,6 +193,19 @@ async def stripe_webhook(
     except stripe.SignatureVerificationError as exc:
         raise HTTPException(400, f"Invalid Stripe signature: {exc}") from exc
 
+    # Past this point the request is *proven* to come from Stripe, so any
+    # failure is our bug, not an attack -- and a 5xx here makes Stripe retry
+    # with backoff and eventually auto-disable the endpoint. Swallow everything
+    # (malformed metadata -> ValueError from uuid.UUID/SubscriptionTier, a
+    # deleted workspace -> IntegrityError, ...) into a logged 200.
+    try:
+        return await _process_webhook_event(session, event)
+    except Exception:  # noqa: BLE001 - see above: never 5xx back at Stripe
+        logger.exception("Stripe webhook processing failed (event id=%s)", event.get("id"))
+        return {"status": "error"}
+
+
+async def _process_webhook_event(session: AsyncSession, event: stripe.Event) -> dict[str, str]:
     event_type = event["type"]
     data = event["data"]["object"]
 
@@ -195,8 +239,13 @@ async def stripe_webhook(
         if updated_subscription is None:
             logger.warning("subscription.updated for unknown customer %s", customer_id)
             return {"status": "ignored"}
-        updated_subscription.status = _map_stripe_status(data.get("status", ""))
-        if updated_subscription.status == SubscriptionStatus.CANCELED:
+        raw_status = data.get("status", "")
+        updated_subscription.status = _map_stripe_status(raw_status)
+        # Only a genuinely dead subscription loses the paid tier. An unmapped
+        # but still-live status (`incomplete` during SCA/3DS, `paused`) records
+        # the conservative CANCELED status but leaves `tier` untouched, so the
+        # workspace isn't silently downgraded mid-authentication.
+        if raw_status in _TERMINAL_STRIPE_STATUSES:
             updated_subscription.tier = SubscriptionTier.FREE
         current_period_end = data.get("current_period_end")
         if current_period_end is not None:

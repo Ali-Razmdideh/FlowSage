@@ -2,7 +2,13 @@
 """Stripe SDK wrapper: hosted Checkout (upgrade), hosted Customer Portal
 (manage/cancel), and webhook signature verification. Mirrors
 `integrations/slack.py`'s shape -- thin functions, `StripeNotConfiguredError`
-when the secret key is missing, no live network calls in this test suite."""
+when the secret key is missing, no live network calls in this test suite.
+
+The create calls use the SDK's `*_async` variants (`stripe==11.6.0` ships real
+coroutine equivalents of every resource method). The synchronous
+`Session.create(...)` does a blocking HTTP request, which inside these
+`async def` wrappers would stall the whole event loop for the duration of the
+Stripe round-trip."""
 
 from __future__ import annotations
 
@@ -35,7 +41,7 @@ async def create_checkout_session(
     # TypedDict), so the customer/customer_email branches are two literal calls
     # instead of one call with a merged kwargs dict.
     if existing_customer_id is not None:
-        session = stripe.checkout.Session.create(
+        session = await stripe.checkout.Session.create_async(
             api_key=secret_key,
             mode="subscription",
             line_items=[{"price": price_id, "quantity": 1}],
@@ -45,7 +51,7 @@ async def create_checkout_session(
             customer=existing_customer_id,
         )
     else:
-        session = stripe.checkout.Session.create(
+        session = await stripe.checkout.Session.create_async(
             api_key=secret_key,
             mode="subscription",
             line_items=[{"price": price_id, "quantity": 1}],
@@ -64,7 +70,7 @@ async def create_portal_session(
     if secret_key is None:
         raise StripeNotConfiguredError("Stripe is not configured")
 
-    session = stripe.billing_portal.Session.create(
+    session = await stripe.billing_portal.Session.create_async(
         api_key=secret_key, customer=customer_id, return_url=return_url
     )
     assert session.url is not None
