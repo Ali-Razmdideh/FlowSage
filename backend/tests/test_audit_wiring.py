@@ -21,7 +21,9 @@ async def test_login_is_audited(app: FastAPI, db_session: AsyncSession) -> None:
     workspace_id = uuid.UUID(response.json()["workspace_id"])
 
     result = await db_session.execute(
-        select(AuditLog).where(AuditLog.workspace_id == workspace_id, AuditLog.action == "auth.login")
+        select(AuditLog).where(
+            AuditLog.workspace_id == workspace_id, AuditLog.action == "auth.login"
+        )
     )
     assert result.scalar_one_or_none() is not None
 
@@ -37,12 +39,15 @@ async def test_member_role_change_is_audited(app: FastAPI, db_session: AsyncSess
     from flowsage_backend.models.workspace import Membership, Role
 
     db_session.add(
-        Membership(user_id=other_user.id, workspace_id=admin_membership.workspace_id, role=Role.VIEWER)
+        Membership(
+            user_id=other_user.id, workspace_id=admin_membership.workspace_id, role=Role.VIEWER
+        )
     )
     await db_session.commit()
     result = await db_session.execute(
         select(Membership).where(
-            Membership.user_id == other_user.id, Membership.workspace_id == admin_membership.workspace_id
+            Membership.user_id == other_user.id,
+            Membership.workspace_id == admin_membership.workspace_id,
         )
     )
     other_membership_id = result.scalar_one().id

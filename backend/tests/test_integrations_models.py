@@ -43,7 +43,9 @@ async def test_api_key_round_trips(db_session: AsyncSession) -> None:
 
 async def test_slack_and_jira_integration_round_trip(db_session: AsyncSession) -> None:
     workspace_id = await _make_workspace(db_session)
-    db_session.add(SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x"))
+    db_session.add(
+        SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    )
     db_session.add(
         JiraIntegration(
             workspace_id=workspace_id,
@@ -56,10 +58,14 @@ async def test_slack_and_jira_integration_round_trip(db_session: AsyncSession) -
     await db_session.commit()
 
     slack = (
-        await db_session.execute(select(SlackIntegration).where(SlackIntegration.workspace_id == workspace_id))
+        await db_session.execute(
+            select(SlackIntegration).where(SlackIntegration.workspace_id == workspace_id)
+        )
     ).scalar_one()
     jira = (
-        await db_session.execute(select(JiraIntegration).where(JiraIntegration.workspace_id == workspace_id))
+        await db_session.execute(
+            select(JiraIntegration).where(JiraIntegration.workspace_id == workspace_id)
+        )
     ).scalar_one()
     assert slack.webhook_url == "https://hooks.slack.test/x"
     assert jira.project_key == "FS"

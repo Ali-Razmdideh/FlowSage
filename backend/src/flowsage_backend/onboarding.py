@@ -59,7 +59,9 @@ async def get_onboarding_status(session: AsyncSession, workspace_id: uuid.UUID) 
 
     member_count = (
         await session.execute(
-            select(func.count()).select_from(Membership).where(Membership.workspace_id == workspace_id)
+            select(func.count())
+            .select_from(Membership)
+            .where(Membership.workspace_id == workspace_id)
         )
     ).scalar_one()
 

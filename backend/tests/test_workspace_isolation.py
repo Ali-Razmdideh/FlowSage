@@ -232,7 +232,9 @@ async def test_api_key_created_in_one_workspace_does_not_authenticate_for_anothe
     await upsert_user(db_session, tenant_a_email, "hunter2")
 
     async with _authed_client(app, tenant_a_email) as client_a:
-        create = await client_a.post("/settings/integrations/api-keys", json={"name": "tenant-a-key"})
+        create = await client_a.post(
+            "/settings/integrations/api-keys", json={"name": "tenant-a-key"}
+        )
     raw_key = create.json()["key"]
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

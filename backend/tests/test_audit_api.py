@@ -10,7 +10,9 @@ from flowsage_backend.audit import record_audit_event
 from tests.conftest import create_workspace_and_admin
 
 
-async def test_get_audit_logs_returns_workspace_entries(app: FastAPI, db_session: AsyncSession) -> None:
+async def test_get_audit_logs_returns_workspace_entries(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
     email = f"audit-api-{uuid.uuid4().hex[:8]}@example.com"
     user, membership = await create_workspace_and_admin(db_session, email)
     await record_audit_event(

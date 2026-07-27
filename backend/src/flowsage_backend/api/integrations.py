@@ -168,7 +168,10 @@ async def disconnect_slack(
         await session.delete(integration)
         await session.commit()
         await record_audit_event(
-            session, membership.workspace_id, actor_user_id=membership.user_id, action="slack.disconnected"
+            session,
+            membership.workspace_id,
+            actor_user_id=membership.user_id,
+            action="slack.disconnected",
         )
 
 
@@ -221,7 +224,10 @@ async def connect_jira(
         extra_data={"base_url": payload.base_url, "project_key": payload.project_key},
     )
     return JiraStatusOut(
-        connected=True, base_url=payload.base_url, email=payload.email, project_key=payload.project_key
+        connected=True,
+        base_url=payload.base_url,
+        email=payload.email,
+        project_key=payload.project_key,
     )
 
 
@@ -236,7 +242,10 @@ async def disconnect_jira(
         await session.delete(integration)
         await session.commit()
         await record_audit_event(
-            session, membership.workspace_id, actor_user_id=membership.user_id, action="jira.disconnected"
+            session,
+            membership.workspace_id,
+            actor_user_id=membership.user_id,
+            action="jira.disconnected",
         )
 
 
@@ -295,7 +304,9 @@ async def create_api_key(
     )
 
 
-async def _get_owned_api_key(session: AsyncSession, workspace_id: uuid.UUID, key_id: uuid.UUID) -> ApiKey:
+async def _get_owned_api_key(
+    session: AsyncSession, workspace_id: uuid.UUID, key_id: uuid.UUID
+) -> ApiKey:
     key = await session.get(ApiKey, key_id)
     if key is None or key.workspace_id != workspace_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
@@ -334,7 +345,13 @@ async def list_webhooks(
         .order_by(Webhook.created_at.desc())
     )
     return [
-        WebhookOut(id=w.id, url=w.url, event_types=w.event_types, enabled=w.enabled, created_at=w.created_at)
+        WebhookOut(
+            id=w.id,
+            url=w.url,
+            event_types=w.event_types,
+            enabled=w.enabled,
+            created_at=w.created_at,
+        )
         for w in result.scalars().all()
     ]
 
@@ -375,7 +392,9 @@ async def create_webhook(
     )
 
 
-async def _get_owned_webhook(session: AsyncSession, workspace_id: uuid.UUID, webhook_id: uuid.UUID) -> Webhook:
+async def _get_owned_webhook(
+    session: AsyncSession, workspace_id: uuid.UUID, webhook_id: uuid.UUID
+) -> Webhook:
     webhook = await session.get(Webhook, webhook_id)
     if webhook is None or webhook.workspace_id != workspace_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Webhook not found")
@@ -407,7 +426,9 @@ async def update_webhook(
     )
 
 
-@router.delete("/webhooks/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+@router.delete(
+    "/webhooks/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None
+)
 async def delete_webhook(
     webhook_id: uuid.UUID,
     membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
@@ -447,7 +468,10 @@ async def test_webhook(
     _, membership = membership_pair
     webhook = await _get_owned_webhook(session, membership.workspace_id, webhook_id)
     status_code, success = await deliver_webhook(
-        webhook.url, secret=webhook.secret, event_type="test", payload={"message": "FlowSage test delivery"}
+        webhook.url,
+        secret=webhook.secret,
+        event_type="test",
+        payload={"message": "FlowSage test delivery"},
     )
     await record_delivery(
         session, webhook.id, "test", {"message": "FlowSage test delivery"}, status_code, success

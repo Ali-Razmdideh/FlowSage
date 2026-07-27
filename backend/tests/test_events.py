@@ -55,7 +55,9 @@ async def test_ingest_stores_events_in_postgres(app: FastAPI, db_session: AsyncS
     assert {r.screen for r in rows} == {"landing", "cart"}
 
 
-async def test_ingest_continues_when_neo4j_unreachable(app: FastAPI, db_session: AsyncSession) -> None:
+async def test_ingest_continues_when_neo4j_unreachable(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
     """The default `app` fixture points at an unreachable Neo4j -- ingestion into
     Postgres must still succeed (best-effort mirroring, matching flowsage-graph's
     own CLI resilience pattern)."""

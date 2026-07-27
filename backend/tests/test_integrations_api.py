@@ -18,7 +18,9 @@ async def _authed_client(app: FastAPI, email: str) -> AsyncIterator[AsyncClient]
         yield client
 
 
-async def test_slack_integration_starts_disconnected(app: FastAPI, db_session: AsyncSession) -> None:
+async def test_slack_integration_starts_disconnected(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
     email = f"int-slack-{uuid.uuid4().hex[:8]}@example.com"
     await upsert_user(db_session, email, "hunter2")
     async with _authed_client(app, email) as client:
@@ -142,7 +144,9 @@ async def test_update_and_delete_webhook(app: FastAPI, db_session: AsyncSession)
         assert listing.json() == []
 
 
-async def test_test_webhook_endpoint_records_a_delivery(app: FastAPI, db_session: AsyncSession) -> None:
+async def test_test_webhook_endpoint_records_a_delivery(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
     import respx
     from httpx import Response
 

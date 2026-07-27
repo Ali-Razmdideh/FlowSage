@@ -130,7 +130,10 @@ async def archive_current_workspace(
     await session.commit()
     await session.refresh(workspace)
     await record_audit_event(
-        session, membership.workspace_id, actor_user_id=membership.user_id, action="workspace.archived"
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="workspace.archived",
     )
     return workspace
 

@@ -26,10 +26,14 @@ async def test_purge_deletes_audit_logs_and_events_older_than_retention(
 
     now = datetime.now(timezone.utc)
     old_log = AuditLog(
-        workspace_id=membership.workspace_id, action="old.event", created_at=now - timedelta(days=31)
+        workspace_id=membership.workspace_id,
+        action="old.event",
+        created_at=now - timedelta(days=31),
     )
     recent_log = AuditLog(
-        workspace_id=membership.workspace_id, action="recent.event", created_at=now - timedelta(days=1)
+        workspace_id=membership.workspace_id,
+        action="recent.event",
+        created_at=now - timedelta(days=1),
     )
     db_session.add_all([old_log, recent_log])
     await db_session.commit()
@@ -58,14 +62,22 @@ async def test_purge_deletes_audit_logs_and_events_older_than_retention(
     await _purge_workspace_retention(db_session, membership.workspace_id, workspace.retention_days)
 
     remaining_logs = (
-        (await db_session.execute(select(AuditLog).where(AuditLog.workspace_id == membership.workspace_id)))
+        (
+            await db_session.execute(
+                select(AuditLog).where(AuditLog.workspace_id == membership.workspace_id)
+            )
+        )
         .scalars()
         .all()
     )
     assert {log.action for log in remaining_logs} == {"recent.event"}
 
     remaining_events = (
-        (await db_session.execute(select(Event).where(Event.workspace_id == membership.workspace_id)))
+        (
+            await db_session.execute(
+                select(Event).where(Event.workspace_id == membership.workspace_id)
+            )
+        )
         .scalars()
         .all()
     )

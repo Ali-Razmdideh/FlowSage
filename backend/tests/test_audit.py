@@ -32,7 +32,9 @@ async def test_list_audit_logs_filters_by_action(db_session: AsyncSession) -> No
     user, membership = await create_workspace_and_admin(
         db_session, f"audit-filter-{uuid.uuid4().hex[:8]}@example.com"
     )
-    await record_audit_event(db_session, membership.workspace_id, actor_user_id=user.id, action="auth.login")
+    await record_audit_event(
+        db_session, membership.workspace_id, actor_user_id=user.id, action="auth.login"
+    )
     await record_audit_event(
         db_session, membership.workspace_id, actor_user_id=user.id, action="member.role_changed"
     )

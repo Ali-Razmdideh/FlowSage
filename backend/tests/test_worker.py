@@ -68,7 +68,9 @@ async def test_run_digest_job_posts_when_slack_configured(db_session: AsyncSessi
     from flowsage_backend.models.integration import SlackIntegration
 
     workspace_id = await ensure_default_workspace(db_session)
-    integration = SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    integration = SlackIntegration(
+        workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x"
+    )
     db_session.add(integration)
     await db_session.commit()
 
@@ -108,7 +110,9 @@ async def test_run_digest_job_skips_send_when_not_due(db_session: AsyncSession) 
     from flowsage_backend.models.integration import SlackIntegration
 
     workspace_id = await ensure_default_workspace(db_session)
-    integration = SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    integration = SlackIntegration(
+        workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x"
+    )
     db_session.add(integration)
     calibration_settings = await get_or_create_calibration_settings(db_session, workspace_id)
     original_last_sent = calibration_settings.digest_last_sent_at
@@ -204,13 +208,17 @@ async def test_run_digest_job_delivers_to_two_workspaces_independently(
     from flowsage_backend.webhooks_store import list_deliveries
 
     async def _make_workspace_with_alerts(cohort: str) -> tuple[uuid.UUID, Webhook]:
-        workspace = Workspace(name=f"Digest Test {cohort}", slug=f"digest-{cohort}-{uuid.uuid4().hex[:8]}")
+        workspace = Workspace(
+            name=f"Digest Test {cohort}", slug=f"digest-{cohort}-{uuid.uuid4().hex[:8]}"
+        )
         db_session.add(workspace)
         await db_session.commit()
         await db_session.refresh(workspace)
 
         db_session.add(
-            SlackIntegration(workspace_id=workspace.id, webhook_url=f"https://hooks.slack.test/{cohort}")
+            SlackIntegration(
+                workspace_id=workspace.id, webhook_url=f"https://hooks.slack.test/{cohort}"
+            )
         )
         webhook = Webhook(
             workspace_id=workspace.id,
@@ -225,21 +233,36 @@ async def test_run_digest_job_delivers_to_two_workspaces_independently(
         for sid in session_ids:
             db_session.add(
                 Event(
-                    workspace_id=workspace.id, session_id=sid, screen="landing", event="screen_view",
-                    timestamp=base, device="mobile", cohort=cohort,
+                    workspace_id=workspace.id,
+                    session_id=sid,
+                    screen="landing",
+                    event="screen_view",
+                    timestamp=base,
+                    device="mobile",
+                    cohort=cohort,
                 )
             )
         for sid in session_ids[:2]:
             db_session.add(
                 Event(
-                    workspace_id=workspace.id, session_id=sid, screen="checkout", event="screen_view",
-                    timestamp=base, device="mobile", cohort=cohort,
+                    workspace_id=workspace.id,
+                    session_id=sid,
+                    screen="checkout",
+                    event="screen_view",
+                    timestamp=base,
+                    device="mobile",
+                    cohort=cohort,
                 )
             )
         db_session.add(
             Event(
-                workspace_id=workspace.id, session_id=session_ids[0], screen="confirmation",
-                event="screen_view", timestamp=base, device="mobile", cohort=cohort,
+                workspace_id=workspace.id,
+                session_id=session_ids[0],
+                screen="confirmation",
+                event="screen_view",
+                timestamp=base,
+                device="mobile",
+                cohort=cohort,
             )
         )
         await db_session.commit()

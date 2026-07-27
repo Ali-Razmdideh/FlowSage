@@ -91,7 +91,9 @@ async def test_export_node_to_slack_succeeds_with_workspace_integration(
     from flowsage_backend.models.integration import SlackIntegration
 
     workspace_id = await ensure_default_workspace(db_session)
-    integration = SlackIntegration(workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x")
+    integration = SlackIntegration(
+        workspace_id=workspace_id, webhook_url="https://hooks.slack.test/x"
+    )
     db_session.add(integration)
     await db_session.commit()
 
@@ -110,7 +112,9 @@ async def test_export_node_to_slack_succeeds_with_workspace_integration(
             assert ingest_response.status_code == 201
 
         with respx.mock:
-            respx.post("https://hooks.slack.test/x").mock(return_value=Response(200, json={"ok": True}))
+            respx.post("https://hooks.slack.test/x").mock(
+                return_value=Response(200, json={"ok": True})
+            )
             async with _authed_client(app, db_session) as client:
                 response = await client.post("/graph/nodes/checkout/export/slack")
 

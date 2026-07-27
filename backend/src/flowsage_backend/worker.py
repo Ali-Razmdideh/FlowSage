@@ -138,7 +138,9 @@ async def _run_digest_for_workspace(
             status_code, success = await deliver_webhook(
                 webhook.url, secret=webhook.secret, event_type="alert.triggered", payload=payload
             )
-            await record_delivery(session, webhook.id, "alert.triggered", payload, status_code, success)
+            await record_delivery(
+                session, webhook.id, "alert.triggered", payload, status_code, success
+            )
 
 
 async def _auto_retrain_anomalous_personas(

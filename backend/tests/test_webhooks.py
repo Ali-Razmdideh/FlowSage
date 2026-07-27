@@ -33,9 +33,12 @@ async def test_deliver_webhook_signs_body_and_returns_success() -> None:
 
     assert status_code == 200
     assert success is True
-    expected_signature = "sha256=" + hmac.new(
-        b"s3cr3t", captured["body"], hashlib.sha256  # type: ignore[arg-type]
-    ).hexdigest()
+    expected_signature = (
+        "sha256="
+        + hmac.new(
+            b"s3cr3t", captured["body"], hashlib.sha256  # type: ignore[arg-type]
+        ).hexdigest()
+    )
     assert captured["signature"] == expected_signature
 
 

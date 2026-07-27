@@ -17,9 +17,7 @@ from flowsage_graph.ingest import load_events
 
 
 def test_bundled_sample_data_is_complete() -> None:
-    with resources.as_file(
-        resources.files("flowsage_backend.resources.sample_data")
-    ) as sample_dir:
+    with resources.as_file(resources.files("flowsage_backend.resources.sample_data")) as sample_dir:
         events = load_events(sample_dir / "events.jsonl")
         screenshots = sorted(p.name for p in (sample_dir / "screenshots").glob("*.png"))
 
@@ -137,8 +135,10 @@ async def test_import_sample_data_ingests_events_and_creates_run(
     assert result.events_ingested == 44
 
     events = (
-        await db_session.execute(select(Event).where(Event.workspace_id == workspace_id))
-    ).scalars().all()
+        (await db_session.execute(select(Event).where(Event.workspace_id == workspace_id)))
+        .scalars()
+        .all()
+    )
     assert len(events) == 44
 
     run = await db_session.get(SimulationRun, result.run_id)

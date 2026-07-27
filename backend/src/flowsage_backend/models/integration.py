@@ -23,7 +23,9 @@ class SlackIntegration(Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"), unique=True, index=True
     )
     webhook_url: Mapped[str] = mapped_column(String(500))
-    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    connected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class JiraIntegration(Base):
@@ -39,4 +41,6 @@ class JiraIntegration(Base):
         EncryptedString(lambda: get_settings().secret_encryption_key, length=1000)
     )
     project_key: Mapped[str] = mapped_column(String(64))
-    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    connected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
