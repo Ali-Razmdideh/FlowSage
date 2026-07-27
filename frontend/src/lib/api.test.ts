@@ -299,4 +299,54 @@ describe("api client", () => {
     expect(init?.method).toBe("POST");
     expect(init?.body).toBe(JSON.stringify({ workspace_id: "w2" }));
   });
+
+  describe("billing", () => {
+    it("getBillingUsage calls GET /billing/usage", async () => {
+      mockFetchOnce({
+        json: async () => ({
+          tier: "free",
+          events_used: 0,
+          events_limit: 1000,
+          runs_used: 0,
+          runs_limit: 5,
+          seats_used: 1,
+          seats_limit: 1,
+        }),
+      });
+
+      const result = await api.getBillingUsage();
+
+      expect(result.tier).toBe("free");
+      const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+      expect(url).toContain("/billing/usage");
+      expect(init?.method).toBeUndefined(); // GET
+    });
+
+    it("startCheckout posts the tier and returns a url", async () => {
+      mockFetchOnce({
+        json: async () => ({ url: "https://checkout.stripe.com/pay/cs_test_123" }),
+      });
+
+      const result = await api.startCheckout("pro");
+
+      expect(result.url).toBe("https://checkout.stripe.com/pay/cs_test_123");
+      const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+      expect(url).toContain("/billing/checkout");
+      expect(init?.method).toBe("POST");
+      expect(init?.body).toBe(JSON.stringify({ tier: "pro" }));
+    });
+
+    it("openBillingPortal posts to /billing/portal", async () => {
+      mockFetchOnce({
+        json: async () => ({ url: "https://billing.stripe.com/session/bps_test_123" }),
+      });
+
+      const result = await api.openBillingPortal();
+
+      expect(result.url).toBe("https://billing.stripe.com/session/bps_test_123");
+      const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+      expect(url).toContain("/billing/portal");
+      expect(init?.method).toBe("POST");
+    });
+  });
 });

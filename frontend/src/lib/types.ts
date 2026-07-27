@@ -370,3 +370,23 @@ export interface ImportSampleDataResult {
   events_ingested: number;
   run_id: string;
 }
+
+export type SubscriptionTier = "free" | "pro" | "team";
+
+export interface UsageSnapshot {
+  tier: SubscriptionTier;
+  events_used: number;
+  events_limit: number;
+  runs_used: number;
+  runs_limit: number;
+  seats_used: number;
+  seats_limit: number;
+}
+
+export interface CheckoutResult {
+  url: string;
+}
+
+export interface PortalResult {
+  url: string;
+}

@@ -5,6 +5,7 @@ import type {
   AuditLogPage,
   CalibrationReport,
   CalibrationSettings,
+  CheckoutResult,
   ChurnRiskSegment,
   CohortComparisonReport,
   FunnelFilters,
@@ -21,6 +22,7 @@ import type {
   PersonaCreatePayload,
   PersonaDetail,
   PersonaUpdatePayload,
+  PortalResult,
   RetrainingJob,
   Role,
   SimulationRun,
@@ -28,6 +30,7 @@ import type {
   SlackExportResult,
   SlackStatus,
   User,
+  UsageSnapshot,
   Webhook,
   WebhookCreated,
   WebhookDelivery,
@@ -319,4 +322,15 @@ export const api = {
 
   importSampleData: (): Promise<ImportSampleDataResult> =>
     request<ImportSampleDataResult>("/onboarding/import-sample-data", { method: "POST" }),
+
+  getBillingUsage: (): Promise<UsageSnapshot> => request<UsageSnapshot>("/billing/usage"),
+
+  startCheckout: (tier: "pro" | "team"): Promise<CheckoutResult> =>
+    request<CheckoutResult>("/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({ tier }),
+    }),
+
+  openBillingPortal: (): Promise<PortalResult> =>
+    request<PortalResult>("/billing/portal", { method: "POST" }),
 };
