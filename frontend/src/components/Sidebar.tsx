@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: "/journey", label: "Journey Graph", icon: "timeline" },
   { to: "/calibration", label: "Calibration", icon: "tune" },
   { to: "/settings/general", label: "General Settings", icon: "settings" },
+  { to: "/settings/billing", label: "Billing", icon: "credit_card" },
   { to: "/settings/team", label: "Team Access", icon: "group" },
   { to: "/settings/model-calibration", label: "Model Calibration", icon: "tune" },
   { to: "/settings/integrations", label: "Integrations", icon: "hub" },

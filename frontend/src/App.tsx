@@ -11,6 +11,7 @@ import { JourneyGraphPage } from "./routes/journey/JourneyGraphPage";
 import { CalibrationPage } from "./routes/calibration/CalibrationPage";
 import { ModelCalibrationSettingsPage } from "./routes/settings/ModelCalibrationSettingsPage";
 import { GeneralSettingsPage } from "./routes/settings/GeneralSettingsPage";
+import { BillingSettingsPage } from "./routes/settings/BillingSettingsPage";
 import { TeamSettingsPage } from "./routes/settings/TeamSettingsPage";
 import { IntegrationsSettingsPage } from "./routes/settings/IntegrationsSettingsPage";
 import { SecurityLogsPage } from "./routes/settings/SecurityLogsPage";
@@ -36,6 +37,7 @@ export function App() {
           <Route path="/journey" element={<JourneyGraphPage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
           <Route path="/settings/general" element={<GeneralSettingsPage />} />
+          <Route path="/settings/billing" element={<BillingSettingsPage />} />
           <Route path="/settings/team" element={<TeamSettingsPage />} />
           <Route path="/settings/model-calibration" element={<ModelCalibrationSettingsPage />} />
           <Route path="/settings/integrations" element={<IntegrationsSettingsPage />} />
