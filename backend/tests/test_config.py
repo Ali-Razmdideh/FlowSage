@@ -41,3 +41,15 @@ def test_placeholder_encryption_key_rejected_outside_dev(monkeypatch: pytest.Mon
     monkeypatch.setenv("JWT_SECRET", "a-real-32-byte-secret-for-production!!")
     with pytest.raises(ValueError, match="SECRET_ENCRYPTION_KEY"):
         Settings()
+
+
+def test_empty_string_env_var_treated_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """docker-compose's `${STRIPE_SECRET_KEY:-}` interpolation passes an actual
+    empty string, not an unset variable, whenever the host has no override. If
+    that empty string were kept as-is it would defeat the `str | None = None`
+    "unconfigured" defaults (see config.py's Stripe fields) and turn billing's
+    clean 400 "not configured" response into a 500 from the Stripe SDK -- caught
+    against a real docker-compose backend in Task 12 verification."""
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "")
+    settings = Settings()
+    assert settings.stripe_secret_key is None

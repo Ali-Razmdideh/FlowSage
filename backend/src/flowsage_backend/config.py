@@ -12,7 +12,12 @@ _PLACEHOLDER_ENCRYPTION_KEY = "dev-encryption-key-change-me-before-deploy"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # env_ignore_empty: docker-compose's `${VAR:-}` interpolation passes an actual
+    # empty string (not "unset") when the host has no override, which would
+    # otherwise defeat the `stripe_*: str | None = None` "unconfigured" defaults
+    # below and turn a clean 400 into a 500 from the Stripe SDK. Treat "" the same
+    # as unset for every optional field, not just Stripe's.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
 
     database_url: str = "postgresql+asyncpg://flowsage:flowsage_dev@localhost:5432/flowsage"
     environment: str = "development"
