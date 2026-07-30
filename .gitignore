@@ -24,6 +24,7 @@ playwright-report/
 .env
 .env.*
 !.env.example
+!infra/.env.prod.example
 
 # Editors / OS
 .vscode/
