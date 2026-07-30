@@ -1,6 +1,20 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 
 export function LandingPage() {
+  useEffect(() => {
+    document.title = "FlowSage — Predictive & Observed UX Intelligence";
+    const meta = document.querySelector('meta[name="description"]') ?? document.createElement("meta");
+    meta.setAttribute("name", "description");
+    meta.setAttribute(
+      "content",
+      "FlowSage predicts where users will struggle before launch and measures where they actually struggle after, converging the two over time.",
+    );
+    if (meta.parentElement === null) {
+      document.head.appendChild(meta);
+    }
+  }, []);
+
   return (
     <div className="bg-background text-on-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
