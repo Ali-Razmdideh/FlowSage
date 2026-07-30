@@ -1,0 +1,48 @@
+# Merge with the base file for a production deploy:
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build
+#
+# Clears host port publishing on every internally-facing service (base file's
+# ports are dev-convenience only) and adds Caddy as the sole public entrypoint,
+# terminating TLS and reverse-proxying to `frontend`, which already proxies
+# `/api/` to `backend:8000` internally (frontend/nginx.conf) -- so Caddy never
+# needs to know about the backend service directly.
+services:
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  neo4j:
+    ports: !reset []
+
+  backend:
+    ports: !reset []
+
+  frontend:
+    # Loopback-only, for on-box debugging -- Caddy reaches `frontend` over the
+    # internal Docker network at port 80, not via this mapping. `!override`
+    # (not `!reset`) is required here: `!reset` unsets the key entirely and
+    # ignores any value given alongside it, so a plain `ports: !reset [...]`
+    # silently drops this list too -- confirmed empirically before landing
+    # on this fix.
+    ports: !override
+      - "127.0.0.1:8080:80"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: "${DOMAIN}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:
