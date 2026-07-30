@@ -19,12 +19,20 @@ export function LandingPage() {
     <div className="bg-background text-on-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <span className="font-headline text-2xl text-primary">FlowSage</span>
-        <Link
-          to="/login"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:opacity-90 transition"
-        >
-          Log in
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            to="/docs"
+            className="text-sm font-medium text-on-surface-variant hover:text-primary transition"
+          >
+            Docs
+          </Link>
+          <Link
+            to="/login"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:opacity-90 transition"
+          >
+            Log in
+          </Link>
+        </div>
       </header>
 
       <section className="mx-auto max-w-3xl px-6 py-24 text-center">
