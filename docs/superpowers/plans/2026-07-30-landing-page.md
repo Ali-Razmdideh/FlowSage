@@ -58,7 +58,7 @@ function renderAppAt(path: string, user: AuthState["user"]) {
 describe("HomeRoute", () => {
   it("shows the landing page at / when logged out", () => {
     renderAppAt("/", null);
-    expect(screen.getByRole("link", { name: /log in/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /log in/i }).length).toBeGreaterThan(0);
   });
 
   it("redirects authenticated users away from / to the dashboard", () => {

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import { App } from "./App.tsx";
+import { AuthProvider } from "./auth/AuthProvider";
 
 const rootElement = document.getElementById("root");
 if (rootElement === null) {
@@ -12,7 +13,9 @@ if (rootElement === null) {
 createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 );
