@@ -286,7 +286,7 @@ with open(path) as f:
     lines = f.readlines()
 out = []
 for line in lines:
-    m = re.match(r"^([A-Z_]+)=", line)
+    m = re.match(r"^([A-Z0-9_]+)=", line)
     if m and m.group(1) in values:
         out.append(f"{m.group(1)}={values[m.group(1)]}\n")
     else:
