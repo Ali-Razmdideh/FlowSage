@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077  # backups contain user data -- keep dir/file creation owner-only
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/flowsage}"
