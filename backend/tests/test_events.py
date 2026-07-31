@@ -9,8 +9,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
+from flowsage_backend.models.workspace import Workspace
 
-from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
+from .conftest import (
+    create_api_key_for,
+    create_workspace_and_admin,
+    ensure_default_workspace,
+    login_to_default_workspace,
+)
 
 _T0 = datetime(2026, 7, 17, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -97,6 +103,33 @@ async def test_ingest_actually_writes_to_neo4j(
 
     assert record is not None
     assert record["session_id"] == "s1"
+
+
+async def test_ingest_rejects_api_key_for_archived_workspace(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """`require_workspace_api_key` (used by `/v1/events`, not just the Figma
+    plugin's routes) must 403 an archived workspace's API key -- the archived
+    check was added for the shared auth dependency, so it applies everywhere
+    API-key auth is checked, including this pre-existing ingestion route."""
+    _, membership = await create_workspace_and_admin(db_session, "events-archived@example.com")
+    workspace_id = membership.workspace_id
+    api_key = await create_api_key_for(db_session, workspace_id)
+
+    workspace = (
+        await db_session.execute(select(Workspace).where(Workspace.id == workspace_id))
+    ).scalar_one()
+    workspace.archived = True
+    await db_session.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/events",
+            json=[_event("s1", "landing", 0)],
+            headers={"X-API-Key": api_key},
+        )
+
+    assert response.status_code == 403
 
 
 async def test_funnel_requires_authentication(app: FastAPI) -> None:

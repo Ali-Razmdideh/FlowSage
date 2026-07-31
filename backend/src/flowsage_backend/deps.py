@@ -99,7 +99,7 @@ async def require_workspace_api_key(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing or invalid X-API-Key")
 
     workspace = await session.get(Workspace, api_key.workspace_id)
-    if workspace is not None and workspace.archived:
+    if workspace is None or workspace.archived:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This workspace has been archived")
 
     api_key.last_used_at = datetime.now(timezone.utc)

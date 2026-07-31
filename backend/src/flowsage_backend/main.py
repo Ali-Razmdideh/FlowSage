@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 import arq
 from arq.connections import RedisSettings
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from flowsage_graph.ingest import Neo4jGraphSink
 from sqlalchemy import text
 
@@ -60,6 +61,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=_lifespan,
     )
     app.state.settings = settings
+    # The Figma plugin runs in a sandboxed iframe with a `null` origin, so every
+    # fetch it makes is cross-origin from this API's perspective; since it sends
+    # a non-simple `X-API-Key` header, the browser preflights with `OPTIONS`.
+    # `allow_origins=["*"]` + `allow_credentials=False` is deliberate: it opens
+    # up the API-key-authenticated routes to any origin (which is what a public
+    # API surface like this one, and the plugin, need) while browsers refuse to
+    # honor `*` together with credentials -- so the web app's cookie-based
+    # session auth remains unreachable cross-origin, i.e. unweakened by this.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["X-API-Key", "Content-Type"],
+        allow_credentials=False,
+    )
     configure_rate_limiting(app, settings.redis_url)
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
