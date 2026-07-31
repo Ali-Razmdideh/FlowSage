@@ -156,3 +156,39 @@ async def test_reset_rejects_non_baseline_persona(app: FastAPI, db_session: Asyn
         reset_response = await client.post(f"/personas/{persona_id}/reset")
 
     assert reset_response.status_code == 409
+
+
+async def test_list_personas_accepts_api_key_auth(app: FastAPI, db_session: AsyncSession) -> None:
+    from .conftest import create_api_key_for, login_to_default_workspace
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as setup_client:
+        workspace_id = await login_to_default_workspace(
+            setup_client, db_session, "personas-apikey@example.com"
+        )
+    await seed_baseline_personas(db_session, workspace_id)
+    api_key = await create_api_key_for(db_session, workspace_id)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/personas", headers={"X-API-Key": api_key})
+
+    assert response.status_code == 200
+    assert len(response.json()) > 0
+
+
+async def test_create_persona_still_requires_cookie_not_api_key(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    from .conftest import create_api_key_for, login_to_default_workspace
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as setup_client:
+        workspace_id = await login_to_default_workspace(
+            setup_client, db_session, "personas-cookie-only@example.com"
+        )
+    api_key = await create_api_key_for(db_session, workspace_id)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/personas", json=_create_payload("api-key-should-fail"), headers={"X-API-Key": api_key}
+        )
+
+    assert response.status_code == 401

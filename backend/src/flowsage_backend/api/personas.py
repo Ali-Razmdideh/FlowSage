@@ -17,14 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flowsage_backend.audit import record_audit_event
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_actor, get_current_membership, get_db_session
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
 
-router = APIRouter(
-    prefix="/personas", tags=["personas"], dependencies=[Depends(get_current_membership)]
-)
+router = APIRouter(prefix="/personas", tags=["personas"])
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
@@ -104,14 +102,12 @@ async def _get_persona_or_404(
 
 @router.get("", response_model=list[PersonaOut])
 async def list_personas(
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[Persona]:
-    _, membership = membership_pair
+    workspace_id, _ = actor
     result = await session.execute(
-        select(Persona)
-        .where(Persona.workspace_id == membership.workspace_id)
-        .order_by(Persona.name)
+        select(Persona).where(Persona.workspace_id == workspace_id).order_by(Persona.name)
     )
     return list(result.scalars().all())
 

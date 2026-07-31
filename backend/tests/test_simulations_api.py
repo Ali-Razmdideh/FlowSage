@@ -210,3 +210,32 @@ async def test_stream_simulation_events_reports_unknown_run(db_session: AsyncSes
 
     with pytest.raises(StopAsyncIteration):
         await events.__anext__()
+
+
+async def test_create_and_get_simulation_via_api_key(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    from .conftest import create_api_key_for, login_to_default_workspace
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as setup_client:
+        workspace_id = await login_to_default_workspace(
+            setup_client, db_session, "sim-apikey@example.com"
+        )
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    persona = personas[0]
+    api_key = await create_api_key_for(db_session, workspace_id)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        create_response = await client.post(
+            "/simulations",
+            data={"persona_id": str(persona.id), "goal": "goal", "flow_name": "flow"},
+            files={"files": ("001.png", _PNG_BYTES, "image/png")},
+            headers={"X-API-Key": api_key},
+        )
+        assert create_response.status_code == 201
+        run_id = create_response.json()["id"]
+
+        get_response = await client.get(f"/simulations/{run_id}", headers={"X-API-Key": api_key})
+
+    assert get_response.status_code == 200
+    assert get_response.json()["flow_name"] == "flow"

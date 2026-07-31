@@ -1,0 +1,12 @@
+{
+  "name": "FlowSage",
+  "id": "flowsage-friction-annotator",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Backend URL is user-configured at runtime (self-hosted FlowSage instance), not fixed at publish time. This plugin is sideloaded, not published to Figma Community."
+  }
+}

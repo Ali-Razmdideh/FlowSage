@@ -22,15 +22,13 @@ from sqlalchemy.orm import selectinload
 
 from flowsage_backend.audit import record_audit_event
 from flowsage_backend.billing import check_within_limits
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_actor, get_current_membership, get_db_session
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
 from flowsage_backend.simulations import IMAGE_SUFFIXES, SimulationError, create_run
 
-router = APIRouter(
-    prefix="/simulations", tags=["simulations"], dependencies=[Depends(get_current_membership)]
-)
+router = APIRouter(prefix="/simulations", tags=["simulations"])
 
 
 class FrictionIssueOut(BaseModel):
@@ -90,11 +88,11 @@ async def create_simulation(
     goal: str = Form(...),
     flow_name: str = Form(...),
     files: list[UploadFile] = File(...),
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
-    _, membership = membership_pair
-    await check_within_limits(session, membership.workspace_id, "runs")
+    workspace_id, user_id = actor
+    await check_within_limits(session, workspace_id, "runs")
     settings = request.app.state.settings
     run_id = uuid.uuid4()
     screenshots_dir = Path(settings.upload_dir) / str(run_id)
@@ -113,7 +111,7 @@ async def create_simulation(
     try:
         run = await create_run(
             session,
-            workspace_id=membership.workspace_id,
+            workspace_id=workspace_id,
             run_id=run_id,
             persona_id=persona_id,
             flow_name=flow_name,
@@ -126,8 +124,8 @@ async def create_simulation(
     await request.app.state.arq_pool.enqueue_job("run_simulation_job", str(run.id))
     await record_audit_event(
         session,
-        membership.workspace_id,
-        actor_user_id=membership.user_id,
+        workspace_id,
+        actor_user_id=user_id,
         action="simulation.started",
         target_type="simulation_run",
         target_id=str(run.id),
@@ -139,11 +137,11 @@ async def create_simulation(
 @router.get("/{run_id}", response_model=SimulationRunDetailOut)
 async def get_simulation(
     run_id: uuid.UUID,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
-    _, membership = membership_pair
-    run = await _load_run_with_children(session, membership.workspace_id, run_id)
+    workspace_id, _ = actor
+    run = await _load_run_with_children(session, workspace_id, run_id)
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Simulation run not found")
     return run

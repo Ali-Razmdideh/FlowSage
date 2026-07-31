@@ -80,6 +80,39 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  figma-plugin:
+    name: Figma plugin lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: figma-plugin/package-lock.json
+
+      - name: Install dependencies
+        working-directory: figma-plugin
+        run: npm ci
+
+      - name: oxlint
+        working-directory: figma-plugin
+        run: npm run lint
+
+      - name: typecheck
+        working-directory: figma-plugin
+        run: npm run typecheck
+
+      - name: vitest
+        working-directory: figma-plugin
+        run: npm test
+
+      - name: build
+        working-directory: figma-plugin
+        run: npm run build
+
   e2e:
     name: Playwright e2e (full stack)
     runs-on: ubuntu-latest
