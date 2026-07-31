@@ -128,4 +128,32 @@ describe("App", () => {
 
     expect(await screen.findByText(/Vision call timed out/i)).toBeInTheDocument();
   });
+
+  it("shows an error message when loading settings fails", async () => {
+    vi.spyOn(bridge, "callPlugin").mockRejectedValue(new Error("Bridge disconnected"));
+    vi.spyOn(api, "listPersonas").mockResolvedValue([]);
+
+    render(<App />);
+
+    expect(await screen.findByText(/Bridge disconnected/i)).toBeInTheDocument();
+  });
+
+  it("shows an error message when saving settings fails", async () => {
+    const callPluginSpy = vi
+      .spyOn(bridge, "callPlugin")
+      .mockResolvedValueOnce({ baseUrl: "", apiKey: "" })
+      .mockRejectedValueOnce(new Error("Save failed"));
+    vi.spyOn(api, "listPersonas").mockResolvedValue([]);
+
+    render(<App />);
+    await waitFor(() => expect(callPluginSpy).toHaveBeenCalledWith("get-settings"));
+
+    fireEvent.change(screen.getByLabelText(/base url/i), {
+      target: { value: "https://my-instance.example" },
+    });
+    fireEvent.change(screen.getByLabelText(/api key/i), { target: { value: "fs_new_key" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText(/Save failed/i)).toBeInTheDocument();
+  });
 });

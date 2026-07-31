@@ -33,23 +33,36 @@ export function App() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    callPlugin<{ baseUrl: string; apiKey: string }>("get-settings").then((settings) => {
-      setBaseUrl(settings.baseUrl);
-      setApiKey(settings.apiKey);
-      if (settings.baseUrl && settings.apiKey) {
-        listPersonas({ baseUrl: settings.baseUrl, apiKey: settings.apiKey })
-          .then(setPersonas)
-          .then(() => {
-            // no-op: keeps the promise chain readable without an unused catch variable
+    async function loadSettings() {
+      try {
+        const settings = await callPlugin<{ baseUrl: string; apiKey: string }>("get-settings");
+        setBaseUrl(settings.baseUrl);
+        setApiKey(settings.apiKey);
+        if (settings.baseUrl && settings.apiKey) {
+          const loadedPersonas = await listPersonas({
+            baseUrl: settings.baseUrl,
+            apiKey: settings.apiKey,
           });
+          setPersonas(loadedPersonas);
+        }
+      } catch (error) {
+        setStatus("error");
+        setMessage(error instanceof Error ? error.message : "Failed to load settings");
       }
-    });
+    }
+
+    loadSettings();
   }, []);
 
   async function handleSaveSettings() {
-    await callPlugin("save-settings", { baseUrl, apiKey });
-    const loadedPersonas = await listPersonas({ baseUrl, apiKey });
-    setPersonas(loadedPersonas);
+    try {
+      await callPlugin("save-settings", { baseUrl, apiKey });
+      const loadedPersonas = await listPersonas({ baseUrl, apiKey });
+      setPersonas(loadedPersonas);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Failed to save settings");
+    }
   }
 
   async function handleRun() {
