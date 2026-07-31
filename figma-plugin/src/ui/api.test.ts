@@ -27,6 +27,21 @@ describe("listPersonas", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     await expect(listPersonas(config)).rejects.toThrow("401");
   });
+
+  it("strips a trailing slash from baseUrl so the URL has no double slash", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listPersonas({ ...config, baseUrl: "https://flowsage.example/" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://flowsage.example/personas",
+      expect.objectContaining({ headers: { "X-API-Key": "fs_test_key" } }),
+    );
+  });
 });
 
 describe("createSimulationRun", () => {

@@ -17,8 +17,15 @@ async function assertOk(response: { ok: boolean; status: number }): Promise<void
   }
 }
 
+/** Strips a single trailing slash so a user-pasted Base URL like
+ * `https://127.0.0.1/api/` doesn't produce a double-slash (`.../api//personas`)
+ * when concatenated with a leading-slash path below. */
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, "");
+}
+
 export async function listPersonas(config: BackendConfig): Promise<Persona[]> {
-  const response = await fetch(`${config.baseUrl}/personas`, {
+  const response = await fetch(`${normalizeBaseUrl(config.baseUrl)}/personas`, {
     headers: { "X-API-Key": config.apiKey },
   });
   await assertOk(response);
@@ -37,7 +44,7 @@ export async function createSimulationRun(
     formData.append("files", new Blob([file.bytes as BlobPart], { type: "image/png" }), file.filename);
   }
 
-  const response = await fetch(`${config.baseUrl}/simulations`, {
+  const response = await fetch(`${normalizeBaseUrl(config.baseUrl)}/simulations`, {
     method: "POST",
     headers: { "X-API-Key": config.apiKey },
     body: formData,
@@ -50,7 +57,7 @@ export async function getSimulationRun(
   config: BackendConfig,
   runId: string,
 ): Promise<SimulationRun> {
-  const response = await fetch(`${config.baseUrl}/simulations/${runId}`, {
+  const response = await fetch(`${normalizeBaseUrl(config.baseUrl)}/simulations/${runId}`, {
     headers: { "X-API-Key": config.apiKey },
   });
   await assertOk(response);

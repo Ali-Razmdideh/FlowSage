@@ -8,9 +8,16 @@ friction findings placed back on the canvas as annotation cards next to each fra
 1. `npm install && npm run build` (produces `dist/code.js` + `dist/ui.html`).
 2. In Figma desktop: **Plugins → Development → Import plugin from manifest…**, select
    this directory's `manifest.json`.
-3. Open the plugin, go to Settings, enter your FlowSage instance's Base URL (e.g.
-   `https://127.0.0.1` for a local deploy) and an API key from
-   **Settings → Integrations** in the FlowSage web app. Click Save.
+3. Open the plugin, go to Settings, enter your FlowSage instance's Base URL — this must
+   include the `/api` path segment, e.g. `https://<your-domain>/api`
+   (`https://127.0.0.1/api` for the local deploy setup described in
+   `infra/DEPLOY.md`) — and an API key from **Settings → Integrations** in the FlowSage
+   web app. Click Save.
+
+   Note: `frontend/nginx.conf` only proxies the backend under `/api/`, not at the
+   domain root. Entering the Base URL without `/api` means every request 404s at the
+   backend, or worse, silently hits nginx's SPA fallback and gets back `index.html`
+   with a 200 status.
 
 ## Using it
 
@@ -24,6 +31,10 @@ friction findings placed back on the canvas as annotation cards next to each fra
 environment can drive a real Figma session)
 
 - [ ] Sideload the plugin fresh; Settings loads empty on first run, no crash.
+- [ ] Verify the Base URL you enter includes the `/api` path segment (e.g.
+      `https://127.0.0.1/api`, not `https://127.0.0.1`) — nginx only proxies the
+      backend under `/api/`, so omitting it makes requests silently hit the SPA
+      fallback instead of a clean "not configured" error.
 - [ ] Save Settings with a real Base URL + API key; close and reopen the plugin;
       confirm the values persisted (this exercises `figma.clientStorage`, which
       nothing here can unit test).

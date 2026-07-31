@@ -102,7 +102,12 @@ export function App() {
         <label htmlFor="base-url">Base URL</label>
         <input id="base-url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
         <label htmlFor="api-key">API key</label>
-        <input id="api-key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+        <input
+          id="api-key"
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+        />
         <button onClick={handleSaveSettings}>Save</button>
       </section>
 
