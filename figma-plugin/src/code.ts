@@ -57,6 +57,8 @@ function createAnnotationCard(
   const card = figma.createFrame();
   card.name = `FlowSage: ${issue.title}`;
   card.layoutMode = "VERTICAL";
+  card.primaryAxisSizingMode = "AUTO";
+  card.counterAxisSizingMode = "FIXED";
   card.itemSpacing = 6;
   card.paddingTop = 12;
   card.paddingBottom = 12;
@@ -131,14 +133,12 @@ figma.ui.onmessage = async (message: PluginMessage) => {
         await handleAnnotate(message.payload as { issues: FrictionIssue[] });
         break;
     }
-    figma.ui.postMessage({ pluginMessage: { id: message.id, payload } });
+    figma.ui.postMessage({ id: message.id, payload });
   } catch (error) {
     figma.ui.postMessage({
-      pluginMessage: {
-        id: message.id,
-        payload: undefined,
-        error: error instanceof Error ? error.message : "Unknown plugin error",
-      },
+      id: message.id,
+      payload: undefined,
+      error: error instanceof Error ? error.message : "Unknown plugin error",
     });
   }
 };
