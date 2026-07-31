@@ -2,94 +2,114 @@
 
 **Predictive & Observed UX Intelligence Platform**
 
-FlowSage merges two halves of UX analytics that today live in separate tools: predicting friction before launch, and measuring it after.
+[![CI](https://github.com/Ali-Razmdideh/FlowSage/actions/workflows/ci.yml/badge.svg)](https://github.com/Ali-Razmdideh/FlowSage/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-- **Predictive engine** — multimodal LLM persona agents walk through a product's UI (Figma exports, screenshots, or a live staging URL) and produce a structured friction report before a single real user touches the flow.
-- **Observational engine** — real user event streams are modeled as a temporal graph in Neo4j; every screen, tap, and hesitation becomes a node or edge, surfacing where journeys stall, loop, or die.
-- **Calibration loop** — FlowSage compares synthetic persona predictions against real user behavior, scores its own accuracy, and refines the personas over time, converging toward calibrated digital twins of the real user base.
+FlowSage merges two halves of UX analytics that usually live in separate tools: predicting where users will struggle before launch, and measuring where they actually struggle after — then scores its own predictions against reality and improves over time.
 
-Together these answer three questions no current tool answers in one place: where users *will* struggle, where they *are* struggling, and how good the platform is getting at predicting the difference.
+- **Predictive engine** — multimodal LLM personas walk a product's UI (screenshots, Figma frames, or a live staging URL) and produce a structured friction report before a single real user touches the flow.
+- **Observational engine** — real user event streams are modeled as a temporal graph in Neo4j and Postgres; every screen and transition becomes a funnel step, surfacing where journeys stall, loop, or die.
+- **Calibration loop** — predicted friction is matched against observed friction, personas are scored for accuracy, and miscalibrated ones are nudged and retrained on real behavioral data.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Landing page](assets/screenshots/landing.png) | ![Dashboard](assets/screenshots/dashboard.png) |
+| ![Predictive Engine](assets/screenshots/predictive-engine.png) | ![Journey Graph](assets/screenshots/journey-graph.png) |
 
 ## Features
 
-**Predictive engine (synthetic users)**
+**Predictive engine**
+- Configurable LLM personas (novice, power user, accessibility-constrained, low-patience mobile, non-native speaker), each with its own behavioral sliders and memory bank
+- Runs against a screenshot sequence (CLI, web upload, or the Figma plugin's export-and-annotate round trip)
+- Friction reports with severity, heuristic violated, persona impact, and a suggested fix per screen
 
-- Configurable LLM personas (novice, power user, accessibility-constrained, low-patience mobile, non-native speaker)
-- Traverses Figma files, screenshot sequences, or crawled staging environments
-- Evaluates against Nielsen heuristics plus custom rubrics
-- Friction reports with severity scores, screen-level annotations, suggested fixes
-- Multimodal vision catches visual issues (contrast, tap-target size, misleading affordances), not just flow logic
-
-**Observational engine (journey graph)**
-
-- SDK/webhook ingestion of product event streams into a temporal user-journey graph
-- Automatic funnel discovery, no manual funnel definitions
+**Observational engine (Journey Graph)**
+- SDK/webhook-style ingestion (`POST /v1/events`) into an automatically discovered funnel — no manual funnel definitions
 - Friction-node detection: abnormal drop-off, rage-loops, backtracking
-- Cohort path comparison
-- LLM-generated plain-language explanations of *why* a drop-off is likely failing, grounded in session context
-- Churn prediction per segment with ranked re-engagement recommendations
+- Cohort path comparison and churn-risk scoring per segment, with ranked re-engagement recommendations
 
-**Calibration loop (the differentiator)**
+**Calibration loop**
+- Predicted-vs-observed friction matching per screen, with an accuracy view over time
+- Miscalibrated personas auto-retrain (heuristic slider nudges + a persona memory entry recording the evidence)
+- Configurable anomaly threshold, churn-alert threshold, and auto-retrain toggle
 
-- Prediction-vs-reality scoring: every pre-launch persona prediction matched against post-launch graph evidence
-- Persona accuracy dashboards over time
-- Miscalibrated personas auto-retrained on real behavioral data
+**Workspace & platform**
+- Multi-tenant workspaces with roles (Admin/Researcher/Viewer), invites, audit log, and rate limiting
+- Trend alerts, Slack/Jira ticketing, and a weekly digest
+- Stripe billing (Free/Pro/Team tiers) with usage-based enforcement
+- Public Insights API (`/v1/insights/...`) for downstream tooling, documented at `/api/docs`
+- A Figma plugin (`figma-plugin/`) that runs a simulation directly from selected frames and annotates findings back onto the canvas
+- Pilot onboarding: one-click sample-data import and a persistent setup checklist
 
-**Workflow layer**
+## Architecture
 
-- Trend tracking and alerting on emerging friction
-- Slack/Jira integration that auto-files annotated tickets
-- Weekly digest reports
-- Insights API for downstream tooling
+A `uv` workspace (single lockfile) plus two independent npm packages, one Postgres database, Neo4j, and Redis:
 
+| Path | What it is |
+|---|---|
+| [`backend/`](backend) | FastAPI app — auth, workspaces, simulations, events/journey graph, calibration, billing, integrations. See [backend/README.md](backend/README.md). |
+| [`frontend/`](frontend) | React 19 + TypeScript web app (the screens above). See [frontend/README.md](frontend/README.md). |
+| [`figma-plugin/`](figma-plugin) | Sideloaded Figma plugin: select frames → run a simulation → annotate the canvas. See [figma-plugin/README.md](figma-plugin/README.md). |
+| [`scripts/flowsage-predict/`](scripts/flowsage-predict) | Standalone CLI: LLM persona walkthrough of a screenshot sequence → Markdown friction report. See its [README](scripts/flowsage-predict/README.md). |
+| [`scripts/flowsage-graph/`](scripts/flowsage-graph) | Standalone CLI: event log → Neo4j journey graph → funnel/friction discovery → HTML report. See its [README](scripts/flowsage-graph/README.md). |
+| [`scripts/sample_data/`](scripts/sample_data) | A synthetic event log + screenshots used for demos and the onboarding "Import Sample Data" flow. |
+| [`scripts/load_test/`](scripts/load_test) | Async load-test script for `POST /v1/events`. |
+| [`infra/`](infra) | `docker-compose.yml` (local dev stack) and the production override + Caddy reverse proxy + deploy/backup scripts — see [infra/DEPLOY.md](infra/DEPLOY.md). |
 
+The backend depends on both CLI packages as workspace libraries (not reimplementations) — the same LangGraph agent and funnel-discovery logic run identically from the CLI and from the web app.
 
-## Tech Stack
+## Tech stack
 
-- **Agentic orchestration:** LangGraph for persona simulation
-- **Graph modeling:** Neo4j for temporal user-journey graphs
-- **Vision/LLM:** multimodal models for reading UI screenshots and generating friction reports
-- **API:** FastAPI
+- **Backend:** FastAPI, SQLAlchemy (async) + Alembic, Postgres, Redis + arq (background jobs), Neo4j
+- **Agentic orchestration:** LangGraph, Anthropic Claude (vision + tool-calling)
+- **Frontend:** React 19, TypeScript (strict), Tailwind v4, Vite
+- **Figma plugin:** TypeScript, esbuild, `@figma/plugin-typings`
+- **Billing:** Stripe (Checkout, Portal, webhooks)
+- **Testing:** pytest + mypy --strict (Python), Vitest + Testing Library + Playwright (TypeScript)
+- **Deploy:** Docker Compose, Caddy (automatic TLS)
 
+## Quickstart (local dev)
 
-
-## Development
-
-The full build sequence lives in [plans/full-project-coding-plan.md](plans/full-project-coding-plan.md).
-
-- [scripts/flowsage-predict](scripts/flowsage-predict) — Phase 0 CLI: LLM persona walkthrough of a screenshot sequence -> Markdown friction report.
-- [scripts/flowsage-graph](scripts/flowsage-graph) — Phase 0 CLI: event log -> Neo4j journey graph -> automatic funnel discovery -> HTML report.
-- [backend](backend) — Phase 1 FastAPI app: auth, the simulations API (wraps flowsage-predict in an arq job), and the events/journey-graph API (wraps flowsage-graph).
-- [frontend](frontend) — Phase 1 React app: login, dashboard, Predictive Engine, Journey Graph.
-
-The two scripts and the backend are all `uv` workspace members (single lockfile at
-the repo root); the backend depends on both scripts as libraries rather than
-reimplementing their logic. Every component ships a `Dockerfile`, and
-`infra/docker-compose.yml` brings up the whole stack (Postgres, Redis, Neo4j,
-backend, worker, frontend) with one command. Copy `.env.example` to `.env` and fill
-in `ANTHROPIC_API_KEY` to get started.
+Requires Docker. Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY` (required for the predictive engine's vision calls; everything else works without it).
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml up -d --build
+
 docker compose -f infra/docker-compose.yml exec backend \
-  python -m alembic -c /workspace/backend/alembic.ini upgrade head
-docker compose -f infra/docker-compose.yml exec backend flowsage-backend seed-personas
+  /workspace/.venv/bin/python -m alembic -c /workspace/backend/alembic.ini upgrade head
 docker compose -f infra/docker-compose.yml exec backend \
-  flowsage-backend create-user admin@example.com supersecret123
-# -> http://localhost:5173
+  /workspace/.venv/bin/flowsage-backend seed-personas
+docker compose -f infra/docker-compose.yml exec backend \
+  /workspace/.venv/bin/flowsage-backend create-user admin@example.com supersecret123
 ```
 
+Open **http://localhost:5173**, log in, and use "Import Sample Data" on the Journey Graph or Getting Started page to see a populated funnel without connecting real data.
 
+## Production deploy
 
-## Roadmap
+`infra/docker-compose.prod.yml` layers a Caddy reverse proxy (automatic TLS) on top of the same stack, with no ports published except through Caddy. See [infra/DEPLOY.md](infra/DEPLOY.md) for the full runbook (env setup, `deploy.sh`, Postgres backups).
 
+## Testing
 
-| Phase                            | Timeline        | Goal                                                                                                                                                                                     |
-| -------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — Hobby / Soft launch          | Jul 16–18, 2026 | Two standalone scripts: screenshot-sequence persona walkthrough → markdown friction report, and event-log → Neo4j journey graph with funnel visualization. Open-sourced.                 |
-| 1 — MVP                          | Jul 19–21, 2026 | Single web app: Figma/screenshot upload → persona panel → friction report; simple event stream → funnel view with friction nodes and LLM explanations. Single-tenant, manual onboarding. |
-| 2 — MLP                          | Jul 22–24, 2026 | Prediction-vs-reality dashboard, cohort comparison, churn-risk scoring, trend alerts, Slack/Jira auto-ticketing, configurable/savable personas.                                          |
-| 3 — Beta                         | Jul 25–27, 2026 | Multi-tenant architecture, workspace roles, SOC2-track security, 10–20 pilot companies (Malaysian startup ecosystem beachhead), case studies.                                            |
-| 4 — Final release / Monetization | Jul 28–31, 2026 | Tiered SaaS subscription, Figma plugin (self-serve persona audits), enterprise digital-twin engagements, freemium floor.                                                                 |
+Each service's README has its exact test commands. At a glance:
 
+```bash
+# Python packages (run from inside each package directory)
+cd backend && uv run pytest
+cd scripts/flowsage-predict && uv run pytest
+cd scripts/flowsage-graph && uv run pytest
 
+# Frontend
+cd frontend && npm test
+
+# Figma plugin
+cd figma-plugin && npm test
+```
+
+CI (`.github/workflows/ci.yml`) runs all of the above plus lint/typecheck/build on every push and PR.
+
+## License
+
+[MIT](LICENSE)

@@ -1,13 +1,13 @@
 # Sample data
 
-Demo fixtures for both Phase 0 scripts, and the source for the future "Import
-Sample Data" action in the Journey Graph empty state ([design prototype](../../design-hifi-prototypes/journey_graph_empty_state/code.html)).
+Demo fixtures for `flowsage-graph`/`flowsage-predict`, and the source data bundled
+into the backend (`backend/src/flowsage_backend/resources/`) for the "Import Sample
+Data" action on the Journey Graph empty state and the Getting Started checklist.
 
 ## `events.jsonl`
 
 44 synthetic events across 11 sessions of an e-commerce checkout flow
-(`Landing_Main` → `Product_View_PDP` → `Cart_Summary` → `Checkout_Final_Payment`,
-matching the [journey graph prototype](../../design-hifi-prototypes/journey_graph_flowsage/code.html)).
+(`Landing_Main` → `Product_View_PDP` → `Cart_Summary` → `Checkout_Final_Payment`).
 Deliberately includes all three friction patterns `flowsage-graph` detects:
 
 - Drop-off at every step (some sessions never reach checkout)

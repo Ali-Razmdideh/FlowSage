@@ -1,7 +1,10 @@
 # flowsage-predict
 
 LLM persona agent that walks a screenshot sequence and produces a Markdown friction
-report — the Phase 0 "predictive engine" script described in the [project plan](../../plans/full-project-coding-plan.md).
+report — the standalone CLI powering FlowSage's predictive engine. The `backend/`
+app depends on this package as a workspace library (`iter_persona_walkthrough`)
+rather than reimplementing it, so the walkthrough logic is identical whether run
+from this CLI or through the web app / Figma plugin.
 
 A [LangGraph](https://langchain-ai.github.io/langgraph/) agent loads a persona
 (demographic anchors + behavioral sliders + contextual triggers), then walks your

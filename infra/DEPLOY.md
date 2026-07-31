@@ -50,6 +50,6 @@ restorable, not just present.
 
 ## Out of scope
 
-No CI auto-deploy (manual SSH only), no Neo4j backups, no blue/green
-deploys -- see `docs/superpowers/specs/2026-07-30-vps-deploy-design.md` for
-the full rationale.
+No CI auto-deploy (manual SSH only), no Neo4j backups, no blue/green deploys --
+this is a single-VPS deploy for a small pilot footprint, not a
+high-availability target.

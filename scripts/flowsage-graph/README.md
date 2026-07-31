@@ -1,7 +1,10 @@
 # flowsage-graph
 
 Event log → Neo4j journey graph → automatic funnel discovery → static HTML report.
-The Phase 0 "observational engine" script described in the [project plan](../../plans/full-project-coding-plan.md).
+The standalone CLI powering FlowSage's observational engine. The `backend/` app
+depends on this package as a workspace library (`funnel.discover_funnel`/
+`detect_friction`, `ingest.Neo4jGraphSink`) rather than reimplementing it, so
+`GET /graph/funnel` runs the identical funnel/friction logic this CLI does.
 
 Reads a raw event log (no manually defined funnel), ingests each session's
 screen-to-screen transitions into Neo4j as `(:Screen)-[:TRANSITION]->(:Screen)`
