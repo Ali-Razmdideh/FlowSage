@@ -101,3 +101,21 @@ async def require_workspace_api_key(
     api_key.last_used_at = datetime.now(timezone.utc)
     await session.commit()
     return api_key.workspace_id
+
+
+async def get_current_actor(
+    request: Request, session: AsyncSession = Depends(get_db_session)
+) -> tuple[uuid.UUID, uuid.UUID | None]:
+    """Resolves the acting workspace (plus the user, if session-authenticated) from
+    either the browser's session cookie or an `X-API-Key` header. Lets a
+    non-browser client (the Figma plugin) call routes that were previously
+    cookie-only, without weakening the existing cookie-based auth those routes
+    already had -- presence of the `X-API-Key` header decides which check runs;
+    an invalid key still 401s rather than silently falling through to the
+    cookie check."""
+    if request.headers.get("X-API-Key") is not None:
+        workspace_id = await require_workspace_api_key(request, session)
+        return workspace_id, None
+
+    _, membership = await get_current_membership(request, session)
+    return membership.workspace_id, membership.user_id
