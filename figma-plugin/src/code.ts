@@ -1,6 +1,5 @@
 // figma-plugin/src/code.ts
-import { base64ToUint8Array, uint8ArrayToBase64 } from "./shared/binary";
-import { computeCardPosition } from "./shared/annotationLayout";
+import { CARD_WIDTH, computeCardPosition } from "./shared/annotationLayout";
 import { groupIssuesByFrameIndex } from "./shared/simulationClient";
 import type { FrictionIssue } from "./shared/types";
 
@@ -44,8 +43,7 @@ async function handleExportSelection(): Promise<{ index: number; bytes: number[]
   const results: { index: number; bytes: number[] }[] = [];
   for (let index = 0; index < exportable.length; index++) {
     const bytes = await exportable[index].exportAsync({ format: "PNG" });
-    const base64 = uint8ArrayToBase64(bytes);
-    results.push({ index, bytes: Array.from(base64ToUint8Array(base64)) });
+    results.push({ index, bytes: Array.from(bytes) });
   }
   return results;
 }
@@ -64,7 +62,7 @@ function createAnnotationCard(
   card.paddingBottom = 12;
   card.paddingLeft = 12;
   card.paddingRight = 12;
-  card.resize(280, card.height);
+  card.resize(CARD_WIDTH, card.height);
   card.x = position.x;
   card.y = position.y;
   card.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
@@ -96,24 +94,29 @@ function createAnnotationCard(
 async function handleAnnotate(payload: { issues: FrictionIssue[] }): Promise<void> {
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   const grouped = groupIssuesByFrameIndex(payload.issues);
+  let annotatedCount = 0;
 
   for (const [frameIndex, issues] of grouped) {
     const sourceNode = lastExportedFrames[frameIndex];
-    if (!sourceNode || !("x" in sourceNode)) continue;
-    const bounds = {
-      x: sourceNode.x,
-      y: sourceNode.y,
-      width: "width" in sourceNode ? sourceNode.width : 0,
-      height: "height" in sourceNode ? sourceNode.height : 0,
-    };
+    if (!sourceNode) continue;
+    // `sourceNode.x`/`.y` are parent-relative (SceneNode's typings), but the
+    // annotation card is created via `figma.createFrame()`, which appends
+    // directly to `figma.currentPage` (page-absolute coordinates). Using the
+    // relative x/y would misplace cards for any frame nested inside a Section
+    // or another frame. `absoluteBoundingBox` is page-absolute and matches the
+    // coordinate space the card is actually placed in.
+    const box = "absoluteBoundingBox" in sourceNode ? sourceNode.absoluteBoundingBox : null;
+    if (!box) continue;
+    const bounds = { x: box.x, y: box.y, width: box.width, height: box.height };
 
     issues.forEach((issue, stackIndex) => {
       const position = computeCardPosition(bounds, stackIndex);
       createAnnotationCard(issue, position);
+      annotatedCount++;
     });
   }
 
-  figma.notify(`Annotated ${payload.issues.length} issue(s) on the canvas`);
+  figma.notify(`Annotated ${annotatedCount} issue(s) on the canvas`);
 }
 
 figma.ui.onmessage = async (message: PluginMessage) => {
@@ -132,6 +135,8 @@ figma.ui.onmessage = async (message: PluginMessage) => {
       case "annotate":
         await handleAnnotate(message.payload as { issues: FrictionIssue[] });
         break;
+      default:
+        throw new Error(`Unknown plugin message type: ${message.type}`);
     }
     figma.ui.postMessage({ id: message.id, payload });
   } catch (error) {

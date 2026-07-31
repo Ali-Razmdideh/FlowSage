@@ -44,4 +44,28 @@ describe("callPlugin", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(resolved).toBe(false);
   });
+
+  it("rejects when the reply carries an error", async () => {
+    const postMessageSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(() => {});
+
+    const resultPromise = callPlugin<{ ok: boolean }>("annotate");
+
+    const sentMessage = postMessageSpy.mock.calls[0][0] as {
+      pluginMessage: { id: string; type: string };
+    };
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          pluginMessage: {
+            id: sentMessage.pluginMessage.id,
+            payload: undefined,
+            error: "boom",
+          },
+        },
+      }),
+    );
+
+    await expect(resultPromise).rejects.toThrow("boom");
+  });
 });

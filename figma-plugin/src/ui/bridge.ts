@@ -1,20 +1,25 @@
 // figma-plugin/src/ui/bridge.ts
 let counter = 0;
-const pending = new Map<string, (payload: unknown) => void>();
+const pending = new Map<string, { resolve: (payload: unknown) => void; reject: (error: Error) => void }>();
 
 window.addEventListener("message", (event: MessageEvent) => {
-  const message = (event.data as { pluginMessage?: { id: string; payload: unknown } })
-    .pluginMessage;
+  const message = (
+    event.data as { pluginMessage?: { id: string; payload: unknown; error?: string } }
+  ).pluginMessage;
   if (!message || !pending.has(message.id)) return;
-  const resolve = pending.get(message.id);
+  const handlers = pending.get(message.id);
   pending.delete(message.id);
-  resolve?.(message.payload);
+  if (message.error) {
+    handlers?.reject(new Error(message.error));
+  } else {
+    handlers?.resolve(message.payload);
+  }
 });
 
 export function callPlugin<T>(type: string, payload?: unknown): Promise<T> {
   const id = `${type}-${counter++}`;
-  return new Promise<T>((resolve) => {
-    pending.set(id, resolve as (payload: unknown) => void);
+  return new Promise<T>((resolve, reject) => {
+    pending.set(id, { resolve: resolve as (payload: unknown) => void, reject });
     window.parent.postMessage({ pluginMessage: { id, type, payload } }, "*");
   });
 }
