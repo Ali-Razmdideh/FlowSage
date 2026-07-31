@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from flowsage_backend.models.api_key import ApiKey
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership, Role
+from flowsage_backend.models.workspace import Membership, Role, Workspace
 from flowsage_backend.security import decode_access_token, hash_api_key
 
 
@@ -97,6 +97,10 @@ async def require_workspace_api_key(
     api_key = result.scalar_one_or_none()
     if api_key is None or api_key.revoked_at is not None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing or invalid X-API-Key")
+
+    workspace = await session.get(Workspace, api_key.workspace_id)
+    if workspace is not None and workspace.archived:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This workspace has been archived")
 
     api_key.last_used_at = datetime.now(timezone.utc)
     await session.commit()
