@@ -172,6 +172,7 @@ async def test_run_digest_job_auto_retrains_anomalous_personas(
                 CalibrationAlert(persona_name=persona.name, screen="checkout", delta=0.9)
             ],
             churn_alerts=[],
+            friction_regression_alerts=[],
         )
 
     monkeypatch.setattr(worker_module, "build_alerts_report", _fake_alerts_report)
