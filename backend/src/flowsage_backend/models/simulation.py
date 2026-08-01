@@ -36,6 +36,9 @@ class SimulationRun(Base):
     flow_name: Mapped[str] = mapped_column(String(200))
     goal: Mapped[str] = mapped_column(String(500))
     persona_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("personas.id"))
+    scheduled_simulation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("scheduled_simulations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     screenshots_dir: Mapped[str] = mapped_column(String(1000))
     status: Mapped[RunStatus] = mapped_column(
         SAEnum(RunStatus, name="run_status"), default=RunStatus.QUEUED

@@ -12,6 +12,7 @@ from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.event import Event
 from flowsage_backend.models.integration import JiraIntegration, SlackIntegration
 from flowsage_backend.models.persona import Persona, PersonaMemory
+from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
 from flowsage_backend.models.settings import CalibrationSettings, DigestFrequency
 from flowsage_backend.models.simulation import (
     FrictionIssue,
@@ -32,6 +33,8 @@ __all__ = [
     "Role",
     "Persona",
     "PersonaMemory",
+    "ScheduledSimulation",
+    "ScheduleInterval",
     "SimulationRun",
     "SimulationStep",
     "FrictionIssue",

@@ -8,6 +8,7 @@ from flowsage_predict.models import ScreenEvaluation, Severity
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.persona import Persona
+from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
 from flowsage_backend.models.simulation import RunStatus
 from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.seed import seed_baseline_personas
@@ -99,6 +100,38 @@ async def test_create_run_succeeds(db_session: AsyncSession, tmp_path: Path) -> 
 
     assert run.status == RunStatus.QUEUED
     assert run.persona_id == persona.id
+
+
+async def test_create_run_stamps_scheduled_simulation_id(
+    db_session: AsyncSession, tmp_path: Path
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    persona = await _seed_persona(db_session, workspace_id)
+    (tmp_path / "01_cart.png").write_bytes(b"fake")
+    # scheduled_simulation_id carries a real FK constraint (see
+    # models/scheduled_simulation.py), so the referenced row must exist first.
+    scheduled = ScheduledSimulation(
+        workspace_id=workspace_id,
+        flow_name="Checkout",
+        goal="Complete purchase",
+        persona_id=persona.id,
+        interval=ScheduleInterval.DAILY,
+    )
+    db_session.add(scheduled)
+    await db_session.commit()
+    await db_session.refresh(scheduled)
+
+    run = await create_run(
+        db_session,
+        workspace_id=workspace_id,
+        persona_id=persona.id,
+        flow_name="Checkout",
+        goal="Complete purchase",
+        screenshots_dir=tmp_path,
+        scheduled_simulation_id=scheduled.id,
+    )
+
+    assert run.scheduled_simulation_id == scheduled.id
 
 
 async def test_execute_simulation_persists_steps_and_completes(
