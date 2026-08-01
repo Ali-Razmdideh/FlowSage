@@ -91,7 +91,7 @@ function createAnnotationCard(
   return card;
 }
 
-async function handleAnnotate(payload: { issues: FrictionIssue[] }): Promise<void> {
+async function handleAnnotate(payload: { issues: FrictionIssue[] }): Promise<{ annotatedCount: number }> {
   await figma.loadFontAsync({ family: "Inter", style: "Regular" });
   const grouped = groupIssuesByFrameIndex(payload.issues);
   let annotatedCount = 0;
@@ -117,6 +117,7 @@ async function handleAnnotate(payload: { issues: FrictionIssue[] }): Promise<voi
   }
 
   figma.notify(`Annotated ${annotatedCount} issue(s) on the canvas`);
+  return { annotatedCount };
 }
 
 figma.ui.onmessage = async (message: PluginMessage) => {
@@ -133,7 +134,7 @@ figma.ui.onmessage = async (message: PluginMessage) => {
         payload = await handleExportSelection();
         break;
       case "annotate":
-        await handleAnnotate(message.payload as { issues: FrictionIssue[] });
+        payload = await handleAnnotate(message.payload as { issues: FrictionIssue[] });
         break;
       default:
         throw new Error(`Unknown plugin message type: ${message.type}`);

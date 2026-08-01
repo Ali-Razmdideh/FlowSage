@@ -53,7 +53,7 @@ describe("App", () => {
       if (type === "export-selection") {
         return [{ index: 0, bytes: [1, 2, 3] }];
       }
-      if (type === "annotate") return undefined;
+      if (type === "annotate") return { annotatedCount: 1 };
       return undefined;
     });
     vi.spyOn(api, "listPersonas").mockResolvedValue([{ id: "p1", slug: "novice", name: "Novice" }]);

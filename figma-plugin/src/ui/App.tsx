@@ -86,9 +86,9 @@ export function App() {
       }
 
       const issues = finished.issues ?? [];
-      await callPlugin("annotate", { issues });
+      const { annotatedCount } = await callPlugin<{ annotatedCount: number }>("annotate", { issues });
       setStatus("done");
-      setMessage(`${issues.length} issue${issues.length === 1 ? "" : "s"} annotated`);
+      setMessage(`${annotatedCount} issue${annotatedCount === 1 ? "" : "s"} annotated`);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Unknown error");

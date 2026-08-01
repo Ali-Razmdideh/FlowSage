@@ -69,6 +69,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # API surface like this one, and the plugin, need) while browsers refuse to
     # honor `*` together with credentials -- so the web app's cookie-based
     # session auth remains unreachable cross-origin, i.e. unweakened by this.
+    # Starlette wraps middleware in reverse-add order (last added = outermost),
+    # so CORS must be added *after* the rate limiter -- otherwise a 429 raised
+    # by SlowAPIMiddleware never passes back out through CORSMiddleware and
+    # ships with no CORS headers, surfacing as an opaque network error instead
+    # of a readable rate-limit response for cross-origin callers like the
+    # Figma plugin.
+    configure_rate_limiting(app, settings.redis_url)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -76,7 +83,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["X-API-Key", "Content-Type"],
         allow_credentials=False,
     )
-    configure_rate_limiting(app, settings.redis_url)
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.graph_sink = Neo4jGraphSink(
