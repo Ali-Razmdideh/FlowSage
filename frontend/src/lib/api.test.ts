@@ -377,7 +377,7 @@ describe("api client", () => {
       });
 
       expect(result).toEqual(config);
-      const [url, init] = fetchMock.mock.calls[0];
+      const [url, init] = fetchMock.mock.calls[0]!;
       expect(String(url)).toContain("/scheduled-simulations");
       expect(init.method).toBe("POST");
     });
@@ -401,7 +401,7 @@ describe("api client", () => {
       const result = await api.pushScheduledSimulationScreenshots("sched-1", [file]);
 
       expect(result.has_pending_screenshots).toBe(true);
-      const [url, init] = fetchMock.mock.calls[0];
+      const [url, init] = fetchMock.mock.calls[0]!;
       expect(String(url)).toContain("/scheduled-simulations/sched-1/screenshots");
       expect(init.body).toBeInstanceOf(FormData);
     });
