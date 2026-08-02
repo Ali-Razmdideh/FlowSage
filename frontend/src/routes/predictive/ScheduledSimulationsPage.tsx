@@ -69,21 +69,34 @@ function ScheduledSimulationCard({
   onToggleActive: () => void;
   onDelete: () => void;
   onPushScreenshots: (files: File[]) => void;
-  onSaveEdits: (goal: string, interval: ScheduleInterval) => void;
+  onSaveEdits: (goal: string, interval: ScheduleInterval) => Promise<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
   const [goalDraft, setGoalDraft] = useState(config.goal);
   const [intervalDraft, setIntervalDraft] = useState<ScheduleInterval>(config.interval);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   function startEditing() {
     setGoalDraft(config.goal);
     setIntervalDraft(config.interval);
+    setSaveError(null);
     setEditing(true);
   }
 
-  function save() {
-    onSaveEdits(goalDraft, intervalDraft);
-    setEditing(false);
+  async function save() {
+    setSaveError(null);
+    setSaving(true);
+    const succeeded = await onSaveEdits(goalDraft, intervalDraft);
+    setSaving(false);
+    if (succeeded) {
+      // Only leave edit mode — and drop the local draft — once the server has
+      // confirmed the change. On failure we stay in edit mode with the user's
+      // draft intact so nothing is silently lost.
+      setEditing(false);
+    } else {
+      setSaveError("Failed to save changes. Your edits are unsaved — try again.");
+    }
   }
 
   return (
@@ -145,18 +158,26 @@ function ScheduledSimulationCard({
               <option value="on_push">On push</option>
             </select>
           </label>
+          {saveError !== null ? (
+            <p role="alert" className="text-sm text-error">
+              {saveError}
+            </p>
+          ) : null}
+
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={save}
-              className="rounded-lg bg-primary px-3 py-1.5 text-sm text-on-primary font-medium hover:opacity-90 transition"
+              onClick={() => void save()}
+              disabled={saving}
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm text-on-primary font-medium hover:opacity-90 transition disabled:opacity-50"
             >
-              Save
+              {saving ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="text-sm font-medium text-on-surface-variant hover:underline"
+              disabled={saving}
+              className="text-sm font-medium text-on-surface-variant hover:underline disabled:opacity-50"
             >
               Cancel
             </button>
@@ -215,6 +236,10 @@ export function ScheduledSimulationsPage() {
       setTrends(Object.fromEntries(trendEntries));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load scheduled simulations.");
+      // Fall back to an empty (not null) list so the Schedules section renders
+      // its actual empty/error state instead of hanging on "Loading…" forever.
+      setConfigs((prev) => prev ?? []);
+      setPersonas((prev) => prev ?? []);
     }
   }
 
@@ -248,15 +273,21 @@ export function ScheduledSimulationsPage() {
     }
   }
 
-  async function handleSaveEdits(configId: string, goalEdit: string, intervalEdit: ScheduleInterval) {
+  async function handleSaveEdits(
+    configId: string,
+    goalEdit: string,
+    intervalEdit: ScheduleInterval,
+  ): Promise<boolean> {
     try {
       const updated = await api.updateScheduledSimulation(configId, {
         goal: goalEdit,
         interval: intervalEdit,
       });
       setConfigs((prev) => prev?.map((c) => (c.id === updated.id ? updated : c)) ?? null);
+      return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to update scheduled simulation.");
+      return false;
     }
   }
 
@@ -379,7 +410,7 @@ export function ScheduledSimulationsPage() {
               onDelete={() => void handleDelete(config.id)}
               onPushScreenshots={(files) => void handlePushScreenshots(config.id, files)}
               onSaveEdits={(goalEdit, intervalEdit) =>
-                void handleSaveEdits(config.id, goalEdit, intervalEdit)
+                handleSaveEdits(config.id, goalEdit, intervalEdit)
               }
             />
           ))

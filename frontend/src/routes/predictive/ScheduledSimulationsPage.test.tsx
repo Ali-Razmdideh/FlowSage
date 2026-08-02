@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { api } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 import type { Persona, ScheduledSimulation, TrendPoint } from "../../lib/types";
 import { ScheduledSimulationsPage } from "./ScheduledSimulationsPage";
 
@@ -125,6 +125,45 @@ describe("ScheduledSimulationsPage", () => {
         interval: "daily",
       }),
     );
+  });
+
+  it("keeps the card in edit mode with the draft intact and shows a per-card error when saving fails", async () => {
+    vi.mocked(api.listPersonas).mockResolvedValue([PERSONA]);
+    vi.mocked(api.listScheduledSimulations).mockResolvedValue([CONFIG]);
+    vi.mocked(api.getScheduledSimulationTrend).mockResolvedValue([]);
+    vi.mocked(api.updateScheduledSimulation).mockRejectedValue(
+      new ApiError(500, "Failed to update scheduled simulation."),
+    );
+
+    renderPage();
+    await screen.findByText("Checkout");
+
+    fireEvent.click(screen.getByRole("button", { name: /Edit/i }));
+    fireEvent.change(screen.getByDisplayValue("Ship checkout"), {
+      target: { value: "Ship checkout faster" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    await waitFor(() => expect(api.updateScheduledSimulation).toHaveBeenCalled());
+
+    // Still in edit mode, draft intact, and a visible per-card error — not
+    // silently reverted to the stale config with no feedback.
+    expect(await screen.findByText(/Failed to save changes/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Ship checkout faster")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save/i })).toBeInTheDocument();
+  });
+
+  it("does not hang on 'Loading…' when the initial fetch fails", async () => {
+    vi.mocked(api.listPersonas).mockResolvedValue([]);
+    vi.mocked(api.listScheduledSimulations).mockRejectedValue(
+      new ApiError(500, "Failed to load scheduled simulations."),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/Failed to load scheduled simulations/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Loading…")).not.toBeInTheDocument());
+    expect(screen.getByText("No scheduled runs yet.")).toBeInTheDocument();
   });
 
   it("deletes a schedule", async () => {
