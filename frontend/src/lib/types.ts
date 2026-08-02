@@ -142,6 +142,40 @@ export interface SimulationRunDetail extends SimulationRun {
   issues: FrictionIssue[];
 }
 
+export type ScheduleInterval = "daily" | "weekly" | "on_push";
+
+export interface ScheduledSimulation {
+  id: string;
+  flow_name: string;
+  goal: string;
+  persona_id: string;
+  interval: ScheduleInterval;
+  active: boolean;
+  has_pending_screenshots: boolean;
+  last_fired_at: string | null;
+  created_at: string;
+}
+
+export interface ScheduledSimulationCreatePayload {
+  persona_id: string;
+  flow_name: string;
+  goal: string;
+  interval: ScheduleInterval;
+}
+
+export interface ScheduledSimulationUpdatePayload {
+  goal?: string;
+  interval?: ScheduleInterval;
+  active?: boolean;
+}
+
+export interface TrendPoint {
+  run_id: string;
+  created_at: string;
+  score: number;
+  issue_count: number;
+}
+
 export type FrictionKind = "abnormal_drop_off" | "rage_loop" | "backtrack";
 
 export interface FunnelStep {

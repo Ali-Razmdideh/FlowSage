@@ -18,6 +18,7 @@ from flowsage_predict.vision import AnthropicVisionClient, VisionClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend import scheduled_simulations
 from flowsage_backend.alerts import (
     AlertsReport,
     build_alerts_report,
@@ -205,11 +206,42 @@ async def _purge_workspace_retention(
     await session.commit()
 
 
+async def run_scheduled_simulations_job(ctx: dict[str, Any]) -> None:
+    """Fires hourly; the actual daily/weekly/on_push cadence is decided per-config
+    inside fire_due_scheduled_simulations (same 'cron fixed, cadence in application
+    logic' pattern as run_digest_job). One workspace's failure doesn't block the
+    others, mirroring run_digest_job's and run_retention_purge_job's per-workspace
+    loops. Each newly-fired run still needs its QUEUED->RUNNING->COMPLETED walk,
+    so this enqueues the existing run_simulation_job for it exactly like the
+    one-shot upload endpoint does."""
+    session_factory = ctx["session_factory"]
+    now = datetime.now(timezone.utc)
+
+    async with session_factory() as session:
+        result = await session.execute(select(Workspace.id).where(Workspace.archived.is_(False)))
+        workspace_ids = list(result.scalars().all())
+
+    for workspace_id in workspace_ids:
+        try:
+            async with session_factory() as session:
+                fired_runs = await scheduled_simulations.fire_due_scheduled_simulations(
+                    session, workspace_id, now
+                )
+            for run in fired_runs:
+                await ctx["redis"].enqueue_job("run_simulation_job", str(run.id))
+        except Exception:  # noqa: BLE001 - one workspace's failure must not stop
+            # the scheduled-simulations job from running for every other workspace.
+            logger.warning(
+                "Scheduled simulations job failed for workspace %s", workspace_id, exc_info=True
+            )
+
+
 class WorkerSettings:
     functions = [run_simulation_job, run_retraining_job]
     cron_jobs = [
         cron(run_digest_job, hour=9, minute=0),
         cron(run_retention_purge_job, hour=3, minute=0),
+        cron(run_scheduled_simulations_job, minute=0),
     ]
     on_startup = _startup
     on_shutdown = _shutdown

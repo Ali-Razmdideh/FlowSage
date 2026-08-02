@@ -172,6 +172,7 @@ async def test_run_digest_job_auto_retrains_anomalous_personas(
                 CalibrationAlert(persona_name=persona.name, screen="checkout", delta=0.9)
             ],
             churn_alerts=[],
+            friction_regression_alerts=[],
         )
 
     monkeypatch.setattr(worker_module, "build_alerts_report", _fake_alerts_report)
@@ -290,5 +291,85 @@ async def test_run_digest_job_delivers_to_two_workspaces_independently(
         assert len(deliveries_b) == 1
         assert json.loads(deliveries_a[0].payload)["churn_alerts"][0]["cohort"] == "digestcohorta"
         assert json.loads(deliveries_b[0].payload)["churn_alerts"][0]["cohort"] == "digestcohortb"
+    finally:
+        monkeypatch.undo()
+
+
+async def test_run_scheduled_simulations_job_fires_due_config_and_enqueues_run(
+    db_session: AsyncSession,
+) -> None:
+    from pathlib import Path
+
+    from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
+    from flowsage_backend.seed import seed_baseline_personas
+    from flowsage_backend.worker import run_scheduled_simulations_job
+
+    workspace_id = await ensure_default_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+
+    config = ScheduledSimulation(
+        workspace_id=workspace_id,
+        flow_name="Checkout",
+        goal="Complete purchase",
+        persona_id=personas[0].id,
+        interval=ScheduleInterval.ON_PUSH,
+    )
+    db_session.add(config)
+    await db_session.commit()
+    await db_session.refresh(config)
+
+    screenshots_dir = Path(f"/tmp/flowsage-worker-test-{uuid.uuid4().hex}")
+    screenshots_dir.mkdir(parents=True, exist_ok=True)
+    (screenshots_dir / "01_cart.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    config.pending_screenshots_dir = str(screenshots_dir)
+    await db_session.commit()
+
+    fake_redis = _FakeRedis()
+    ctx: dict[str, Any] = {"session_factory": lambda: db_session, "redis": fake_redis}
+
+    try:
+        await run_scheduled_simulations_job(ctx)
+
+        assert len(fake_redis.enqueued) == 1
+        assert fake_redis.enqueued[0][0] == "run_simulation_job"
+        # run_scheduled_simulations_job's `async with session_factory() as
+        # session:` blocks call close() on this shared fixture session (same
+        # object every call, unlike production's per-call sessionmaker),
+        # which expunges `config` from the identity map -- refresh(config)
+        # would raise InvalidRequestError here. db_session.get() issues a
+        # fresh query instead, sidestepping the detached-instance state.
+        refreshed = await db_session.get(ScheduledSimulation, config.id)
+        assert refreshed is not None
+        assert refreshed.pending_screenshots_dir is None
+        assert refreshed.last_fired_at is not None
+    finally:
+        stored = await db_session.get(ScheduledSimulation, config.id)
+        if stored is not None:
+            await db_session.delete(stored)
+            await db_session.commit()
+        import shutil
+
+        shutil.rmtree(screenshots_dir, ignore_errors=True)
+
+
+async def test_run_scheduled_simulations_job_one_workspace_failure_does_not_block_others(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flowsage_backend import scheduled_simulations as scheduled_simulations_module
+    from flowsage_backend.worker import run_scheduled_simulations_job
+
+    async def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(scheduled_simulations_module, "fire_due_scheduled_simulations", _boom)
+
+    workspace_id = await ensure_default_workspace(db_session)
+    fake_redis = _FakeRedis()
+    ctx: dict[str, Any] = {"session_factory": lambda: db_session, "redis": fake_redis}
+
+    try:
+        # Must not raise -- a workspace-level failure is swallowed and logged,
+        # same as run_digest_job/run_retention_purge_job.
+        await run_scheduled_simulations_job(ctx)
     finally:
         monkeypatch.undo()

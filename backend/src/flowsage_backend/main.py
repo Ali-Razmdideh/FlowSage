@@ -24,6 +24,7 @@ from flowsage_backend.api.insights import insights_router
 from flowsage_backend.api.integrations import router as integrations_router
 from flowsage_backend.api.onboarding import router as onboarding_router
 from flowsage_backend.api.personas import router as personas_router
+from flowsage_backend.api.scheduled_simulations import router as scheduled_simulations_router
 from flowsage_backend.api.settings import router as settings_router
 from flowsage_backend.api.simulations import router as simulations_router
 from flowsage_backend.api.workspaces import router as workspaces_router
@@ -92,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(personas_router)
     app.include_router(simulations_router)
+    app.include_router(scheduled_simulations_router)
     app.include_router(events_router)
     app.include_router(graph_router)
     app.include_router(calibration_router)

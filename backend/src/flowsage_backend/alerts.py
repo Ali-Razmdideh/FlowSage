@@ -17,11 +17,14 @@ import uuid
 
 from flowsage_graph.funnel import discover_funnel
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.calibration import CalibrationReport, build_calibration_report
 from flowsage_backend.churn import ChurnRiskSegment, build_churn_risk_segments
 from flowsage_backend.events import query_events
+from flowsage_backend.models.scheduled_simulation import ScheduledSimulation
+from flowsage_backend.scheduled_simulations import friction_score_for_run, latest_two_completed_runs
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 
 CHURN_RISK_ALERT_THRESHOLD = 0.5
@@ -29,6 +32,13 @@ CHURN_RISK_ALERT_THRESHOLD = 0.5
 "at_risk"-vs-"healthy" fixture shape used across the existing churn tests --
 comfortably above normal variance, below the churn tests' own worst-case
 (~0.72 for a cohort with heavy drop-off and friction)."""
+
+FRICTION_REGRESSION_ALERT_THRESHOLD = 0.15
+"""A scheduled config's latest fired run scoring this much higher than its
+previous fired run is alert-worthy. Tighter than calibration.py's
+ANOMALY_THRESHOLD (0.35) because this compares a metric against its own
+recent history, not against an independent observed signal -- a smaller
+jump is already meaningful there."""
 
 
 class CalibrationAlert(BaseModel):
@@ -43,13 +53,24 @@ class ChurnAlert(BaseModel):
     top_reason: str
 
 
+class FrictionRegressionAlert(BaseModel):
+    scheduled_simulation_id: uuid.UUID
+    flow_name: str
+    previous_score: float
+    current_score: float
+    delta: float
+
+
 class AlertsReport(BaseModel):
     calibration_alerts: list[CalibrationAlert]
     churn_alerts: list[ChurnAlert]
+    friction_regression_alerts: list[FrictionRegressionAlert]
 
 
 def has_alerts(report: AlertsReport) -> bool:
-    return bool(report.calibration_alerts or report.churn_alerts)
+    return bool(
+        report.calibration_alerts or report.churn_alerts or report.friction_regression_alerts
+    )
 
 
 def check_calibration_anomalies(report: CalibrationReport) -> list[CalibrationAlert]:
@@ -73,6 +94,48 @@ def check_churn_alerts(
     ]
 
 
+async def check_friction_regression_alerts(
+    session: AsyncSession, workspace_id: uuid.UUID
+) -> list[FrictionRegressionAlert]:
+    configs = (
+        (
+            await session.execute(
+                select(ScheduledSimulation).where(
+                    ScheduledSimulation.workspace_id == workspace_id,
+                    ScheduledSimulation.active.is_(True),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    alerts: list[FrictionRegressionAlert] = []
+    for config in configs:
+        runs = await latest_two_completed_runs(session, workspace_id, config.id)
+        if len(runs) < 2:
+            continue
+        current, previous = runs[0], runs[1]
+        current_score = friction_score_for_run(
+            current.issues, len({step.screen for step in current.steps})
+        )
+        previous_score = friction_score_for_run(
+            previous.issues, len({step.screen for step in previous.steps})
+        )
+        delta = current_score - previous_score
+        if delta >= FRICTION_REGRESSION_ALERT_THRESHOLD:
+            alerts.append(
+                FrictionRegressionAlert(
+                    scheduled_simulation_id=config.id,
+                    flow_name=config.flow_name,
+                    previous_score=previous_score,
+                    current_score=current_score,
+                    delta=delta,
+                )
+            )
+    return alerts
+
+
 async def build_alerts_report(session: AsyncSession, workspace_id: uuid.UUID) -> AlertsReport:
     events = await query_events(session, workspace_id)
     funnel = discover_funnel(events)
@@ -84,6 +147,7 @@ async def build_alerts_report(session: AsyncSession, workspace_id: uuid.UUID) ->
     return AlertsReport(
         calibration_alerts=check_calibration_anomalies(calibration_report),
         churn_alerts=check_churn_alerts(churn_segments, settings.churn_risk_alert_threshold),
+        friction_regression_alerts=await check_friction_regression_alerts(session, workspace_id),
     )
 
 
@@ -91,10 +155,11 @@ def build_digest_text(report: AlertsReport) -> str:
     """Plain-text fallback for Slack's top-level `text` field (used in
     notification previews; `build_digest_blocks` is the rendered body)."""
     if not has_alerts(report):
-        return "FlowSage Digest: no calibration or churn alerts."
+        return "FlowSage Digest: no calibration, churn, or friction-regression alerts."
     parts = [
         f"{len(report.calibration_alerts)} calibration anomalies",
         f"{len(report.churn_alerts)} churn-risk segments",
+        f"{len(report.friction_regression_alerts)} friction regressions",
     ]
     return "FlowSage Digest: " + ", ".join(parts)
 
@@ -107,7 +172,10 @@ def build_digest_blocks(report: AlertsReport) -> list[dict[str, object]]:
         blocks.append(
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "No calibration or churn alerts."},
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "No calibration, churn, or friction-regression alerts.",
+                },
             }
         )
         return blocks
@@ -134,6 +202,19 @@ def build_digest_blocks(report: AlertsReport) -> list[dict[str, object]]:
                     "text": (
                         f"*Churn risk*: {churn_alert.cohort} at {churn_alert.risk_score * 100:.0f}% "
                         f"-- {churn_alert.top_reason}"
+                    ),
+                },
+            }
+        )
+    for regression in report.friction_regression_alerts:
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*Friction regression*: {regression.flow_name} jumped to "
+                        f"{regression.current_score:.2f} (+{regression.delta:.2f})"
                     ),
                 },
             }

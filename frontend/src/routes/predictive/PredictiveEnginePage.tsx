@@ -59,6 +59,12 @@ export function PredictiveEnginePage() {
           Walk a screenshot sequence with an LLM persona and get a friction report before a
           real user sees it.
         </p>
+        <Link
+          to="/predictive/scheduled"
+          className="text-sm font-medium text-primary hover:underline mt-2 inline-block"
+        >
+          Scheduled Runs →
+        </Link>
       </div>
 
       <section className="bg-surface-container-lowest rounded-xl p-6">

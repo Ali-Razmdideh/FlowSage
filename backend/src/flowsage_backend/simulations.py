@@ -50,9 +50,13 @@ async def create_run(
     goal: str,
     screenshots_dir: Path,
     run_id: uuid.UUID | None = None,
+    scheduled_simulation_id: uuid.UUID | None = None,
 ) -> SimulationRun:
     """`run_id` lets a caller that already picked a directory name (e.g. the upload
-    endpoint, which needs an id before it can save files) reuse it as the row's id."""
+    endpoint, which needs an id before it can save files) reuse it as the row's id.
+    `scheduled_simulation_id` tags a run fired by the scheduled-simulations cron job
+    (flowsage_backend.scheduled_simulations.fire_due_scheduled_simulations) so its
+    trend/regression queries can find it; a manually-triggered run leaves it None."""
     persona = (
         await session.execute(
             select(Persona).where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
@@ -72,6 +76,7 @@ async def create_run(
         persona_id=persona.id,
         screenshots_dir=str(screenshots_dir),
         status=RunStatus.QUEUED,
+        scheduled_simulation_id=scheduled_simulation_id,
     )
     session.add(run)
     await session.commit()

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "./api";
+import type { ScheduledSimulation, TrendPoint } from "./types";
 
 function mockFetchOnce(response: Partial<Response> & { json?: () => Promise<unknown> }): void {
   vi.stubGlobal(
@@ -347,6 +348,74 @@ describe("api client", () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0]!;
       expect(url).toContain("/billing/portal");
       expect(init?.method).toBe("POST");
+    });
+  });
+
+  describe("scheduled simulations", () => {
+    it("createScheduledSimulation posts the payload and returns the created config", async () => {
+      const config: ScheduledSimulation = {
+        id: "sched-1",
+        flow_name: "Checkout",
+        goal: "Complete purchase",
+        persona_id: "persona-1",
+        interval: "daily",
+        active: true,
+        has_pending_screenshots: false,
+        last_fired_at: null,
+        created_at: "2026-08-01T00:00:00Z",
+      };
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(config), { status: 201 }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await api.createScheduledSimulation({
+        persona_id: "persona-1",
+        flow_name: "Checkout",
+        goal: "Complete purchase",
+        interval: "daily",
+      });
+
+      expect(result).toEqual(config);
+      const [url, init] = fetchMock.mock.calls[0]!;
+      expect(String(url)).toContain("/scheduled-simulations");
+      expect(init.method).toBe("POST");
+    });
+
+    it("pushScheduledSimulationScreenshots sends a multipart FormData body", async () => {
+      const config: ScheduledSimulation = {
+        id: "sched-1",
+        flow_name: "Checkout",
+        goal: "Complete purchase",
+        persona_id: "persona-1",
+        interval: "on_push",
+        active: true,
+        has_pending_screenshots: true,
+        last_fired_at: null,
+        created_at: "2026-08-01T00:00:00Z",
+      };
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(config), { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const file = new File([new Uint8Array([1, 2, 3])], "01_cart.png", { type: "image/png" });
+      const result = await api.pushScheduledSimulationScreenshots("sched-1", [file]);
+
+      expect(result.has_pending_screenshots).toBe(true);
+      const [url, init] = fetchMock.mock.calls[0]!;
+      expect(String(url)).toContain("/scheduled-simulations/sched-1/screenshots");
+      expect(init.body).toBeInstanceOf(FormData);
+    });
+
+    it("getScheduledSimulationTrend fetches the trend array", async () => {
+      const points: TrendPoint[] = [
+        { run_id: "run-1", created_at: "2026-08-01T00:00:00Z", score: 0.7, issue_count: 2 },
+      ];
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(points), { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const result = await api.getScheduledSimulationTrend("sched-1");
+
+      expect(result).toEqual(points);
     });
   });
 });
