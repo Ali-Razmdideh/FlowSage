@@ -9,6 +9,7 @@ import { DashboardPage } from "./routes/DashboardPage";
 import { PredictiveEnginePage } from "./routes/predictive/PredictiveEnginePage";
 import { RunningSimulationPage } from "./routes/predictive/RunningSimulationPage";
 import { PersonaConfigurationPage } from "./routes/predictive/PersonaConfigurationPage";
+import { ScheduledSimulationsPage } from "./routes/predictive/ScheduledSimulationsPage";
 import { JourneyGraphPage } from "./routes/journey/JourneyGraphPage";
 import { CalibrationPage } from "./routes/calibration/CalibrationPage";
 import { ModelCalibrationSettingsPage } from "./routes/settings/ModelCalibrationSettingsPage";
@@ -55,6 +56,7 @@ export function App() {
         <Route path="/predictive/runs/:runId" element={<RunningSimulationPage />} />
         <Route path="/predictive/personas/new" element={<PersonaConfigurationPage />} />
         <Route path="/predictive/personas/:personaId" element={<PersonaConfigurationPage />} />
+        <Route path="/predictive/scheduled" element={<ScheduledSimulationsPage />} />
         <Route path="/journey" element={<JourneyGraphPage />} />
         <Route path="/calibration" element={<CalibrationPage />} />
         <Route path="/settings/general" element={<GeneralSettingsPage />} />
