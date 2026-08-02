@@ -25,10 +25,14 @@ import type {
   PortalResult,
   RetrainingJob,
   Role,
+  ScheduledSimulation,
+  ScheduledSimulationCreatePayload,
+  ScheduledSimulationUpdatePayload,
   SimulationRun,
   SimulationRunDetail,
   SlackExportResult,
   SlackStatus,
+  TrendPoint,
   User,
   UsageSnapshot,
   Webhook,
@@ -146,6 +150,44 @@ export const api = {
 
   deletePersona: (id: string): Promise<void> =>
     request<void>(`/personas/${id}`, { method: "DELETE" }),
+
+  listScheduledSimulations: (): Promise<ScheduledSimulation[]> =>
+    request<ScheduledSimulation[]>("/scheduled-simulations"),
+
+  createScheduledSimulation: (
+    payload: ScheduledSimulationCreatePayload,
+  ): Promise<ScheduledSimulation> =>
+    request<ScheduledSimulation>("/scheduled-simulations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateScheduledSimulation: (
+    id: string,
+    payload: ScheduledSimulationUpdatePayload,
+  ): Promise<ScheduledSimulation> =>
+    request<ScheduledSimulation>(`/scheduled-simulations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteScheduledSimulation: (id: string): Promise<void> =>
+    request<void>(`/scheduled-simulations/${id}`, { method: "DELETE" }),
+
+  pushScheduledSimulationScreenshots: (
+    id: string,
+    files: File[],
+  ): Promise<ScheduledSimulation> => {
+    const formData = new FormData();
+    for (const file of files) formData.append("files", file);
+    return request<ScheduledSimulation>(`/scheduled-simulations/${id}/screenshots`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  getScheduledSimulationTrend: (id: string): Promise<TrendPoint[]> =>
+    request<TrendPoint[]>(`/scheduled-simulations/${id}/trend`),
 
   createSimulation: (input: CreateSimulationInput): Promise<SimulationRun> => {
     const formData = new FormData();
