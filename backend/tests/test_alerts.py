@@ -108,7 +108,12 @@ def test_build_digest_blocks_includes_a_block_per_alert() -> None:
 async def test_check_friction_regression_alerts_flags_score_jump(db_session: AsyncSession) -> None:
     from flowsage_backend.models.persona import Persona
     from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
-    from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+    from flowsage_backend.models.simulation import (
+        FrictionIssue,
+        RunStatus,
+        SimulationRun,
+        SimulationStep,
+    )
     from flowsage_backend.alerts import check_friction_regression_alerts
 
     workspace_id = await _create_workspace(db_session)
@@ -155,6 +160,16 @@ async def test_check_friction_regression_alerts_flags_score_jump(db_session: Asy
         db_session.add(run)
         await db_session.flush()
         db_session.add(
+            SimulationStep(
+                workspace_id=workspace_id,
+                run_id=run.id,
+                sequence=0,
+                screen="cart",
+                action="a",
+                reasoning="r",
+            )
+        )
+        db_session.add(
             FrictionIssue(
                 workspace_id=workspace_id,
                 run_id=run.id,
@@ -190,7 +205,12 @@ async def test_check_friction_regression_alerts_ignores_delta_just_under_thresho
     FRICTION_REGRESSION_ALERT_THRESHOLD (0.15) -- must not fire."""
     from flowsage_backend.models.persona import Persona
     from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
-    from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+    from flowsage_backend.models.simulation import (
+        FrictionIssue,
+        RunStatus,
+        SimulationRun,
+        SimulationStep,
+    )
     from flowsage_backend.alerts import check_friction_regression_alerts
 
     workspace_id = await _create_workspace(db_session)
@@ -236,6 +256,17 @@ async def test_check_friction_regression_alerts_ignores_delta_just_under_thresho
         )
         db_session.add(run)
         await db_session.flush()
+        for i, screen in enumerate(severities):
+            db_session.add(
+                SimulationStep(
+                    workspace_id=workspace_id,
+                    run_id=run.id,
+                    sequence=i,
+                    screen=screen,
+                    action="a",
+                    reasoning="r",
+                )
+            )
         for screen, severity in severities.items():
             db_session.add(
                 FrictionIssue(

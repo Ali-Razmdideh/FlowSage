@@ -116,8 +116,12 @@ async def check_friction_regression_alerts(
         if len(runs) < 2:
             continue
         current, previous = runs[0], runs[1]
-        current_score = friction_score_for_run(current.issues)
-        previous_score = friction_score_for_run(previous.issues)
+        current_score = friction_score_for_run(
+            current.issues, len({step.screen for step in current.steps})
+        )
+        previous_score = friction_score_for_run(
+            previous.issues, len({step.screen for step in previous.steps})
+        )
         delta = current_score - previous_score
         if delta >= FRICTION_REGRESSION_ALERT_THRESHOLD:
             alerts.append(

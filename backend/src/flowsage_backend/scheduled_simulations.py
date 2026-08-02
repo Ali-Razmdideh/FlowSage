@@ -14,6 +14,7 @@ column, so it can't drift out of sync with a future severity-weight change.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -23,11 +24,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from flowsage_backend.billing import get_usage
 from flowsage_backend.calibration import predicted_scores_by_screen
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
 from flowsage_backend.simulations import create_run
+
+logger = logging.getLogger(__name__)
 
 _DUE_INTERVALS = {
     ScheduleInterval.DAILY: timedelta(days=1),
@@ -103,32 +107,73 @@ async def fire_due_scheduled_simulations(
     )
     configs = list(result.scalars().all())
 
-    fired_runs: list[SimulationRun] = []
-    for config in configs:
-        if not is_due(config, now):
-            continue
-        # is_due already guarantees pending_screenshots_dir is not None here.
-        run = await create_run(
-            session,
-            workspace_id=workspace_id,
-            persona_id=config.persona_id,
-            flow_name=config.flow_name,
-            goal=config.goal,
-            screenshots_dir=Path(config.pending_screenshots_dir),  # type: ignore[arg-type]
-            scheduled_simulation_id=config.id,
+    usage = await get_usage(session, workspace_id)
+    remaining_budget = None if usage.runs_limit == -1 else usage.runs_limit - usage.runs_used
+
+    # Snapshot every attribute this loop needs per config *before* the loop
+    # starts firing anything. A commit or rollback mid-loop (both happen
+    # below) expires every object in the session's identity map -- that's
+    # SQLAlchemy's default post-transaction behavior, not specific to the
+    # failure path. Re-reading an expired attribute afterwards via ordinary
+    # (un-awaited) attribute access raises MissingGreenlet, since a lazy
+    # reload needs IO that only an explicit `await session.refresh(...)`
+    # can provide. Capturing plain values up front means the loop body only
+    # ever *writes* to a `config` object (never reads one back), and plain
+    # attribute writes don't require a reload regardless of expiry.
+    due = [
+        (
+            config,
+            config.id,
+            config.persona_id,
+            config.flow_name,
+            config.goal,
+            config.pending_screenshots_dir,
         )
-        config.last_fired_at = now
-        config.pending_screenshots_dir = None
-        await session.commit()
+        for config in configs
+        if is_due(config, now)
+    ]
+
+    fired_runs: list[SimulationRun] = []
+    for config, config_id, persona_id, flow_name, goal, pending_dir in due:
+        if remaining_budget is not None and remaining_budget <= 0:
+            # Tier cap reached -- leave this config's pending set staged and
+            # last_fired_at untouched so it's picked back up automatically
+            # once the workspace's usage resets or upgrades, instead of
+            # silently dropping the pending screenshots.
+            continue
+        try:
+            run = await create_run(
+                session,
+                workspace_id=workspace_id,
+                persona_id=persona_id,
+                flow_name=flow_name,
+                goal=goal,
+                screenshots_dir=Path(pending_dir),  # type: ignore[arg-type]
+                scheduled_simulation_id=config_id,
+            )
+            config.last_fired_at = now
+            config.pending_screenshots_dir = None
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            logger.warning(
+                "Failed to fire scheduled simulation %s in workspace %s",
+                config_id,
+                workspace_id,
+                exc_info=True,
+            )
+            continue
         fired_runs.append(run)
+        if remaining_budget is not None:
+            remaining_budget -= 1
     return fired_runs
 
 
-def friction_score_for_run(issues: list[FrictionIssue]) -> float:
-    scores = predicted_scores_by_screen(issues)
-    if not scores:
+def friction_score_for_run(issues: list[FrictionIssue], screens_walked: int) -> float:
+    if screens_walked <= 0:
         return 0.0
-    return sum(scores.values()) / len(scores)
+    scores = predicted_scores_by_screen(issues)
+    return sum(scores.values()) / screens_walked
 
 
 class TrendPoint(BaseModel):
@@ -148,7 +193,7 @@ async def build_trend(
             SimulationRun.scheduled_simulation_id == config_id,
             SimulationRun.status == RunStatus.COMPLETED,
         )
-        .options(selectinload(SimulationRun.issues))
+        .options(selectinload(SimulationRun.issues), selectinload(SimulationRun.steps))
         .order_by(SimulationRun.created_at.asc())
     )
     runs = result.scalars().all()
@@ -156,7 +201,7 @@ async def build_trend(
         TrendPoint(
             run_id=run.id,
             created_at=run.created_at,
-            score=friction_score_for_run(run.issues),
+            score=friction_score_for_run(run.issues, len({step.screen for step in run.steps})),
             issue_count=len(run.issues),
         )
         for run in runs
@@ -173,7 +218,7 @@ async def latest_two_completed_runs(
             SimulationRun.scheduled_simulation_id == config_id,
             SimulationRun.status == RunStatus.COMPLETED,
         )
-        .options(selectinload(SimulationRun.issues))
+        .options(selectinload(SimulationRun.issues), selectinload(SimulationRun.steps))
         .order_by(SimulationRun.created_at.desc())
         .limit(2)
     )

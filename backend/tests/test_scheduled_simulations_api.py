@@ -2,14 +2,22 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
-from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+from flowsage_backend.models.simulation import (
+    FrictionIssue,
+    RunStatus,
+    SimulationRun,
+    SimulationStep,
+)
 from flowsage_backend.models.workspace import Membership, Workspace
+from flowsage_backend.scheduled_simulations import fire_due_scheduled_simulations
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
 _PNG_BYTES = b"\x89PNG\r\n\x1a\nfake-but-good-enough-for-a-suffix-check"
@@ -154,6 +162,140 @@ async def test_push_screenshots_rejects_disallowed_file_type(
         assert response.status_code == 422
 
 
+async def _fetch_config(db_session: AsyncSession, config_id: str) -> ScheduledSimulation:
+    # populate_existing=True forces a reload from the row this query just
+    # fetched, overriding whatever this session's identity map already had
+    # cached for this id -- needed here because the API requests in these
+    # tests run against a *different* session (the app's own, via
+    # get_db_session), so this session's cached copy can otherwise go stale
+    # across a push/fire that happened through the API.
+    result = await db_session.execute(
+        select(ScheduledSimulation)
+        .where(ScheduledSimulation.id == uuid.UUID(config_id))
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one()
+
+
+async def test_push_screenshots_bad_file_does_not_corrupt_previously_staged_set(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """Regression test: a push with one bad-suffix file among good ones must
+    422 without destroying an already-staged good set left by an earlier
+    push (the old code `rmtree`d the shared directory before validating any
+    file in the new batch)."""
+    workspace_id = await _sched_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+
+    async with _authed_client(app, db_session) as client:
+        create_response = await client.post(
+            "/scheduled-simulations",
+            json={
+                "persona_id": str(personas[0].id),
+                "flow_name": "Checkout",
+                "goal": "Complete purchase",
+                "interval": "on_push",
+            },
+        )
+        config_id = create_response.json()["id"]
+
+        first_push = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files={"files": ("01_cart.png", _PNG_BYTES, "image/png")},
+        )
+        assert first_push.status_code == 200
+        assert first_push.json()["has_pending_screenshots"] is True
+
+        config = await _fetch_config(db_session, config_id)
+        first_dir = Path(config.pending_screenshots_dir)  # type: ignore[arg-type]
+        assert (first_dir / "01_cart.png").exists()
+        assert (first_dir / "01_cart.png").read_bytes() == _PNG_BYTES
+
+        second_push = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files=[
+                ("files", ("02_pay.png", _PNG_BYTES, "image/png")),
+                ("files", ("notes.txt", b"hello", "text/plain")),
+            ],
+        )
+        assert second_push.status_code == 422
+
+    # The first push's directory and files must still be intact -- the bad
+    # second push must not have touched them, and the config's pending
+    # pointer must still point at the original (good) staged set.
+    assert first_dir.exists()
+    assert (first_dir / "01_cart.png").exists()
+    assert (first_dir / "01_cart.png").read_bytes() == _PNG_BYTES
+
+    refreshed = await _fetch_config(db_session, config_id)
+    assert refreshed.pending_screenshots_dir == str(first_dir)
+
+
+async def test_push_screenshots_uses_unique_dir_and_does_not_touch_fired_run(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """Regression test: successive pushes to the same config must land in
+    different directories, and once a push's directory has been consumed by
+    a fired run, a later push must never touch it (the old code reused one
+    fixed directory per config, so a later push would `rmtree` a still-being-
+    processed fired run's screenshots out from under it)."""
+    workspace_id = await _sched_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+
+    async with _authed_client(app, db_session) as client:
+        create_response = await client.post(
+            "/scheduled-simulations",
+            json={
+                "persona_id": str(personas[0].id),
+                "flow_name": "Checkout",
+                "goal": "Complete purchase",
+                "interval": "on_push",
+            },
+        )
+        config_id = create_response.json()["id"]
+
+        first_push = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files={"files": ("01_cart.png", _PNG_BYTES, "image/png")},
+        )
+        assert first_push.status_code == 200
+
+    config = await _fetch_config(db_session, config_id)
+    first_dir = Path(config.pending_screenshots_dir)  # type: ignore[arg-type]
+    assert (first_dir / "01_cart.png").exists()
+
+    # Fire it, exactly like the real cron job would: this consumes the
+    # pending set as the run's permanent screenshots_dir and clears the
+    # pointer. This shared "sched-api@example.com" workspace may also have
+    # other configs left pending by earlier tests in this file, so filter
+    # down to the run for *this* config rather than asserting on the total
+    # count of everything fired.
+    fired = await fire_due_scheduled_simulations(
+        db_session, workspace_id, datetime.now(timezone.utc)
+    )
+    our_fired = [r for r in fired if str(r.scheduled_simulation_id) == config_id]
+    assert len(our_fired) == 1
+    assert our_fired[0].screenshots_dir == str(first_dir)
+
+    async with _authed_client(app, db_session) as client:
+        second_push = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files={"files": ("02_pay.png", _PNG_BYTES, "image/png")},
+        )
+        assert second_push.status_code == 200
+
+    refreshed = await _fetch_config(db_session, config_id)
+    second_dir = Path(refreshed.pending_screenshots_dir)  # type: ignore[arg-type]
+
+    assert second_dir != first_dir
+    # The fired run's directory (still its permanent screenshots_dir) must
+    # be untouched by the second push.
+    assert first_dir.exists()
+    assert (first_dir / "01_cart.png").exists()
+    assert (first_dir / "01_cart.png").read_bytes() == _PNG_BYTES
+    assert (second_dir / "02_pay.png").exists()
+
+
 async def test_get_trend_computes_score_from_completed_runs(
     app: FastAPI, db_session: AsyncSession
 ) -> None:
@@ -184,6 +326,16 @@ async def test_get_trend_computes_score_from_completed_runs(
     )
     db_session.add(run)
     await db_session.flush()
+    db_session.add(
+        SimulationStep(
+            workspace_id=workspace_id,
+            run_id=run.id,
+            sequence=0,
+            screen="cart",
+            action="a",
+            reasoning="r",
+        )
+    )
     db_session.add(
         FrictionIssue(
             workspace_id=workspace_id,

@@ -171,21 +171,33 @@ async def push_screenshots(
     workspace_id, _ = actor
     config = await _get_config(session, workspace_id, config_id)
     settings = request.app.state.settings
-    screenshots_dir = Path(settings.upload_dir) / "scheduled" / str(config.id)
-    shutil.rmtree(screenshots_dir, ignore_errors=True)
-    screenshots_dir.mkdir(parents=True, exist_ok=True)
+    previous_pending_dir = (
+        Path(config.pending_screenshots_dir) if config.pending_screenshots_dir else None
+    )
+    # Each push gets its own directory (never reused across pushes) so a later
+    # push can never corrupt an earlier one's already-staged or already-fired
+    # files -- a fired run keeps reading its own screenshots_dir forever,
+    # untouched by any subsequent push to this config.
+    new_dir = Path(settings.upload_dir) / "scheduled" / str(config.id) / uuid.uuid4().hex
+    new_dir.mkdir(parents=True, exist_ok=True)
 
     for upload in files:
         # .name strips directory components -- see the identical guard in
         # api/simulations.py's create_simulation for why this matters.
         filename = Path(upload.filename or "").name
         if Path(filename).suffix.lower() not in IMAGE_SUFFIXES:
+            shutil.rmtree(new_dir, ignore_errors=True)
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unsupported file type: {filename!r}"
             )
-        (screenshots_dir / filename).write_bytes(await upload.read())
+        (new_dir / filename).write_bytes(await upload.read())
 
-    await stage_screenshots(session, config, screenshots_dir)
+    await stage_screenshots(session, config, new_dir)
+    # The previous pending set (if any) was never consumed by a fired run --
+    # once a run fires it clears pending_screenshots_dir, so if it's still set
+    # here it's safe to discard now that the new set has replaced it.
+    if previous_pending_dir is not None:
+        shutil.rmtree(previous_pending_dir, ignore_errors=True)
     return ScheduledSimulationOut.from_model(config)
 
 
