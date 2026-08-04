@@ -1,14 +1,28 @@
+import logging
+import uuid
 from datetime import datetime, timezone
+from unittest.mock import Mock
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_graph.models import Event as GraphEvent
 from flowsage_graph.models import FrictionKind, FrictionNode, FunnelReport, FunnelStep
 
+from flowsage_backend import insight_cache
 from flowsage_backend.churn import (
+    NODE_INSIGHT_KIND,
     _avg_seconds_on_node,
     build_cohort_comparison,
     build_node_intelligence,
+    generate_and_cache_node_insight,
+    get_node_intelligence,
+    node_insight_input_hash,
     score_churn_risk,
 )
+from flowsage_backend.events import ingest_events
+from flowsage_backend.models.workspace import Workspace
+from flowsage_predict.narrative import NarrativeRecommendation, NodeInsightResult
 
 _T0 = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -160,3 +174,130 @@ def test_build_node_intelligence_no_friction_gives_calm_insight() -> None:
 
     assert intelligence.recommendations == []
     assert "no abnormal friction" in intelligence.ai_insight
+
+
+async def _workspace_with_checkout_dropoff(session: AsyncSession) -> uuid.UUID:
+    workspace = Workspace(name="Node Insight Test", slug=f"node-insight-{uuid.uuid4().hex[:8]}")
+    session.add(workspace)
+    await session.flush()
+    now = datetime.now(timezone.utc)
+    events = [
+        GraphEvent(
+            session_id=f"nit-{i}",
+            screen="landing",
+            event="view",
+            timestamp=now,
+            device="desktop",
+            cohort="default",
+        )
+        for i in range(5)
+    ] + [
+        GraphEvent(
+            session_id="nit-0",
+            screen="checkout",
+            event="view",
+            timestamp=now,
+            device="desktop",
+            cohort="default",
+        )
+    ]
+    await ingest_events(session, workspace.id, events)
+    await session.commit()
+    return workspace.id
+
+
+async def test_get_node_intelligence_uses_cached_narrative_when_fresh(
+    db_session: AsyncSession,
+) -> None:
+    workspace_id = await _workspace_with_checkout_dropoff(db_session)
+    baseline = await get_node_intelligence(db_session, workspace_id, "landing")
+    assert baseline is not None
+    input_hash = node_insight_input_hash(baseline.drop_off_rate, baseline.friction_nodes)
+
+    await insight_cache.upsert_cached(
+        db_session,
+        workspace_id,
+        NODE_INSIGHT_KIND,
+        "landing",
+        input_hash,
+        {
+            "insight": "Cached AI insight.",
+            "recommendations": [
+                {"title": "Do X", "description": "Because Y.", "expected_lift_pct": 5.0}
+            ],
+        },
+        "claude-haiku-4-5-20251001",
+    )
+
+    result = await get_node_intelligence(db_session, workspace_id, "landing")
+    assert result is not None
+    assert result.ai_insight == "Cached AI insight."
+    assert result.recommendations[0].title == "Do X"
+    assert result.recommendations[0].rank == 1
+
+
+async def test_get_node_intelligence_falls_back_to_template_on_stale_cache(
+    db_session: AsyncSession,
+) -> None:
+    workspace_id = await _workspace_with_checkout_dropoff(db_session)
+    await insight_cache.upsert_cached(
+        db_session,
+        workspace_id,
+        NODE_INSIGHT_KIND,
+        "landing",
+        "a-stale-hash-that-will-never-match",
+        {"insight": "Stale.", "recommendations": []},
+        "claude-haiku-4-5-20251001",
+    )
+
+    result = await get_node_intelligence(db_session, workspace_id, "landing")
+    assert result is not None
+    assert result.ai_insight != "Stale."
+
+
+class _FakeNarrativeClient:
+    def generate_node_insight(
+        self, screen: str, drop_off_rate: float, friction: list[object]
+    ) -> NodeInsightResult:
+        return NodeInsightResult(
+            insight=f"Generated insight for {screen}",
+            recommendations=[
+                NarrativeRecommendation(
+                    title="Fix it", description="Just fix it.", expected_lift_pct=9.0
+                )
+            ],
+        )
+
+    def generate_calibration_narrative(self, *args: object, **kwargs: object) -> str:
+        raise NotImplementedError
+
+    def generate_retraining_rationale(self, *args: object, **kwargs: object) -> str:
+        raise NotImplementedError
+
+
+async def test_generate_and_cache_node_insight_writes_cache_row(db_session: AsyncSession) -> None:
+    workspace_id = await _workspace_with_checkout_dropoff(db_session)
+    await generate_and_cache_node_insight(
+        db_session, workspace_id, "landing", _FakeNarrativeClient()
+    )
+
+    cached = await insight_cache.get_cached(db_session, workspace_id, NODE_INSIGHT_KIND, "landing")
+    assert cached is not None
+    assert cached.payload["insight"] == "Generated insight for landing"
+
+
+async def test_generate_and_cache_node_insight_swallows_client_errors(
+    db_session: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
+    workspace_id = await _workspace_with_checkout_dropoff(db_session)
+    failing_client = Mock()
+    failing_client.generate_node_insight.side_effect = RuntimeError("boom")
+
+    with caplog.at_level(logging.WARNING):
+        await generate_and_cache_node_insight(db_session, workspace_id, "landing", failing_client)
+
+    assert (
+        await insight_cache.get_cached(db_session, workspace_id, NODE_INSIGHT_KIND, "landing")
+        is None
+    )
+    assert "Node insight generation failed" in caplog.text

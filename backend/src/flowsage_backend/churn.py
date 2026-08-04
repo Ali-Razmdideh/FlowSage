@@ -13,6 +13,7 @@ a heuristic keeps this endpoint fast and side-effect free.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections import defaultdict
 from datetime import datetime
@@ -23,7 +24,11 @@ from flowsage_graph.models import FrictionKind, FrictionNode, FunnelReport, Funn
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend import insight_cache
 from flowsage_backend.events import build_funnel_report, distinct_cohorts, query_events
+from flowsage_predict.narrative import NARRATIVE_MODEL, FrictionSignal, NarrativeClient
+
+logger = logging.getLogger(__name__)
 
 CHURN_DROP_OFF_WEIGHT = 0.6
 CHURN_FRICTION_WEIGHT = 0.4
@@ -33,6 +38,22 @@ signal; friction density is a secondary corroborating signal."""
 
 MAX_RECOMMENDATIONS = 3
 """Matches the design prototype's numbered 1-2-3 recommendation list."""
+
+NODE_INSIGHT_KIND = "node_intelligence"
+
+
+def node_insight_input_hash(drop_off_rate: float, friction_nodes: list[FrictionNode]) -> str:
+    signal = {
+        "drop_off_rate": round(drop_off_rate, 4),
+        "friction": sorted(
+            (
+                {"kind": n.kind.value, "sessions_affected": n.sessions_affected}
+                for n in friction_nodes
+            ),
+            key=lambda d: (d["kind"], d["sessions_affected"]),
+        ),
+    }
+    return insight_cache.compute_input_hash(signal)
 
 
 class CohortFunnelSummary(BaseModel):
@@ -318,4 +339,65 @@ async def get_node_intelligence(
         total_sessions=len({e.session_id for e in events}),
         total_events=len(events),
     )
-    return build_node_intelligence(screen, report, events)
+    intelligence = build_node_intelligence(screen, report, events)
+
+    input_hash = node_insight_input_hash(intelligence.drop_off_rate, intelligence.friction_nodes)
+    cached = await insight_cache.get_cached(session, workspace_id, NODE_INSIGHT_KIND, screen)
+    if cached is not None and cached.input_hash == input_hash:
+        intelligence.ai_insight = str(cached.payload["insight"])
+        cached_recommendations = cached.payload["recommendations"]
+        assert isinstance(cached_recommendations, list)
+        intelligence.recommendations = [
+            Recommendation(rank=i + 1, **rec) for i, rec in enumerate(cached_recommendations)
+        ]
+    return intelligence
+
+
+async def generate_and_cache_node_insight(
+    session: AsyncSession, workspace_id: uuid.UUID, screen: str, narrative_client: NarrativeClient
+) -> None:
+    """Runs inside the arq worker (`generate_node_insight_job`) -- recomputes
+    the current deterministic signal fresh (it may have drifted since the GET
+    that triggered this job was served) and caches a real narrative under
+    whatever hash that signal hashes to *now*. A stale trigger (data changed
+    again before this job ran) just means the cache gets warmed under today's
+    hash instead of the slightly older one that triggered it -- still
+    correct, no wasted call."""
+    events = await query_events(session, workspace_id)
+    funnel = discover_funnel(events)
+    if screen not in {step.screen for step in funnel}:
+        return
+
+    friction = detect_friction(events, funnel)
+    nodes_here = [n for n in friction if n.screen == screen]
+    step = next((s for s in funnel if s.screen == screen), None)
+    drop_off_rate = step.drop_off_rate if step is not None else 0.0
+
+    try:
+        result = narrative_client.generate_node_insight(
+            screen,
+            drop_off_rate,
+            [
+                FrictionSignal(kind=n.kind.value, sessions_affected=n.sessions_affected)
+                for n in nodes_here
+            ],
+        )
+    except Exception:  # noqa: BLE001 - a narrative-generation failure must not
+        # fail the whole background job; the GET path already has a template
+        # fallback and simply won't see a fresh cache row.
+        logger.warning("Node insight generation failed for screen %s", screen, exc_info=True)
+        return
+
+    input_hash = node_insight_input_hash(drop_off_rate, nodes_here)
+    await insight_cache.upsert_cached(
+        session,
+        workspace_id,
+        NODE_INSIGHT_KIND,
+        screen,
+        input_hash,
+        {
+            "insight": result.insight,
+            "recommendations": [r.model_dump() for r in result.recommendations],
+        },
+        NARRATIVE_MODEL,
+    )
