@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from flowsage_backend.billing_store import get_or_create_subscription
 from flowsage_backend.models.billing import SubscriptionTier
 from flowsage_backend.models.event import Event
+from flowsage_backend.models.generated_insight import GeneratedInsight
 from flowsage_backend.models.simulation import SimulationRun
 from flowsage_backend.models.workspace import Membership
 
@@ -26,12 +27,19 @@ class TierLimits(BaseModel):
     events_per_month: int
     runs_per_month: int
     seats: int  # -1 means unlimited
+    insight_generations_per_month: int  # -1 means unlimited
 
 
 TIER_LIMITS: dict[SubscriptionTier, TierLimits] = {
-    SubscriptionTier.FREE: TierLimits(events_per_month=1_000, runs_per_month=5, seats=1),
-    SubscriptionTier.PRO: TierLimits(events_per_month=50_000, runs_per_month=100, seats=10),
-    SubscriptionTier.TEAM: TierLimits(events_per_month=500_000, runs_per_month=1_000, seats=-1),
+    SubscriptionTier.FREE: TierLimits(
+        events_per_month=1_000, runs_per_month=5, seats=1, insight_generations_per_month=20
+    ),
+    SubscriptionTier.PRO: TierLimits(
+        events_per_month=50_000, runs_per_month=100, seats=10, insight_generations_per_month=1_000
+    ),
+    SubscriptionTier.TEAM: TierLimits(
+        events_per_month=500_000, runs_per_month=1_000, seats=-1, insight_generations_per_month=-1
+    ),
 }
 
 
@@ -43,6 +51,8 @@ class UsageSnapshot(BaseModel):
     runs_limit: int
     seats_used: int
     seats_limit: int
+    insight_generations_used: int
+    insight_generations_limit: int
 
 
 def _month_start(now: datetime | None = None) -> datetime:
@@ -79,6 +89,16 @@ async def get_usage(session: AsyncSession, workspace_id: uuid.UUID) -> UsageSnap
             .where(Membership.workspace_id == workspace_id)
         )
     ).scalar_one()
+    insight_generations_used = (
+        await session.execute(
+            select(func.count())
+            .select_from(GeneratedInsight)
+            .where(
+                GeneratedInsight.workspace_id == workspace_id,
+                GeneratedInsight.created_at >= month_start,
+            )
+        )
+    ).scalar_one()
 
     return UsageSnapshot(
         tier=subscription.tier,
@@ -88,6 +108,8 @@ async def get_usage(session: AsyncSession, workspace_id: uuid.UUID) -> UsageSnap
         runs_limit=limits.runs_per_month,
         seats_used=seats_used,
         seats_limit=limits.seats,
+        insight_generations_used=insight_generations_used,
+        insight_generations_limit=limits.insight_generations_per_month,
     )
 
 
@@ -119,3 +141,15 @@ async def check_within_limits(
                 f"({used}/{limit}). Upgrade to continue."
             ),
         )
+
+
+async def has_narrative_budget(session: AsyncSession, workspace_id: uuid.UUID) -> bool:
+    """Soft gate for narrative generation (Node Intelligence AI Insight,
+    calibration anomaly narrative, retraining rationale) -- unlike
+    `check_within_limits`, this never raises. A report page must never break
+    because a text-generation budget ran out; callers fall back to the
+    existing deterministic template text instead."""
+    usage = await get_usage(session, workspace_id)
+    if usage.insight_generations_limit == -1:
+        return True
+    return usage.insight_generations_used < usage.insight_generations_limit
