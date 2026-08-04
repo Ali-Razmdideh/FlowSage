@@ -13,14 +13,18 @@ didn't materialize. `curiosity` is left alone; nothing in the observed signal
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from flowsage_graph.funnel import discover_funnel
+from flowsage_predict.narrative import NARRATIVE_MODEL, NarrativeClient, ScreenSignal
 
+from flowsage_backend import billing, insight_cache
 from flowsage_backend.calibration import (
     ScreenCalibration,
     build_screen_calibrations,
+    calibration_input_hash,
     latest_completed_run_for_persona,
     predicted_scores_by_screen,
 )
@@ -31,7 +35,10 @@ from flowsage_backend.settings_store import get_or_create_calibration_settings
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = logging.getLogger(__name__)
+
 NUDGE_STEP = 0.05
+RETRAINING_RATIONALE_KIND = "retraining_rationale"
 
 
 class RetrainingError(Exception):
@@ -86,7 +93,9 @@ async def create_retraining_job(
     return job
 
 
-async def execute_retraining(session: AsyncSession, job_id: uuid.UUID) -> None:
+async def execute_retraining(
+    session: AsyncSession, job_id: uuid.UUID, narrative_client: NarrativeClient | None = None
+) -> None:
     job = await session.get(RetrainingJob, job_id)
     if job is None:
         raise RetrainingError(f"No retraining job with id {job_id}")
@@ -129,6 +138,42 @@ async def execute_retraining(session: AsyncSession, job_id: uuid.UUID) -> None:
                 f"{screens_summary}. New sliders -- technical_literacy={new_literacy:.2f}, "
                 f"anxiety={new_anxiety:.2f}, patience={new_patience:.2f}."
             )
+            if narrative_client is not None and await billing.has_narrative_budget(
+                session, job.workspace_id
+            ):
+                try:
+                    generated_note = narrative_client.generate_retraining_rationale(
+                        persona.name,
+                        [
+                            ScreenSignal(
+                                screen=a.screen,
+                                predicted_score=a.predicted_score,
+                                observed_score=a.observed_score,
+                                delta=a.delta,
+                            )
+                            for a in anomalies
+                        ],
+                        new_literacy,
+                        new_anxiety,
+                        new_patience,
+                    )
+                except Exception:  # noqa: BLE001 - a narrative failure must not
+                    # flip this retraining job to FAILED; keep the deterministic
+                    # note computed above.
+                    logger.warning(
+                        "Retraining rationale generation failed for job %s", job_id, exc_info=True
+                    )
+                else:
+                    note = generated_note
+                    await insight_cache.upsert_cached(
+                        session,
+                        job.workspace_id,
+                        RETRAINING_RATIONALE_KIND,
+                        str(job.id),
+                        calibration_input_hash(anomalies),
+                        {"rationale": note},
+                        NARRATIVE_MODEL,
+                    )
         else:
             note = "No screens exceeded the calibration anomaly threshold; sliders unchanged."
 

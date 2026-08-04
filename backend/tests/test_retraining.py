@@ -1,10 +1,13 @@
+import logging
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend import insight_cache
 from flowsage_backend.calibration import ScreenCalibration
 from flowsage_backend.models.calibration import RetrainingStatus
 from flowsage_backend.models.event import Event
@@ -12,12 +15,32 @@ from flowsage_backend.models.persona import Persona, PersonaMemory
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
 from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.retraining import (
+    RETRAINING_RATIONALE_KIND,
     RetrainingError,
     create_retraining_job,
     execute_retraining,
     nudge_sliders,
 )
 from flowsage_backend.seed import seed_baseline_personas
+from flowsage_predict.narrative import ScreenSignal
+
+
+class _FakeRetrainingNarrativeClient:
+    def generate_node_insight(self, *args: object, **kwargs: object) -> object:
+        raise NotImplementedError
+
+    def generate_calibration_narrative(self, *args: object, **kwargs: object) -> str:
+        raise NotImplementedError
+
+    def generate_retraining_rationale(
+        self,
+        persona_name: str,
+        anomalies: list[ScreenSignal],
+        new_technical_literacy: float,
+        new_anxiety: float,
+        new_patience: float,
+    ) -> str:
+        return f"AI rationale for {persona_name}."
 
 
 async def _create_workspace(session: AsyncSession) -> uuid.UUID:
@@ -191,6 +214,161 @@ async def test_execute_retraining_nudges_sliders_and_writes_memory(
         memories = result.scalars().all()
         assert len(memories) == 1
         assert memories[0].kind == "retraining"
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
+
+
+async def test_execute_retraining_uses_narrative_client_when_available(
+    db_session: AsyncSession,
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    persona = personas[0]
+
+    run = SimulationRun(
+        workspace_id=workspace_id,
+        flow_name="Checkout",
+        goal="Complete purchase",
+        persona_id=persona.id,
+        screenshots_dir="/tmp/unused",
+        status=RunStatus.COMPLETED,
+        finished_at=datetime.now(timezone.utc),
+    )
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        FrictionIssue(
+            workspace_id=workspace_id,
+            run_id=run.id,
+            screen="cal_retrain_narrative_checkout",
+            severity="low",
+            title="issue",
+            heuristic_violated="",
+            persona_impact="",
+            description="",
+            suggested_fix="",
+        )
+    )
+    session_ids = [f"cal-retrain-narrative-{i}" for i in range(10)]
+    now = datetime.now(timezone.utc)
+    for session_id in session_ids:
+        db_session.add(
+            Event(
+                workspace_id=workspace_id,
+                session_id=session_id,
+                screen="cal_retrain_narrative_checkout",
+                event="view",
+                timestamp=now,
+                device="desktop",
+                cohort="default",
+            )
+        )
+    db_session.add(
+        Event(
+            workspace_id=workspace_id,
+            session_id=session_ids[0],
+            screen="cal_retrain_narrative_confirmation",
+            event="view",
+            timestamp=datetime.fromtimestamp(now.timestamp() + 60, tz=timezone.utc),
+            device="desktop",
+            cohort="default",
+        )
+    )
+    await db_session.commit()
+
+    try:
+        job = await create_retraining_job(db_session, persona.id, workspace_id=workspace_id)
+        await execute_retraining(db_session, job.id, _FakeRetrainingNarrativeClient())
+
+        result = await db_session.execute(
+            select(PersonaMemory).where(PersonaMemory.persona_id == persona.id)
+        )
+        memory = result.scalars().one()
+        assert memory.note == f"AI rationale for {persona.name}."
+
+        cached = await insight_cache.get_cached(
+            db_session, workspace_id, RETRAINING_RATIONALE_KIND, str(job.id)
+        )
+        assert cached is not None
+        assert cached.payload["rationale"] == f"AI rationale for {persona.name}."
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
+
+
+async def test_execute_retraining_falls_back_to_deterministic_note_on_client_error(
+    db_session: AsyncSession, caplog: pytest.LogCaptureFixture
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    persona = personas[0]
+
+    run = SimulationRun(
+        workspace_id=workspace_id,
+        flow_name="Checkout",
+        goal="Complete purchase",
+        persona_id=persona.id,
+        screenshots_dir="/tmp/unused",
+        status=RunStatus.COMPLETED,
+        finished_at=datetime.now(timezone.utc),
+    )
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        FrictionIssue(
+            workspace_id=workspace_id,
+            run_id=run.id,
+            screen="cal_retrain_fail_checkout",
+            severity="low",
+            title="issue",
+            heuristic_violated="",
+            persona_impact="",
+            description="",
+            suggested_fix="",
+        )
+    )
+    session_ids = [f"cal-retrain-fail-{i}" for i in range(10)]
+    now = datetime.now(timezone.utc)
+    for session_id in session_ids:
+        db_session.add(
+            Event(
+                workspace_id=workspace_id,
+                session_id=session_id,
+                screen="cal_retrain_fail_checkout",
+                event="view",
+                timestamp=now,
+                device="desktop",
+                cohort="default",
+            )
+        )
+    db_session.add(
+        Event(
+            workspace_id=workspace_id,
+            session_id=session_ids[0],
+            screen="cal_retrain_fail_confirmation",
+            event="view",
+            timestamp=datetime.fromtimestamp(now.timestamp() + 60, tz=timezone.utc),
+            device="desktop",
+            cohort="default",
+        )
+    )
+    await db_session.commit()
+
+    failing_client = Mock()
+    failing_client.generate_retraining_rationale.side_effect = RuntimeError("boom")
+
+    try:
+        job = await create_retraining_job(db_session, persona.id, workspace_id=workspace_id)
+        with caplog.at_level(logging.WARNING):
+            await execute_retraining(db_session, job.id, failing_client)
+
+        result = await db_session.execute(
+            select(PersonaMemory).where(PersonaMemory.persona_id == persona.id)
+        )
+        memory = result.scalars().one()
+        assert "Adjusted sliders after" in memory.note
+        assert "Retraining rationale generation failed" in caplog.text
     finally:
         await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
         await db_session.commit()

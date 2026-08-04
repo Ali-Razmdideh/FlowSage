@@ -9,21 +9,42 @@ persona actually walked (i.e. has a predicted score for) are compared -- a scree
 with real drop-off but no prediction isn't a calibration signal, it's just an
 unsimulated screen.
 
-Everything here is computed on demand from current data, not persisted -- no
-`CalibrationRecord` table, so there's nothing to go stale or need reconciling.
+The calibration matching/anomaly detection itself is computed on demand from
+current data, not persisted -- no `CalibrationRecord` table, so there's
+nothing to go stale or need reconciling there.
+
+`PersonaCalibration.narrative` is the exception: it's a real, cached
+Claude-generated explanation of *why* an anomalous persona/screen pair
+diverges, looked up from `GeneratedInsight` (see `insight_cache.py`) by an
+input hash of the anomalous screens. A cache miss leaves `narrative` as
+`None` (the API layer enqueues a background job to fill it in for next time,
+see `api/calibration.py`) -- input-hash staleness detection is exactly the
+mechanism that decides whether the persisted narrative still matches the
+current anomaly signal or needs regenerating.
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 
+from flowsage_graph.funnel import discover_funnel
 from flowsage_graph.models import FunnelStep
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from flowsage_backend import insight_cache
+from flowsage_backend.events import query_events
+from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
+from flowsage_backend.settings_store import get_or_create_calibration_settings
+from flowsage_predict.narrative import NARRATIVE_MODEL, NarrativeClient, ScreenSignal
+
+logger = logging.getLogger(__name__)
+
+CALIBRATION_NARRATIVE_KIND = "calibration_anomaly"
 
 ANOMALY_THRESHOLD = 0.35
 """|observed - predicted| above this is flagged as a calibration anomaly, in the
@@ -66,6 +87,7 @@ class PersonaCalibration(BaseModel):
     persona_name: str
     run_id: str
     screens: list[ScreenCalibration]
+    narrative: str | None = None
 
 
 class AccuracyPoint(BaseModel):
@@ -98,6 +120,23 @@ def build_screen_calibrations(
         for screen, predicted_score in predicted.items()
     ]
     return sorted(results, key=lambda s: s.screen)
+
+
+def calibration_input_hash(anomalies: list[ScreenCalibration]) -> str:
+    signal: dict[str, object] = {
+        "screens": sorted(
+            (
+                {
+                    "screen": a.screen,
+                    "predicted_score": round(a.predicted_score, 4),
+                    "observed_score": round(a.observed_score, 4),
+                }
+                for a in anomalies
+            ),
+            key=lambda d: str(d["screen"]),
+        )
+    }
+    return insight_cache.compute_input_hash(signal)
 
 
 def _complexity(screen_count: int) -> float:
@@ -160,8 +199,18 @@ async def build_calibration_report(
             continue
 
         screens = build_screen_calibrations(predicted, funnel, anomaly_threshold)
-        if any(s.anomaly for s in screens):
+        anomalies = [s for s in screens if s.anomaly]
+        if anomalies:
             has_anomaly = True
+
+        narrative: str | None = None
+        if anomalies:
+            input_hash = calibration_input_hash(anomalies)
+            cached = await insight_cache.get_cached(
+                session, workspace_id, CALIBRATION_NARRATIVE_KIND, str(run.persona_id)
+            )
+            if cached is not None and cached.input_hash == input_hash:
+                narrative = str(cached.payload["narrative"])
 
         personas.append(
             PersonaCalibration(
@@ -169,6 +218,7 @@ async def build_calibration_report(
                 persona_name=run.persona.name,
                 run_id=str(run.id),
                 screens=screens,
+                narrative=narrative,
             )
         )
         mean_abs_delta = sum(abs(s.delta) for s in screens) / len(screens)
@@ -183,4 +233,61 @@ async def build_calibration_report(
 
     return CalibrationReport(
         personas=personas, accuracy_points=accuracy_points, has_anomaly=has_anomaly
+    )
+
+
+async def generate_and_cache_calibration_narrative(
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    persona_id: uuid.UUID,
+    narrative_client: NarrativeClient,
+) -> None:
+    """Runs inside the arq worker (`generate_calibration_narrative_job`) --
+    re-derives the persona's current anomalous screens fresh, same reasoning
+    as `churn.generate_and_cache_node_insight`."""
+    persona = await session.get(Persona, persona_id)
+    run = await latest_completed_run_for_persona(session, workspace_id, persona_id)
+    if persona is None or run is None:
+        return
+
+    predicted = predicted_scores_by_screen(run.issues)
+    if not predicted:
+        return
+
+    events = await query_events(session, workspace_id)
+    funnel: list[FunnelStep] = discover_funnel(events)
+    settings = await get_or_create_calibration_settings(session, workspace_id)
+    screens = build_screen_calibrations(predicted, funnel, settings.anomaly_threshold)
+    anomalies = [s for s in screens if s.anomaly]
+    if not anomalies:
+        return
+
+    try:
+        narrative = narrative_client.generate_calibration_narrative(
+            persona.name,
+            [
+                ScreenSignal(
+                    screen=a.screen,
+                    predicted_score=a.predicted_score,
+                    observed_score=a.observed_score,
+                    delta=a.delta,
+                )
+                for a in anomalies
+            ],
+        )
+    except Exception:  # noqa: BLE001 - see generate_and_cache_node_insight
+        logger.warning(
+            "Calibration narrative generation failed for persona %s", persona_id, exc_info=True
+        )
+        return
+
+    input_hash = calibration_input_hash(anomalies)
+    await insight_cache.upsert_cached(
+        session,
+        workspace_id,
+        CALIBRATION_NARRATIVE_KIND,
+        str(persona_id),
+        input_hash,
+        {"narrative": narrative},
+        NARRATIVE_MODEL,
     )

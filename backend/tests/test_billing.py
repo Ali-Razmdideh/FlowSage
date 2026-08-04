@@ -6,9 +6,15 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend.billing import TIER_LIMITS, check_within_limits, get_usage
+from flowsage_backend.billing import (
+    TIER_LIMITS,
+    check_within_limits,
+    get_usage,
+    has_narrative_budget,
+)
 from flowsage_backend.models.billing import SubscriptionTier, WorkspaceSubscription
 from flowsage_backend.models.event import Event
+from flowsage_backend.models.generated_insight import GeneratedInsight
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.workspace import Membership, Role, Workspace
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
@@ -162,3 +168,77 @@ async def test_check_within_limits_seats_unlimited_on_team_tier(db_session: Asyn
     # sentinel never trips regardless of count -- Team tier's seats=-1 must
     # short-circuit before the count comparison.
     await check_within_limits(db_session, workspace.id, "seats")
+
+
+async def test_get_usage_counts_insight_generations_this_month(db_session: AsyncSession) -> None:
+    workspace = Workspace(name="Insight Usage Test", slug=f"insight-usage-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.flush()
+
+    this_month = _month_start_utc() + timedelta(days=1)
+    last_month = _month_start_utc() - timedelta(days=1)
+    db_session.add_all(
+        [
+            GeneratedInsight(
+                workspace_id=workspace.id,
+                kind="node_intelligence",
+                cache_key="checkout",
+                input_hash="h1",
+                payload={"insight": "a"},
+                model="claude-haiku-4-5-20251001",
+                created_at=this_month,
+            ),
+            GeneratedInsight(
+                workspace_id=workspace.id,
+                kind="node_intelligence",
+                cache_key="cart",
+                input_hash="h2",
+                payload={"insight": "b"},
+                model="claude-haiku-4-5-20251001",
+                created_at=last_month,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    usage = await get_usage(db_session, workspace.id)
+    assert usage.insight_generations_used == 1
+    assert usage.insight_generations_limit == TIER_LIMITS[usage.tier].insight_generations_per_month
+
+
+async def test_has_narrative_budget_false_once_free_tier_cap_hit(db_session: AsyncSession) -> None:
+    workspace = Workspace(name="Narrative Cap Test", slug=f"narrative-cap-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.flush()
+    db_session.add(WorkspaceSubscription(workspace_id=workspace.id, tier=SubscriptionTier.FREE))
+    await db_session.commit()
+
+    limit = TIER_LIMITS[SubscriptionTier.FREE].insight_generations_per_month
+    now = _month_start_utc() + timedelta(days=1)
+    db_session.add_all(
+        [
+            GeneratedInsight(
+                workspace_id=workspace.id,
+                kind="node_intelligence",
+                cache_key=f"screen-{i}",
+                input_hash=f"h{i}",
+                payload={},
+                model="claude-haiku-4-5-20251001",
+                created_at=now,
+            )
+            for i in range(limit)
+        ]
+    )
+    await db_session.commit()
+
+    assert await has_narrative_budget(db_session, workspace.id) is False
+
+
+async def test_has_narrative_budget_true_when_unlimited(db_session: AsyncSession) -> None:
+    workspace = Workspace(name="Team Narrative Test", slug=f"team-narrative-{uuid.uuid4().hex[:8]}")
+    db_session.add(workspace)
+    await db_session.flush()
+    db_session.add(WorkspaceSubscription(workspace_id=workspace.id, tier=SubscriptionTier.TEAM))
+    await db_session.commit()
+
+    assert await has_narrative_budget(db_session, workspace.id) is True

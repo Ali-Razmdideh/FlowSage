@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from typing import AsyncIterator
 
@@ -14,7 +15,13 @@ from flowsage_graph.funnel import discover_funnel
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from flowsage_backend.calibration import CalibrationReport, build_calibration_report
+from flowsage_backend import billing, insight_cache
+from flowsage_backend.calibration import (
+    CALIBRATION_NARRATIVE_KIND,
+    CalibrationReport,
+    build_calibration_report,
+    calibration_input_hash,
+)
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
@@ -22,6 +29,8 @@ from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
 from flowsage_backend.retraining import RetrainingError, create_retraining_job
 from flowsage_backend.settings_store import get_or_create_calibration_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/calibration", tags=["calibration"], dependencies=[Depends(get_current_membership)]
@@ -56,6 +65,7 @@ class RetrainingJobOut(BaseModel):
 
 @router.get("/report", response_model=CalibrationReport)
 async def get_calibration_report(
+    request: Request,
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> CalibrationReport:
@@ -63,9 +73,46 @@ async def get_calibration_report(
     events = await query_events(session, membership.workspace_id)
     funnel = discover_funnel(events)
     settings = await get_or_create_calibration_settings(session, membership.workspace_id)
-    return await build_calibration_report(
+    report = await build_calibration_report(
         session, membership.workspace_id, funnel, settings.anomaly_threshold
     )
+
+    # Hoisted out of the loop: no GeneratedInsight row is committed until an
+    # enqueued job actually completes, so calling this per-persona would have
+    # every iteration observe the same `used` count -- N extra DB round-trips
+    # for a result that never changes within this request.
+    has_budget = await billing.has_narrative_budget(session, membership.workspace_id)
+    for persona in report.personas:
+        anomalies = [s for s in persona.screens if s.anomaly]
+        if not anomalies or persona.narrative is not None:
+            continue
+        input_hash = calibration_input_hash(anomalies)
+        is_fresh = await insight_cache.is_fresh(
+            session,
+            membership.workspace_id,
+            CALIBRATION_NARRATIVE_KIND,
+            persona.persona_id,
+            input_hash,
+        )
+        if not is_fresh and has_budget:
+            try:
+                await request.app.state.arq_pool.enqueue_job(
+                    "generate_calibration_narrative_job",
+                    str(membership.workspace_id),
+                    persona.persona_id,
+                    _job_id=(
+                        f"cal-narrative:{membership.workspace_id}:{persona.persona_id}:{input_hash}"
+                    ),
+                )
+            except Exception:  # noqa: BLE001 - a narrative-generation failure (including
+                # Redis being unreachable) must never turn this GET into a 500; the
+                # response below still returns the already-computed report.
+                logger.warning(
+                    "Failed to enqueue calibration narrative generation for persona %s",
+                    persona.persona_id,
+                    exc_info=True,
+                )
+    return report
 
 
 @router.post("/retrain", response_model=RetrainingJobOut, status_code=status.HTTP_201_CREATED)

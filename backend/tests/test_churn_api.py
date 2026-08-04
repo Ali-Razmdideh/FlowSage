@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
@@ -167,6 +168,128 @@ async def test_node_intelligence_returns_recommendations_for_friction_screen(
         assert body["screen"] == "checkout"
         assert body["drop_off_rate"] > 0.5
         assert len(body["recommendations"]) > 0
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
+
+
+async def test_node_intelligence_response_includes_ai_insight_field(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
+    session_ids = [f"node-intel-narrative-{i}" for i in range(4)]
+    events = [
+        *[_event(session_ids[i], "landing", 0, "paid") for i in range(4)],
+        *[_event(session_ids[i], "narrative_checkout", 1, "paid") for i in range(4)],
+        _event(session_ids[0], "narrative_confirmation", 2, "paid"),
+    ]
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            ingest_response = await client.post(
+                "/v1/events", json=events, headers={"X-API-Key": api_key}
+            )
+            assert ingest_response.status_code == 201
+
+        async with _authed_client(app, db_session) as client:
+            response = await client.get("/graph/nodes/narrative_checkout")
+
+        assert response.status_code == 200
+        body = response.json()
+        # ai_insight is always populated (template fallback, since no cache
+        # row exists yet) -- confirms the cache-lookup wiring didn't break
+        # the existing deterministic path.
+        assert body["ai_insight"]
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
+
+
+async def test_node_intelligence_enqueue_failure_does_not_fail_request(
+    app: FastAPI, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Critical #1: a Redis outage (enqueue_job raising) must not turn this
+    read-only GET into a 500 -- the route already has a template/cached-value
+    fallback and must just log and keep serving it."""
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
+    session_ids = [f"node-intel-redis-outage-{i}" for i in range(4)]
+    events = [
+        *[_event(session_ids[i], "landing", 0, "paid") for i in range(4)],
+        *[_event(session_ids[i], "redis_outage_checkout", 1, "paid") for i in range(4)],
+        _event(session_ids[0], "redis_outage_confirmation", 2, "paid"),
+    ]
+
+    async def _boom(*args: object, **kwargs: object) -> None:
+        raise ConnectionError("simulated redis outage")
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            ingest_response = await client.post(
+                "/v1/events", json=events, headers={"X-API-Key": api_key}
+            )
+            assert ingest_response.status_code == 201
+
+        monkeypatch.setattr(app.state.arq_pool, "enqueue_job", _boom)
+
+        async with _authed_client(app, db_session) as client:
+            response = await client.get("/graph/nodes/redis_outage_checkout")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ai_insight"]
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
+
+
+async def test_node_intelligence_filtered_request_skips_narrative_enqueue(
+    app: FastAPI, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Important #2: a filtered GET (cohort/device/since set) must never
+    attempt the freshness-check-and-enqueue block, since the worker job only
+    ever writes an unfiltered cache row that a filtered view can never read
+    back. Confirmed by spying on enqueue_job: zero calls when cohort is set,
+    one call for the equivalent unfiltered request on the same screen."""
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
+    session_ids = [f"node-intel-filtered-{i}" for i in range(4)]
+    events = [
+        *[_event(session_ids[i], "landing", 0, "paid") for i in range(4)],
+        *[_event(session_ids[i], "filtered_checkout", 1, "paid") for i in range(4)],
+        _event(session_ids[0], "filtered_confirmation", 2, "paid"),
+    ]
+
+    calls: list[str] = []
+    original_enqueue = app.state.arq_pool.enqueue_job
+
+    async def _spy(job_name: str, *args: object, **kwargs: object) -> object:
+        calls.append(job_name)
+        return await original_enqueue(job_name, *args, **kwargs)
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            ingest_response = await client.post(
+                "/v1/events", json=events, headers={"X-API-Key": api_key}
+            )
+            assert ingest_response.status_code == 201
+
+        monkeypatch.setattr(app.state.arq_pool, "enqueue_job", _spy)
+
+        async with _authed_client(app, db_session) as client:
+            filtered_response = await client.get(
+                "/graph/nodes/filtered_checkout", params={"cohort": "paid"}
+            )
+        assert filtered_response.status_code == 200
+        assert filtered_response.json()["ai_insight"]
+        assert calls == []
+
+        async with _authed_client(app, db_session) as client:
+            unfiltered_response = await client.get("/graph/nodes/filtered_checkout")
+        assert unfiltered_response.status_code == 200
+        assert unfiltered_response.json()["ai_insight"]
+        assert calls == ["generate_node_insight_job"]
     finally:
         await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
         await db_session.commit()

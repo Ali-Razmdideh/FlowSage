@@ -14,14 +14,17 @@ from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend import billing, insight_cache
 from flowsage_backend.billing import check_within_limits
 from flowsage_backend.churn import (
+    NODE_INSIGHT_KIND,
     ChurnRiskSegment,
     CohortComparisonReport,
     NodeIntelligence,
     build_churn_risk_segments,
     compare_cohorts,
     get_node_intelligence,
+    node_insight_input_hash,
 )
 from flowsage_backend.deps import get_current_membership, get_db_session, require_workspace_api_key
 from flowsage_backend.events import build_funnel_report, ingest_events
@@ -129,6 +132,7 @@ async def churn_risk(
 @graph_router.get("/nodes/{screen}", response_model=NodeIntelligence)
 async def node_intelligence(
     screen: str,
+    request: Request,
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
@@ -141,6 +145,31 @@ async def node_intelligence(
     )
     if result is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
+
+    input_hash = node_insight_input_hash(result.drop_off_rate, result.friction_nodes)
+    # Narrative caching only applies to the unfiltered view: the worker job
+    # (generate_and_cache_node_insight) always recomputes signal/cache-key
+    # without cohort/device/since, so a filtered GET's input_hash can never
+    # match what gets written -- enqueuing here would just burn budget on a
+    # narrative a filtered view can never read back.
+    if cohort is None and device is None and since is None:
+        is_fresh = await insight_cache.is_fresh(
+            session, membership.workspace_id, NODE_INSIGHT_KIND, screen, input_hash
+        )
+        if not is_fresh and await billing.has_narrative_budget(session, membership.workspace_id):
+            try:
+                await request.app.state.arq_pool.enqueue_job(
+                    "generate_node_insight_job",
+                    str(membership.workspace_id),
+                    screen,
+                    _job_id=f"node-insight:{membership.workspace_id}:{screen}:{input_hash}",
+                )
+            except Exception:  # noqa: BLE001 - a narrative-generation failure (including
+                # Redis being unreachable) must never turn this GET into a 500; the
+                # response below still returns the freshly computed template/cached result.
+                logger.warning(
+                    "Failed to enqueue node insight generation for screen %s", screen, exc_info=True
+                )
     return result
 
 

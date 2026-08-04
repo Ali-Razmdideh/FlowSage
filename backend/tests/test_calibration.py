@@ -2,20 +2,64 @@ from datetime import datetime, timezone
 import uuid
 
 from flowsage_graph.models import FunnelStep
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from flowsage_backend import insight_cache
 from flowsage_backend.calibration import (
+    CALIBRATION_NARRATIVE_KIND,
+    ScreenCalibration,
     bucket_severity,
     build_calibration_report,
     build_screen_calibrations,
+    calibration_input_hash,
+    generate_and_cache_calibration_narrative,
     latest_completed_run_for_persona,
     latest_completed_runs_by_persona,
     predicted_scores_by_screen,
 )
+from flowsage_backend.models.event import Event
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.simulation import FrictionIssue, RunStatus, SimulationRun
 from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.seed import seed_baseline_personas
+from flowsage_predict.narrative import ScreenSignal
+
+
+def test_calibration_input_hash_is_deterministic() -> None:
+    anomalies = [
+        ScreenCalibration(
+            screen="checkout", predicted_score=0.2, observed_score=0.9, delta=0.7, anomaly=True
+        )
+    ]
+    assert calibration_input_hash(anomalies) == calibration_input_hash(anomalies)
+
+
+def test_calibration_input_hash_differs_for_different_scores() -> None:
+    a = [
+        ScreenCalibration(
+            screen="checkout", predicted_score=0.2, observed_score=0.9, delta=0.7, anomaly=True
+        )
+    ]
+    b = [
+        ScreenCalibration(
+            screen="checkout", predicted_score=0.2, observed_score=0.5, delta=0.3, anomaly=True
+        )
+    ]
+    assert calibration_input_hash(a) != calibration_input_hash(b)
+
+
+class _FakeCalibrationNarrativeClient:
+    def generate_node_insight(self, *args: object, **kwargs: object) -> object:
+        raise NotImplementedError
+
+    def generate_calibration_narrative(
+        self, persona_name: str, anomalies: list[ScreenSignal]
+    ) -> str:
+        return f"Narrative for {persona_name} across {len(anomalies)} screen(s)."
+
+    def generate_retraining_rationale(self, *args: object, **kwargs: object) -> str:
+        raise NotImplementedError
 
 
 async def _create_workspace(session: AsyncSession) -> uuid.UUID:
@@ -215,3 +259,50 @@ async def test_build_calibration_report_skips_personas_without_predictions(
 
     assert all(p.persona_id != str(untouched.id) for p in report.personas)
     assert all(a.persona_id != str(untouched.id) for a in report.accuracy_points)
+
+
+async def test_generate_and_cache_calibration_narrative_writes_cache_row(
+    db_session: AsyncSession,
+) -> None:
+    workspace_id = await _create_workspace(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    persona = personas[0]
+    await _completed_run_with_issue(
+        db_session, workspace_id, persona, screen="cal_narrative_checkout", severity="low"
+    )
+
+    session_ids = [f"cal-narrative-gen-{i}" for i in range(10)]
+    now = datetime.now(timezone.utc)
+    for session_id in session_ids:
+        db_session.add(
+            Event(
+                workspace_id=workspace_id,
+                session_id=session_id,
+                screen="cal_narrative_checkout",
+                event="view",
+                timestamp=now,
+            )
+        )
+    db_session.add(
+        Event(
+            workspace_id=workspace_id,
+            session_id=session_ids[0],
+            screen="cal_narrative_confirmation",
+            event="view",
+            timestamp=datetime.fromtimestamp(now.timestamp() + 60, tz=timezone.utc),
+        )
+    )
+    await db_session.commit()
+
+    try:
+        await generate_and_cache_calibration_narrative(
+            db_session, workspace_id, persona.id, _FakeCalibrationNarrativeClient()
+        )
+        cached = await insight_cache.get_cached(
+            db_session, workspace_id, CALIBRATION_NARRATIVE_KIND, str(persona.id)
+        )
+        assert cached is not None
+        assert "Narrative for" in cached.payload["narrative"]
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
