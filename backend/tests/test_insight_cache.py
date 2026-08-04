@@ -66,10 +66,16 @@ async def test_upsert_cached_replaces_stale_row_on_conflict(db_session: AsyncSes
 
 async def test_is_fresh_true_only_when_hash_matches(db_session: AsyncSession) -> None:
     workspace_id = await _workspace(db_session)
-    assert await is_fresh(db_session, workspace_id, "node_intelligence", "checkout", "hash1") is False
+    assert (
+        await is_fresh(db_session, workspace_id, "node_intelligence", "checkout", "hash1") is False
+    )
 
     await upsert_cached(
         db_session, workspace_id, "node_intelligence", "checkout", "hash1", {"a": 1}, "m1"
     )
-    assert await is_fresh(db_session, workspace_id, "node_intelligence", "checkout", "hash1") is True
-    assert await is_fresh(db_session, workspace_id, "node_intelligence", "checkout", "stale") is False
+    assert (
+        await is_fresh(db_session, workspace_id, "node_intelligence", "checkout", "hash1") is True
+    )
+    assert (
+        await is_fresh(db_session, workspace_id, "node_intelligence", "checkout", "stale") is False
+    )

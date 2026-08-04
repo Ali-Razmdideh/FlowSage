@@ -75,8 +75,7 @@ _NODE_INSIGHT_TOOL_SCHEMA: ToolParam = {
             "insight": {
                 "type": "string",
                 "description": (
-                    "1-2 sentence plain-language explanation of the friction on "
-                    "this screen."
+                    "1-2 sentence plain-language explanation of the friction on " "this screen."
                 ),
             },
             "recommendations": {

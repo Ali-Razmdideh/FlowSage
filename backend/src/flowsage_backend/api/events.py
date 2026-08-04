@@ -147,16 +147,29 @@ async def node_intelligence(
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
 
     input_hash = node_insight_input_hash(result.drop_off_rate, result.friction_nodes)
-    is_fresh = await insight_cache.is_fresh(
-        session, membership.workspace_id, NODE_INSIGHT_KIND, screen, input_hash
-    )
-    if not is_fresh and await billing.has_narrative_budget(session, membership.workspace_id):
-        await request.app.state.arq_pool.enqueue_job(
-            "generate_node_insight_job",
-            str(membership.workspace_id),
-            screen,
-            _job_id=f"node-insight:{membership.workspace_id}:{screen}:{input_hash}",
+    # Narrative caching only applies to the unfiltered view: the worker job
+    # (generate_and_cache_node_insight) always recomputes signal/cache-key
+    # without cohort/device/since, so a filtered GET's input_hash can never
+    # match what gets written -- enqueuing here would just burn budget on a
+    # narrative a filtered view can never read back.
+    if cohort is None and device is None and since is None:
+        is_fresh = await insight_cache.is_fresh(
+            session, membership.workspace_id, NODE_INSIGHT_KIND, screen, input_hash
         )
+        if not is_fresh and await billing.has_narrative_budget(session, membership.workspace_id):
+            try:
+                await request.app.state.arq_pool.enqueue_job(
+                    "generate_node_insight_job",
+                    str(membership.workspace_id),
+                    screen,
+                    _job_id=f"node-insight:{membership.workspace_id}:{screen}:{input_hash}",
+                )
+            except Exception:  # noqa: BLE001 - a narrative-generation failure (including
+                # Redis being unreachable) must never turn this GET into a 500; the
+                # response below still returns the freshly computed template/cached result.
+                logger.warning(
+                    "Failed to enqueue node insight generation for screen %s", screen, exc_info=True
+                )
     return result
 
 

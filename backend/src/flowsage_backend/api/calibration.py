@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from typing import AsyncIterator
 
@@ -28,6 +29,8 @@ from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership
 from flowsage_backend.retraining import RetrainingError, create_retraining_job
 from flowsage_backend.settings_store import get_or_create_calibration_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/calibration", tags=["calibration"], dependencies=[Depends(get_current_membership)]
@@ -74,21 +77,41 @@ async def get_calibration_report(
         session, membership.workspace_id, funnel, settings.anomaly_threshold
     )
 
+    # Hoisted out of the loop: no GeneratedInsight row is committed until an
+    # enqueued job actually completes, so calling this per-persona would have
+    # every iteration observe the same `used` count -- N extra DB round-trips
+    # for a result that never changes within this request.
+    has_budget = await billing.has_narrative_budget(session, membership.workspace_id)
     for persona in report.personas:
         anomalies = [s for s in persona.screens if s.anomaly]
         if not anomalies or persona.narrative is not None:
             continue
         input_hash = calibration_input_hash(anomalies)
         is_fresh = await insight_cache.is_fresh(
-            session, membership.workspace_id, CALIBRATION_NARRATIVE_KIND, persona.persona_id, input_hash
+            session,
+            membership.workspace_id,
+            CALIBRATION_NARRATIVE_KIND,
+            persona.persona_id,
+            input_hash,
         )
-        if not is_fresh and await billing.has_narrative_budget(session, membership.workspace_id):
-            await request.app.state.arq_pool.enqueue_job(
-                "generate_calibration_narrative_job",
-                str(membership.workspace_id),
-                persona.persona_id,
-                _job_id=f"cal-narrative:{membership.workspace_id}:{persona.persona_id}:{input_hash}",
-            )
+        if not is_fresh and has_budget:
+            try:
+                await request.app.state.arq_pool.enqueue_job(
+                    "generate_calibration_narrative_job",
+                    str(membership.workspace_id),
+                    persona.persona_id,
+                    _job_id=(
+                        f"cal-narrative:{membership.workspace_id}:{persona.persona_id}:{input_hash}"
+                    ),
+                )
+            except Exception:  # noqa: BLE001 - a narrative-generation failure (including
+                # Redis being unreachable) must never turn this GET into a 500; the
+                # response below still returns the already-computed report.
+                logger.warning(
+                    "Failed to enqueue calibration narrative generation for persona %s",
+                    persona.persona_id,
+                    exc_info=True,
+                )
     return report
 
 

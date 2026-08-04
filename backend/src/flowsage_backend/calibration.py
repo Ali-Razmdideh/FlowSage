@@ -9,8 +9,18 @@ persona actually walked (i.e. has a predicted score for) are compared -- a scree
 with real drop-off but no prediction isn't a calibration signal, it's just an
 unsimulated screen.
 
-Everything here is computed on demand from current data, not persisted -- no
-`CalibrationRecord` table, so there's nothing to go stale or need reconciling.
+The calibration matching/anomaly detection itself is computed on demand from
+current data, not persisted -- no `CalibrationRecord` table, so there's
+nothing to go stale or need reconciling there.
+
+`PersonaCalibration.narrative` is the exception: it's a real, cached
+Claude-generated explanation of *why* an anomalous persona/screen pair
+diverges, looked up from `GeneratedInsight` (see `insight_cache.py`) by an
+input hash of the anomalous screens. A cache miss leaves `narrative` as
+`None` (the API layer enqueues a background job to fill it in for next time,
+see `api/calibration.py`) -- input-hash staleness detection is exactly the
+mechanism that decides whether the persisted narrative still matches the
+current anomaly signal or needs regenerating.
 """
 
 from __future__ import annotations

@@ -210,9 +210,7 @@ async def test_has_narrative_budget_false_once_free_tier_cap_hit(db_session: Asy
     workspace = Workspace(name="Narrative Cap Test", slug=f"narrative-cap-{uuid.uuid4().hex[:8]}")
     db_session.add(workspace)
     await db_session.flush()
-    db_session.add(
-        WorkspaceSubscription(workspace_id=workspace.id, tier=SubscriptionTier.FREE)
-    )
+    db_session.add(WorkspaceSubscription(workspace_id=workspace.id, tier=SubscriptionTier.FREE))
     await db_session.commit()
 
     limit = TIER_LIMITS[SubscriptionTier.FREE].insight_generations_per_month

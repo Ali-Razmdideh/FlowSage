@@ -4,11 +4,19 @@ re-engagement recommendations -- all built on top of the same
 uses (see `events.py`).
 
 Like `calibration.py`, everything here is computed on demand from current
-events -- no new tables. Churn-risk scoring and the "AI Insight"/recommendation
-text are deterministic heuristics, not an LLM call: matching the philosophy
-behind `retraining.py`'s slider nudge, a live Claude call for every funnel
-screen on every page load would add cost/latency the plan doesn't ask for, and
-a heuristic keeps this endpoint fast and side-effect free.
+events -- no new tables. Churn-risk scoring, cohort comparison, and the
+deterministic template text/recommendations remain heuristics, not an LLM
+call, for the same cost/latency reasons `retraining.py`'s slider nudge stays
+heuristic.
+
+The Node Intelligence `ai_insight` text is the one exception: `GET
+/graph/nodes/{screen}` looks up a real, cached Claude-generated narrative (see
+`insight_cache.py`) keyed by an input hash of the current friction signal, and
+falls back to the deterministic template above when there's no fresh cache
+row. A cache miss enqueues a background arq job
+(`generate_and_cache_node_insight`, see `worker.py`) that calls Claude and
+writes the cache row for next time -- so the GET itself never calls Claude
+directly and stays fast, but it is no longer side-effect free.
 """
 
 from __future__ import annotations
