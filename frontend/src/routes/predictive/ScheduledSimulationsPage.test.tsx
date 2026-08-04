@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "../../lib/api";
@@ -79,6 +79,11 @@ describe("ScheduledSimulationsPage", () => {
     // unscoped text matches would find more than one element.
     expect(screen.getByText(/Novice User/, { selector: "p" })).toBeInTheDocument();
     expect(screen.getByText(/Daily/, { selector: "p" })).toBeInTheDocument();
+
+    const chart = screen.getByRole("img", { name: /Friction score trend/i });
+    expect(within(chart).getByText("0%")).toBeInTheDocument();
+    expect(within(chart).getByText("50%")).toBeInTheDocument();
+    expect(within(chart).getByText("100%")).toBeInTheDocument();
   });
 
   it("creates a new schedule from the form", async () => {

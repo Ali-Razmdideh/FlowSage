@@ -104,6 +104,14 @@ async def fire_due_scheduled_simulations(
             ScheduledSimulation.workspace_id == workspace_id,
             ScheduledSimulation.active.is_(True),
         )
+        # SKIP LOCKED, not a blocking FOR UPDATE: a config an in-flight push
+        # (see push_screenshots' own row lock) is mid-write on just gets
+        # skipped this pass and picked up on the next hourly cron tick,
+        # rather than the whole batch stalling on one contended row. Without
+        # this lock at all, a push racing this read-then-clear could still
+        # read this run's about-to-be-cleared pending_screenshots_dir as its
+        # "previous" and rmtree the directory this run just started reading.
+        .with_for_update(skip_locked=True)
     )
     configs = list(result.scalars().all())
 

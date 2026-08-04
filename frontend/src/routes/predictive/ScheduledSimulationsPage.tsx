@@ -11,17 +11,26 @@ const INTERVAL_LABELS: Record<ScheduleInterval, string> = {
 
 const TREND_WIDTH = 320;
 const TREND_HEIGHT = 120;
+// Reserve space on the left for the 0%/50%/100% axis labels so the plotted
+// line/gridlines don't run underneath the text.
+const TREND_AXIS_WIDTH = 32;
+const TREND_PLOT_WIDTH = TREND_WIDTH - TREND_AXIS_WIDTH;
 
 function FrictionTrendChart({ points }: { points: TrendPoint[] }) {
   if (points.length === 0) {
     return <p className="text-on-surface-variant text-sm">No completed runs yet.</p>;
   }
-  const step = points.length > 1 ? TREND_WIDTH / (points.length - 1) : 0;
+  const step = points.length > 1 ? TREND_PLOT_WIDTH / (points.length - 1) : 0;
   const coords = points.map((point, index) => ({
-    x: index * step,
+    x: TREND_AXIS_WIDTH + index * step,
     y: (1 - point.score) * TREND_HEIGHT,
   }));
   const path = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+  const axisTicks = [
+    { label: "100%", y: 0 },
+    { label: "50%", y: TREND_HEIGHT / 2 },
+    { label: "0%", y: TREND_HEIGHT },
+  ];
 
   return (
     <svg
@@ -30,14 +39,30 @@ function FrictionTrendChart({ points }: { points: TrendPoint[] }) {
       role="img"
       aria-label="Friction score trend over scheduled runs"
     >
-      <line
-        x1={0}
-        y1={TREND_HEIGHT}
-        x2={TREND_WIDTH}
-        y2={TREND_HEIGHT}
-        className="stroke-outline-variant"
-        strokeWidth={1}
-      />
+      {axisTicks.map((tick) => (
+        <g key={tick.label}>
+          <text
+            x={TREND_AXIS_WIDTH - 4}
+            y={tick.y}
+            dominantBaseline={
+              tick.y === 0 ? "hanging" : tick.y === TREND_HEIGHT ? "auto" : "middle"
+            }
+            textAnchor="end"
+            className="fill-on-surface-variant"
+            fontSize={10}
+          >
+            {tick.label}
+          </text>
+          <line
+            x1={TREND_AXIS_WIDTH}
+            y1={tick.y}
+            x2={TREND_WIDTH}
+            y2={tick.y}
+            className="stroke-outline-variant"
+            strokeWidth={tick.y === TREND_HEIGHT ? 1 : 0.5}
+          />
+        </g>
+      ))}
       <path d={path} fill="none" className="stroke-primary" strokeWidth={2} />
       {coords.map((c, i) => {
         const point = points[i];

@@ -7,8 +7,10 @@ separately from the API process (`flowsage-backend`/`uvicorn`).
 from __future__ import annotations
 
 import logging
+import shutil
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import arq
@@ -35,7 +37,9 @@ from flowsage_backend.models.audit_log import AuditLog
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.event import Event
 from flowsage_backend.models.persona import Persona
+from flowsage_backend.models.scheduled_simulation import ScheduledSimulation
 from flowsage_backend.models.settings import DigestFrequency
+from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.retraining import create_retraining_job, execute_retraining
 from flowsage_backend.settings_store import get_or_create_calibration_settings
@@ -176,18 +180,25 @@ async def _auto_retrain_anomalous_personas(
 async def run_retention_purge_job(ctx: dict[str, Any]) -> None:
     """Fires daily. Enforces each workspace's own `retention_days` against
     `AuditLog` and `Event` -- the two unbounded-growth tables this chunk's spec
-    calls out. One workspace's failure doesn't block the others, mirroring
-    run_digest_job's per-workspace loop."""
+    calls out -- and also reclaims stale scheduled-simulation screenshot
+    directories on disk (see `_purge_stale_scheduled_screenshots`). One
+    workspace's failure doesn't block the others, mirroring run_digest_job's
+    per-workspace loop."""
     session_factory = ctx["session_factory"]
 
     async with session_factory() as session:
         result = await session.execute(select(Workspace.id, Workspace.retention_days))
         workspaces = list(result.all())
 
+    upload_dir = Path(get_settings().upload_dir)
     for workspace_id, retention_days in workspaces:
         try:
             async with session_factory() as session:
                 await _purge_workspace_retention(session, workspace_id, retention_days)
+            async with session_factory() as session:
+                await _purge_stale_scheduled_screenshots(
+                    session, workspace_id, retention_days, upload_dir
+                )
         except Exception:  # noqa: BLE001 - one workspace's purge failure must not
             # stop the retention job from running for every other workspace.
             logger.warning("Retention purge failed for workspace %s", workspace_id, exc_info=True)
@@ -204,6 +215,56 @@ async def _purge_workspace_retention(
         delete(Event).where(Event.workspace_id == workspace_id, Event.timestamp < cutoff)
     )
     await session.commit()
+
+
+async def _purge_stale_scheduled_screenshots(
+    session: AsyncSession, workspace_id: uuid.UUID, retention_days: int, upload_dir: Path
+) -> None:
+    """Deletes on-disk screenshot-push directories under
+    `<upload_dir>/scheduled/<config_id>/` older than the workspace's retention
+    window. A directory is protected (never deleted here, regardless of age) if
+    it's a config's current `pending_screenshots_dir` (not yet fired) or a
+    QUEUED/RUNNING run's `screenshots_dir` (still being read by the worker) --
+    everything else is either an already-fired run's now-durable-elsewhere
+    input, or an orphan from a lost concurrent-push race, both safe to reclaim."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+    configs = (
+        await session.execute(
+            select(ScheduledSimulation.id, ScheduledSimulation.pending_screenshots_dir).where(
+                ScheduledSimulation.workspace_id == workspace_id
+            )
+        )
+    ).all()
+    if not configs:
+        return
+
+    in_flight_dirs = set(
+        (
+            await session.execute(
+                select(SimulationRun.screenshots_dir).where(
+                    SimulationRun.scheduled_simulation_id.in_([c.id for c in configs]),
+                    SimulationRun.status.in_((RunStatus.QUEUED, RunStatus.RUNNING)),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    protected_dirs = in_flight_dirs | {
+        c.pending_screenshots_dir for c in configs if c.pending_screenshots_dir
+    }
+
+    for config_id, _ in configs:
+        config_root = upload_dir / "scheduled" / str(config_id)
+        if not config_root.is_dir():
+            continue
+        for push_dir in config_root.iterdir():
+            if not push_dir.is_dir() or str(push_dir) in protected_dirs:
+                continue
+            modified_at = datetime.fromtimestamp(push_dir.stat().st_mtime, tz=timezone.utc)
+            if modified_at < cutoff:
+                shutil.rmtree(push_dir, ignore_errors=True)
 
 
 async def run_scheduled_simulations_job(ctx: dict[str, Any]) -> None:

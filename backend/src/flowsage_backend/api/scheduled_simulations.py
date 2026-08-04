@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_actor, get_db_session
 from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
+from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.scheduled_simulations import (
     ScheduledSimulationError,
     TrendPoint,
@@ -71,13 +72,22 @@ class ScheduledSimulationUpdate(BaseModel):
 
 
 async def _get_config(
-    session: AsyncSession, workspace_id: uuid.UUID, config_id: uuid.UUID
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    config_id: uuid.UUID,
+    *,
+    for_update: bool = False,
 ) -> ScheduledSimulation:
-    result = await session.execute(
-        select(ScheduledSimulation).where(
-            ScheduledSimulation.id == config_id, ScheduledSimulation.workspace_id == workspace_id
-        )
+    query = select(ScheduledSimulation).where(
+        ScheduledSimulation.id == config_id, ScheduledSimulation.workspace_id == workspace_id
     )
+    if for_update:
+        # Row lock so two concurrent screenshot pushes for the same config
+        # serialize instead of both reading the same stale previous_pending_dir
+        # and racing to replace it -- see push_screenshots for the failure mode
+        # this closes.
+        query = query.with_for_update()
+    result = await session.execute(query)
     config = result.scalar_one_or_none()
     if config is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Scheduled simulation not found")
@@ -135,29 +145,88 @@ async def update_scheduled_simulation(
     actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> ScheduledSimulationOut:
-    workspace_id, _ = actor
+    workspace_id, user_id = actor
     config = await _get_config(session, workspace_id, config_id)
+    changed: dict[str, object] = {}
     if payload.goal is not None:
         config.goal = payload.goal
+        changed["goal"] = payload.goal
     if payload.interval is not None:
         config.interval = payload.interval
+        changed["interval"] = payload.interval.value
     if payload.active is not None:
         config.active = payload.active
+        changed["active"] = payload.active
     await session.commit()
     await session.refresh(config)
+
+    await record_audit_event(
+        session,
+        workspace_id,
+        actor_user_id=user_id,
+        action="scheduled_simulation.updated",
+        target_type="scheduled_simulation",
+        target_id=str(config.id),
+        extra_data=changed,
+    )
     return ScheduledSimulationOut.from_model(config)
 
 
 @router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_scheduled_simulation(
+    request: Request,
     config_id: uuid.UUID,
     actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> None:
-    workspace_id, _ = actor
+    workspace_id, user_id = actor
     config = await _get_config(session, workspace_id, config_id)
+    flow_name = config.flow_name
+
+    # Check for an in-flight run *before* deleting the config -- once the
+    # config row is gone, the FK's ON DELETE SET NULL clears every run's
+    # scheduled_simulation_id, so this is the only point where "is anything
+    # still reading one of this config's staged directories" is answerable.
+    in_flight = (
+        await session.execute(
+            select(SimulationRun.id).where(
+                SimulationRun.scheduled_simulation_id == config_id,
+                SimulationRun.status.in_((RunStatus.QUEUED, RunStatus.RUNNING)),
+            )
+        )
+    ).first()
+
     await session.delete(config)
     await session.commit()
+
+    if in_flight is None:
+        # Every push this config ever staged lives under this one directory
+        # (see push_screenshots), and nothing references it once the config
+        # row is gone -- a *completed* run's own screenshots_dir keeps
+        # resolving as a string, but nothing re-reads it off disk once the
+        # run has finished (its durable results already live in
+        # FrictionIssue/SimulationStep). Skipped when a run is still
+        # QUEUED/RUNNING against this config, to avoid deleting screenshots
+        # out from under a job the worker hasn't finished reading yet --
+        # that directory is now unreachable from the DB and won't be swept
+        # by run_retention_purge_job (its per-workspace loop only walks
+        # *existing* configs' ids), but this is expected to be rare: it only
+        # happens if a config is deleted in the narrow window between a run
+        # firing and the worker finishing it. Best-effort either way: a
+        # delete must succeed even if this disk cleanup can't.
+        settings = request.app.state.settings
+        config_root = Path(settings.upload_dir) / "scheduled" / str(config_id)
+        shutil.rmtree(config_root, ignore_errors=True)
+
+    await record_audit_event(
+        session,
+        workspace_id,
+        actor_user_id=user_id,
+        action="scheduled_simulation.deleted",
+        target_type="scheduled_simulation",
+        target_id=str(config_id),
+        extra_data={"flow_name": flow_name},
+    )
 
 
 @router.post("/{config_id}/screenshots", response_model=ScheduledSimulationOut)
@@ -168,8 +237,8 @@ async def push_screenshots(
     actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> ScheduledSimulationOut:
-    workspace_id, _ = actor
-    config = await _get_config(session, workspace_id, config_id)
+    workspace_id, user_id = actor
+    config = await _get_config(session, workspace_id, config_id, for_update=True)
     settings = request.app.state.settings
     previous_pending_dir = (
         Path(config.pending_screenshots_dir) if config.pending_screenshots_dir else None
@@ -198,6 +267,16 @@ async def push_screenshots(
     # here it's safe to discard now that the new set has replaced it.
     if previous_pending_dir is not None:
         shutil.rmtree(previous_pending_dir, ignore_errors=True)
+
+    await record_audit_event(
+        session,
+        workspace_id,
+        actor_user_id=user_id,
+        action="scheduled_simulation.screenshots_pushed",
+        target_type="scheduled_simulation",
+        target_id=str(config.id),
+        extra_data={"file_count": len(files)},
+    )
     return ScheduledSimulationOut.from_model(config)
 
 

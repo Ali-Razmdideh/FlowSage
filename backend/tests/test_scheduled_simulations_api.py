@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -294,6 +295,150 @@ async def test_push_screenshots_uses_unique_dir_and_does_not_touch_fired_run(
     assert (first_dir / "01_cart.png").exists()
     assert (first_dir / "01_cart.png").read_bytes() == _PNG_BYTES
     assert (second_dir / "02_pay.png").exists()
+
+
+async def test_concurrent_pushes_do_not_leak_a_staging_directory(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """Regression test for the row-lock fix: two pushes to the same config
+    fired concurrently must serialize (via SELECT ... FOR UPDATE) so the
+    second one always reads the first one's already-committed directory as
+    its `previous_pending_dir` and cleans it up -- not a stale None that
+    would leave the first push's directory orphaned on disk forever."""
+    workspace_id = await _sched_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+
+    async with _authed_client(app, db_session) as client:
+        create_response = await client.post(
+            "/scheduled-simulations",
+            json={
+                "persona_id": str(personas[0].id),
+                "flow_name": "Checkout",
+                "goal": "Complete purchase",
+                "interval": "on_push",
+            },
+        )
+        config_id = create_response.json()["id"]
+
+    # Two separate, already-authenticated clients logged in sequentially first
+    # -- login itself does a DB write (upsert_user) against the shared
+    # `db_session` fixture, and asyncpg's connection doesn't tolerate two
+    # coroutines issuing queries on it at once, so that part must not run
+    # concurrently. Only the actual pushes below run concurrently, and they
+    # go through the app's own per-request session (via get_db_session), not
+    # this fixture's session, so they don't hit that restriction.
+    client_a = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    client_b = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    await client_a.post(
+        "/auth/login", json={"email": "sched-api@example.com", "password": "hunter2"}
+    )
+    await client_b.post(
+        "/auth/login", json={"email": "sched-api@example.com", "password": "hunter2"}
+    )
+
+    async def _push(client: AsyncClient, filename: str) -> None:
+        response = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files={"files": (filename, _PNG_BYTES, "image/png")},
+        )
+        assert response.status_code == 200
+
+    try:
+        await asyncio.gather(_push(client_a, "a.png"), _push(client_b, "b.png"))
+    finally:
+        await client_a.aclose()
+        await client_b.aclose()
+
+    config = await _fetch_config(db_session, config_id)
+    final_dir = Path(config.pending_screenshots_dir)  # type: ignore[arg-type]
+    remaining_dirs = list(final_dir.parent.iterdir())
+
+    assert remaining_dirs == [final_dir]
+
+
+async def test_delete_scheduled_simulation_removes_its_staged_screenshot_dirs(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """Regression test: deleting a config used to leak every directory it
+    ever staged -- the DB row (and thus the only pointer to that directory)
+    was gone, but nothing on disk ever got cleaned up. Delete must now
+    reclaim the whole `<upload_dir>/scheduled/<config_id>/` tree."""
+    workspace_id = await _sched_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+
+    async with _authed_client(app, db_session) as client:
+        create_response = await client.post(
+            "/scheduled-simulations",
+            json={
+                "persona_id": str(personas[0].id),
+                "flow_name": "Checkout",
+                "goal": "Complete purchase",
+                "interval": "on_push",
+            },
+        )
+        config_id = create_response.json()["id"]
+
+        push_response = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files={"files": ("01_cart.png", _PNG_BYTES, "image/png")},
+        )
+        assert push_response.status_code == 200
+
+    config = await _fetch_config(db_session, config_id)
+    config_root = Path(config.pending_screenshots_dir).parent  # type: ignore[arg-type]
+    assert config_root.exists()
+
+    async with _authed_client(app, db_session) as client:
+        delete_response = await client.delete(f"/scheduled-simulations/{config_id}")
+        assert delete_response.status_code == 204
+
+    assert not config_root.exists()
+
+
+async def test_delete_scheduled_simulation_leaves_in_flight_run_dir_untouched(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    """Regression test: if a fired run is still QUEUED/RUNNING against a
+    config, deleting that config must not rmtree the directory the worker
+    is (or is about to be) reading -- the FK's ON DELETE SET NULL means the
+    run survives the config's deletion and still needs its screenshots."""
+    workspace_id = await _sched_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+
+    async with _authed_client(app, db_session) as client:
+        create_response = await client.post(
+            "/scheduled-simulations",
+            json={
+                "persona_id": str(personas[0].id),
+                "flow_name": "Checkout",
+                "goal": "Complete purchase",
+                "interval": "on_push",
+            },
+        )
+        config_id = create_response.json()["id"]
+
+        push_response = await client.post(
+            f"/scheduled-simulations/{config_id}/screenshots",
+            files={"files": ("01_cart.png", _PNG_BYTES, "image/png")},
+        )
+        assert push_response.status_code == 200
+
+    config = await _fetch_config(db_session, config_id)
+    run_dir = Path(config.pending_screenshots_dir)  # type: ignore[arg-type]
+
+    fired = await fire_due_scheduled_simulations(
+        db_session, workspace_id, datetime.now(timezone.utc)
+    )
+    our_run = next(r for r in fired if str(r.scheduled_simulation_id) == config_id)
+    assert our_run.status == RunStatus.QUEUED
+    assert run_dir.exists()
+
+    async with _authed_client(app, db_session) as client:
+        delete_response = await client.delete(f"/scheduled-simulations/{config_id}")
+        assert delete_response.status_code == 204
+
+    assert run_dir.exists()
+    assert (run_dir / "01_cart.png").exists()
 
 
 async def test_get_trend_computes_score_from_completed_runs(
