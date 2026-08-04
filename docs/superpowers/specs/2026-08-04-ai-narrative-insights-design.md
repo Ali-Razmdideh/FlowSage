@@ -3,6 +3,8 @@
 **Date:** 2026-08-04
 **Status:** Approved for planning
 
+**Note (implementation):** Node Intelligence and calibration-anomaly narrative generation ended up running via background arq jobs triggered from the GET endpoints (cache-miss enqueues, next GET picks up the result), not inline via `asyncio.to_thread` as originally drafted above -- this codebase never makes a live Claude call from a synchronous FastAPI handler. Retraining rationale is unchanged from the original design (already an async job). See `docs/superpowers/plans/2026-08-04-ai-narrative-insights.md` for the as-built architecture.
+
 ## Problem
 
 Three surfaces in FlowSage present text as if it were AI-generated analysis, but it's actually deterministic template interpolation:
