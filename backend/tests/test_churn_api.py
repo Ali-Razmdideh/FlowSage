@@ -170,3 +170,36 @@ async def test_node_intelligence_returns_recommendations_for_friction_screen(
     finally:
         await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
         await db_session.commit()
+
+
+async def test_node_intelligence_response_includes_ai_insight_field(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    workspace_id = await ensure_default_workspace(db_session)
+    api_key = await create_api_key_for(db_session, workspace_id)
+    session_ids = [f"node-intel-narrative-{i}" for i in range(4)]
+    events = [
+        *[_event(session_ids[i], "landing", 0, "paid") for i in range(4)],
+        *[_event(session_ids[i], "narrative_checkout", 1, "paid") for i in range(4)],
+        _event(session_ids[0], "narrative_confirmation", 2, "paid"),
+    ]
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            ingest_response = await client.post(
+                "/v1/events", json=events, headers={"X-API-Key": api_key}
+            )
+            assert ingest_response.status_code == 201
+
+        async with _authed_client(app, db_session) as client:
+            response = await client.get("/graph/nodes/narrative_checkout")
+
+        assert response.status_code == 200
+        body = response.json()
+        # ai_insight is always populated (template fallback, since no cache
+        # row exists yet) -- confirms the cache-lookup wiring didn't break
+        # the existing deterministic path.
+        assert body["ai_insight"]
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()

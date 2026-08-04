@@ -14,7 +14,13 @@ from flowsage_graph.funnel import discover_funnel
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from flowsage_backend.calibration import CalibrationReport, build_calibration_report
+from flowsage_backend import billing, insight_cache
+from flowsage_backend.calibration import (
+    CALIBRATION_NARRATIVE_KIND,
+    CalibrationReport,
+    build_calibration_report,
+    calibration_input_hash,
+)
 from flowsage_backend.deps import get_current_membership, get_db_session
 from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
@@ -56,6 +62,7 @@ class RetrainingJobOut(BaseModel):
 
 @router.get("/report", response_model=CalibrationReport)
 async def get_calibration_report(
+    request: Request,
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> CalibrationReport:
@@ -63,9 +70,26 @@ async def get_calibration_report(
     events = await query_events(session, membership.workspace_id)
     funnel = discover_funnel(events)
     settings = await get_or_create_calibration_settings(session, membership.workspace_id)
-    return await build_calibration_report(
+    report = await build_calibration_report(
         session, membership.workspace_id, funnel, settings.anomaly_threshold
     )
+
+    for persona in report.personas:
+        anomalies = [s for s in persona.screens if s.anomaly]
+        if not anomalies or persona.narrative is not None:
+            continue
+        input_hash = calibration_input_hash(anomalies)
+        is_fresh = await insight_cache.is_fresh(
+            session, membership.workspace_id, CALIBRATION_NARRATIVE_KIND, persona.persona_id, input_hash
+        )
+        if not is_fresh and await billing.has_narrative_budget(session, membership.workspace_id):
+            await request.app.state.arq_pool.enqueue_job(
+                "generate_calibration_narrative_job",
+                str(membership.workspace_id),
+                persona.persona_id,
+                _job_id=f"cal-narrative:{membership.workspace_id}:{persona.persona_id}:{input_hash}",
+            )
+    return report
 
 
 @router.post("/retrain", response_model=RetrainingJobOut, status_code=status.HTTP_201_CREATED)

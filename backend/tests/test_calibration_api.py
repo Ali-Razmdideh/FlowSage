@@ -234,3 +234,70 @@ async def test_stream_retraining_events_reports_unknown_job(db_session: AsyncSes
 
     with pytest.raises(StopAsyncIteration):
         await events.__anext__()
+
+
+async def test_calibration_report_narrative_is_none_before_any_generation(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    workspace_id = await _cal_api_workspace_id(db_session)
+    personas = await seed_baseline_personas(db_session, workspace_id)
+    persona = personas[0]
+    session_ids = [f"cal-narrative-report-{i}" for i in range(10)]
+
+    run = SimulationRun(
+        workspace_id=workspace_id,
+        flow_name="Checkout",
+        goal="Complete purchase",
+        persona_id=persona.id,
+        screenshots_dir="/tmp/unused",
+        status=RunStatus.COMPLETED,
+        finished_at=datetime.now(timezone.utc),
+    )
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        FrictionIssue(
+            workspace_id=workspace_id,
+            run_id=run.id,
+            screen="cal_narrative_report_checkout",
+            severity="low",
+            title="issue",
+            heuristic_violated="",
+            persona_impact="",
+            description="",
+            suggested_fix="",
+        )
+    )
+    now = datetime.now(timezone.utc)
+    for session_id in session_ids:
+        db_session.add(
+            Event(
+                workspace_id=workspace_id,
+                session_id=session_id,
+                screen="cal_narrative_report_checkout",
+                event="view",
+                timestamp=now,
+            )
+        )
+    db_session.add(
+        Event(
+            workspace_id=workspace_id,
+            session_id=session_ids[0],
+            screen="cal_narrative_report_confirmation",
+            event="view",
+            timestamp=datetime.fromtimestamp(now.timestamp() + 60, tz=timezone.utc),
+        )
+    )
+    await db_session.commit()
+
+    try:
+        async with _authed_client(app, db_session) as client:
+            response = await client.get("/calibration/report")
+
+        assert response.status_code == 200
+        body = response.json()
+        persona_body = next(p for p in body["personas"] if p["persona_id"] == str(persona.id))
+        assert persona_body["narrative"] is None
+    finally:
+        await db_session.execute(delete(Event).where(Event.session_id.in_(session_ids)))
+        await db_session.commit()
