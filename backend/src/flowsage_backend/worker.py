@@ -16,11 +16,12 @@ from typing import Any
 import arq
 from arq import cron
 from arq.connections import ArqRedis, RedisSettings
+from flowsage_predict.narrative import AnthropicNarrativeClient, NarrativeClient
 from flowsage_predict.vision import AnthropicVisionClient, VisionClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend import scheduled_simulations
+from flowsage_backend import churn, scheduled_simulations
 from flowsage_backend.alerts import (
     AlertsReport,
     build_alerts_report,
@@ -28,6 +29,7 @@ from flowsage_backend.alerts import (
     build_digest_text,
     has_alerts,
 )
+from flowsage_backend.calibration import generate_and_cache_calibration_narrative
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
 from flowsage_backend.integrations.slack import post_slack_message
@@ -55,6 +57,7 @@ async def _startup(ctx: dict[str, Any]) -> None:
     ctx["engine"] = engine
     ctx["session_factory"] = create_session_factory(engine)
     ctx["vision_client"] = AnthropicVisionClient()
+    ctx["narrative_client"] = AnthropicNarrativeClient()
 
 
 async def _shutdown(ctx: dict[str, Any]) -> None:
@@ -70,8 +73,29 @@ async def run_simulation_job(ctx: dict[str, Any], run_id: str) -> None:
 
 async def run_retraining_job(ctx: dict[str, Any], job_id: str) -> None:
     session_factory = ctx["session_factory"]
+    narrative_client: NarrativeClient = ctx["narrative_client"]
     async with session_factory() as session:
-        await execute_retraining(session, uuid.UUID(job_id))
+        await execute_retraining(session, uuid.UUID(job_id), narrative_client)
+
+
+async def generate_node_insight_job(ctx: dict[str, Any], workspace_id: str, screen: str) -> None:
+    session_factory = ctx["session_factory"]
+    narrative_client: NarrativeClient = ctx["narrative_client"]
+    async with session_factory() as session:
+        await churn.generate_and_cache_node_insight(
+            session, uuid.UUID(workspace_id), screen, narrative_client
+        )
+
+
+async def generate_calibration_narrative_job(
+    ctx: dict[str, Any], workspace_id: str, persona_id: str
+) -> None:
+    session_factory = ctx["session_factory"]
+    narrative_client: NarrativeClient = ctx["narrative_client"]
+    async with session_factory() as session:
+        await generate_and_cache_calibration_narrative(
+            session, uuid.UUID(workspace_id), uuid.UUID(persona_id), narrative_client
+        )
 
 
 _DIGEST_INTERVALS = {
@@ -298,7 +322,12 @@ async def run_scheduled_simulations_job(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [run_simulation_job, run_retraining_job]
+    functions = [
+        run_simulation_job,
+        run_retraining_job,
+        generate_node_insight_job,
+        generate_calibration_narrative_job,
+    ]
     cron_jobs = [
         cron(run_digest_job, hour=9, minute=0),
         cron(run_retention_purge_job, hour=3, minute=0),
