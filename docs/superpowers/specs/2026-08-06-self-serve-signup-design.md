@@ -3,6 +3,8 @@
 **Date:** 2026-08-06
 **Status:** Approved for planning
 
+**Note (implementation):** during planning, checked the actual codebase for the "exposed the same way the frontend already learns its API base URL" claim below and found there is no existing build-time env-injection pattern to mirror (`VITE_API_BASE_URL` is read but never actually set anywhere — it just defaults to `/api`, relying on the nginx same-origin proxy). Since this codebase's established pattern for frontend-needed config is a small backend read endpoint (tier limits via `/billing/usage`, calibration knobs via `/settings/model-calibration`), the Turnstile site key is served the same way instead: a new public `GET /auth/signup-config`. No Dockerfile/docker-compose/build-arg changes needed. See the implementation plan for the as-built shape.
+
 ## Problem
 
 FlowSage has no public account-creation path. The only way to get a `User`/`Workspace`/`Membership` row is `flowsage-backend create-user`, a CLI command run by an operator (`seed.py::upsert_user`) — its own docstring states "no public registration endpoint." The multi-tenant workspace model (Phase 3), Stripe billing with Free/Pro/Team tiers (Phase 4), and the public landing page (Phase 4) all already exist, but every landing-page CTA points at `/login` because there is nothing to sign up *into*. This spec adds a public self-serve signup flow that creates an account, a workspace, and (optionally) starts a paid subscription, without requiring an operator in the loop.
