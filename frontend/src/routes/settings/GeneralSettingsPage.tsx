@@ -147,13 +147,14 @@ export function GeneralSettingsPage() {
           </div>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-sm text-on-surface-variant">Regional Compliance</span>
+          <span className="text-sm text-on-surface-variant">Workspace region</span>
           <input
             type="text"
             value={workspace.region}
             onChange={(event) => update("region", event.target.value)}
             className="ghost-border rounded-lg px-3 py-2 bg-transparent"
           />
+          <span className="text-xs text-on-surface-variant">Deletes raw events, audit entries, and completed simulation images after this period.</span>
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-sm text-on-surface-variant">Retention Policy (days)</span>

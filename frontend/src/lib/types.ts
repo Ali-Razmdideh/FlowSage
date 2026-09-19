@@ -208,8 +208,10 @@ export interface FunnelFilters {
 export interface ScreenCalibration {
   screen: string;
   predicted_score: number;
-  observed_score: number;
-  delta: number;
+  observed_score: number | null;
+  delta: number | null;
+  sessions_entered?: number;
+  has_evidence?: boolean;
   anomaly: boolean;
 }
 

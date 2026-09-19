@@ -163,10 +163,11 @@ function AnomalyView({
                   >
                     <td className="py-2">{screen.screen}</td>
                     <td className="py-2">{screen.predicted_score.toFixed(2)}</td>
-                    <td className="py-2">{screen.observed_score.toFixed(2)}</td>
+                    <td className="py-2">
+                      {screen.has_evidence === false ? "Insufficient evidence" : screen.observed_score?.toFixed(2)}
+                    </td>
                     <td className={`py-2 ${screen.anomaly ? "text-error font-medium" : ""}`}>
-                      {screen.delta >= 0 ? "+" : ""}
-                      {screen.delta.toFixed(2)}
+                      {screen.delta === null ? "—" : `${screen.delta >= 0 ? "+" : ""}${screen.delta.toFixed(2)}`}
                     </td>
                   </tr>
                 ))}
@@ -182,11 +183,20 @@ function AnomalyView({
 }
 
 function OptimizedView({ report }: { report: CalibrationReport }) {
+  if (report.accuracy_points.length === 0) {
+    return (
+      <div className="flex flex-col gap-8">
+        <div><h1 className="font-headline text-3xl">Calibration Insights</h1></div>
+        <section className="bg-surface-container-lowest rounded-xl p-6">
+          <p className="font-medium">Calibration awaiting evidence</p>
+          <p className="text-sm text-on-surface-variant">Matching observed events with at least ten sessions are needed before persona accuracy can be measured.</p>
+        </section>
+      </div>
+    );
+  }
   const meanAccuracy =
-    report.accuracy_points.length === 0
-      ? 1
-      : report.accuracy_points.reduce((sum, p) => sum + p.accuracy, 0) /
-        report.accuracy_points.length;
+    report.accuracy_points.reduce((sum, p) => sum + p.accuracy, 0) /
+    report.accuracy_points.length;
 
   return (
     <div className="flex flex-col gap-8">

@@ -13,7 +13,11 @@ from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, Sc
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.workspace import Workspace
 from flowsage_backend.seed import seed_baseline_personas
-from flowsage_backend.worker import _purge_stale_scheduled_screenshots, _purge_workspace_retention
+from flowsage_backend.worker import (
+    _purge_expired_simulation_screenshots,
+    _purge_stale_scheduled_screenshots,
+    _purge_workspace_retention,
+)
 from tests.conftest import create_workspace_and_admin
 
 
@@ -143,3 +147,25 @@ async def test_purge_stale_scheduled_screenshots_protects_pending_and_in_flight_
     assert in_flight_dir.exists()
     assert recent_orphan_dir.exists()
     assert not old_orphan_dir.exists()
+
+
+async def test_purge_expired_simulation_screenshots_removes_only_expired_terminal_run_dirs(
+    db_session: AsyncSession, tmp_path: Path
+) -> None:
+    _, membership = await create_workspace_and_admin(db_session, f"purge-runs-{uuid.uuid4().hex[:8]}@example.com")
+    personas = await seed_baseline_personas(db_session, membership.workspace_id)
+    upload_dir = tmp_path / "uploads"
+    expired_dir, queued_dir, outside_dir = upload_dir / "old", upload_dir / "queued", tmp_path / "outside"
+    for directory in (expired_dir, queued_dir, outside_dir):
+        directory.mkdir(parents=True)
+    old = datetime.now(timezone.utc) - timedelta(days=31)
+    db_session.add_all([
+        SimulationRun(workspace_id=membership.workspace_id, flow_name="x", goal="x", persona_id=personas[0].id, screenshots_dir=str(expired_dir), status=RunStatus.COMPLETED, finished_at=old),
+        SimulationRun(workspace_id=membership.workspace_id, flow_name="x", goal="x", persona_id=personas[0].id, screenshots_dir=str(queued_dir), status=RunStatus.QUEUED, created_at=old),
+        SimulationRun(workspace_id=membership.workspace_id, flow_name="x", goal="x", persona_id=personas[0].id, screenshots_dir=str(outside_dir), status=RunStatus.FAILED, finished_at=old),
+    ])
+    await db_session.commit()
+    await _purge_expired_simulation_screenshots(db_session, membership.workspace_id, 30, upload_dir)
+    assert not expired_dir.exists()
+    assert queued_dir.exists()
+    assert outside_dir.exists()

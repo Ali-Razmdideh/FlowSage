@@ -223,6 +223,10 @@ async def run_retention_purge_job(ctx: dict[str, Any]) -> None:
                 await _purge_stale_scheduled_screenshots(
                     session, workspace_id, retention_days, upload_dir
                 )
+            async with session_factory() as session:
+                await _purge_expired_simulation_screenshots(
+                    session, workspace_id, retention_days, upload_dir
+                )
         except Exception:  # noqa: BLE001 - one workspace's purge failure must not
             # stop the retention job from running for every other workspace.
             logger.warning("Retention purge failed for workspace %s", workspace_id, exc_info=True)
@@ -289,6 +293,33 @@ async def _purge_stale_scheduled_screenshots(
             modified_at = datetime.fromtimestamp(push_dir.stat().st_mtime, tz=timezone.utc)
             if modified_at < cutoff:
                 shutil.rmtree(push_dir, ignore_errors=True)
+
+
+async def _purge_expired_simulation_screenshots(
+    session: AsyncSession, workspace_id: uuid.UUID, retention_days: int, upload_dir: Path
+) -> None:
+    """Remove expired terminal-run screenshots without following stored paths outside uploads."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    runs = (
+        await session.execute(
+            select(SimulationRun.screenshots_dir, SimulationRun.finished_at, SimulationRun.created_at).where(
+                SimulationRun.workspace_id == workspace_id,
+                SimulationRun.status.in_((RunStatus.COMPLETED, RunStatus.FAILED)),
+            )
+        )
+    ).all()
+    root = upload_dir.resolve()
+    for screenshots_dir, finished_at, created_at in runs:
+        if (finished_at or created_at) >= cutoff:
+            continue
+        try:
+            path = Path(screenshots_dir).resolve()
+            if root not in path.parents:
+                logger.warning("Skipped simulation screenshot purge outside upload directory")
+                continue
+            shutil.rmtree(path, ignore_errors=True)
+        except OSError:
+            logger.warning("Failed to purge simulation screenshots", exc_info=True)
 
 
 async def run_scheduled_simulations_job(ctx: dict[str, Any]) -> None:
