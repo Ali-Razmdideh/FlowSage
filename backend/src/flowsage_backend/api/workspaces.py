@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import uuid
+import asyncio
+import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +19,8 @@ from flowsage_backend.deps import get_current_membership, get_db_session, requir
 from flowsage_backend.models.user import User
 from flowsage_backend.models.flow import Flow, FlowVersion
 from flowsage_backend.models.workspace import Membership, Role, Workspace, WorkspacePrivacy
+from flowsage_backend.models.event import Event
+from flowsage_backend.models.simulation import SimulationRun
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -54,6 +59,51 @@ class WorkspaceUpdate(BaseModel):
     privacy: WorkspacePrivacy
     region: str = Field(min_length=1, max_length=64)
     retention_days: int = Field(ge=1, le=3650)
+
+
+class WorkspaceDeleteRequest(BaseModel):
+    confirmation: str
+
+
+@router.get("/current/export")
+async def export_current_workspace(
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    _, membership = membership_pair
+    workspace = await session.get(Workspace, membership.workspace_id)
+    events = list((await session.execute(select(Event).where(Event.workspace_id == membership.workspace_id))).scalars())
+    runs = list((await session.execute(select(SimulationRun).where(SimulationRun.workspace_id == membership.workspace_id))).scalars())
+    payload = {
+        "workspace": {"id": str(workspace.id), "name": workspace.name} if workspace else None,
+        "events": [{"session_id": e.session_id, "screen": e.screen, "event": e.event, "timestamp": e.timestamp.isoformat()} for e in events],
+        "simulation_runs": [{"id": str(r.id), "flow_name": r.flow_name, "status": r.status.value} for r in runs],
+    }
+    await record_audit_event(session, membership.workspace_id, actor_user_id=membership.user_id, action="workspace.exported")
+    return Response(json.dumps(payload), media_type="application/json", headers={"Content-Disposition": "attachment; filename=flowsage-workspace-export.json"})
+
+
+@router.delete("/current", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_workspace(
+    payload: WorkspaceDeleteRequest,
+    request: Request,
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    _, membership = membership_pair
+    if payload.confirmation != "DELETE WORKSPACE":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Confirmation must be DELETE WORKSPACE")
+    workspace = await session.get(Workspace, membership.workspace_id)
+    if workspace is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
+    workspace_id = membership.workspace_id
+    await session.delete(workspace)
+    await session.commit()
+    try:
+        await asyncio.to_thread(request.app.state.graph_sink.purge_before, str(workspace_id), datetime.max)
+    except Exception:
+        pass
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 class FlowCreate(BaseModel):
