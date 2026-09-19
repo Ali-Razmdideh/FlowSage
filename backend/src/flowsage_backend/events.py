@@ -20,7 +20,12 @@ from flowsage_backend.models.event import Event
 
 
 async def ingest_events(
-    session: AsyncSession, workspace_id: uuid.UUID, events: list[GraphEvent]
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    events: list[GraphEvent],
+    *,
+    flow_ids: list[uuid.UUID | None] | None = None,
+    flow_versions: list[int | None] | None = None,
 ) -> list[Event]:
     rows = [
         Event(
@@ -31,8 +36,10 @@ async def ingest_events(
             timestamp=e.timestamp,
             device=e.device,
             cohort=e.cohort,
+            flow_id=flow_ids[index] if flow_ids is not None else None,
+            flow_version=flow_versions[index] if flow_versions is not None else None,
         )
-        for e in events
+        for index, e in enumerate(events)
     ]
     session.add_all(rows)
     await session.commit()
@@ -46,6 +53,8 @@ async def query_events(
     cohort: str | None = None,
     device: str | None = None,
     since: datetime | None = None,
+    flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
 ) -> list[GraphEvent]:
     query = select(Event).where(Event.workspace_id == workspace_id)
     if cohort is not None:
@@ -54,6 +63,10 @@ async def query_events(
         query = query.where(Event.device == device)
     if since is not None:
         query = query.where(Event.timestamp >= since)
+    if flow_id is not None:
+        query = query.where(Event.flow_id == flow_id)
+    if flow_version is not None:
+        query = query.where(Event.flow_version == flow_version)
 
     result = await session.execute(query.order_by(Event.timestamp))
     return [row.to_graph_event() for row in result.scalars().all()]
@@ -83,8 +96,13 @@ async def build_funnel_report(
     cohort: str | None = None,
     device: str | None = None,
     since: datetime | None = None,
+    flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
 ) -> FunnelReport:
-    events = await query_events(session, workspace_id, cohort=cohort, device=device, since=since)
+    events = await query_events(
+        session, workspace_id, cohort=cohort, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
+    )
     funnel = discover_funnel(events)
     friction = detect_friction(events, funnel)
     return FunnelReport(

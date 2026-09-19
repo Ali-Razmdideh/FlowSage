@@ -29,6 +29,10 @@ class Event(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
+    flow_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("flows.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    flow_version: Mapped[int | None] = mapped_column(nullable=True)
     session_id: Mapped[str] = mapped_column(String(200), index=True)
     screen: Mapped[str] = mapped_column(String(200))
     event: Mapped[str] = mapped_column(String(100))

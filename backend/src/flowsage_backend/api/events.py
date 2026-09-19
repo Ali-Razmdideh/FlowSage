@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from flowsage_graph.models import Event as GraphEvent
 from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend import billing, insight_cache
@@ -40,6 +41,7 @@ from flowsage_backend.integrations.slack import (
 )
 from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
 from flowsage_backend.models.user import User
+from flowsage_backend.models.flow import Flow
 from flowsage_backend.models.workspace import Membership
 from flowsage_backend.rate_limit import INGEST_RATE_LIMIT, limiter, resolve_signature
 
@@ -58,6 +60,8 @@ class EventIn(BaseModel):
     timestamp: datetime
     device: str = "unknown"
     cohort: str = "unknown"
+    flow_id: uuid.UUID | None = None
+    flow_version: int | None = None
 
 
 class IngestResult(BaseModel):
@@ -74,8 +78,20 @@ async def ingest(
     session: AsyncSession = Depends(get_db_session),
 ) -> IngestResult:
     await check_within_limits(session, workspace_id, "events")
-    graph_events = [GraphEvent.model_validate(e.model_dump()) for e in payload]
-    rows = await ingest_events(session, workspace_id, graph_events)
+    flow_ids = [event.flow_id for event in payload]
+    if any(flow_ids):
+        known = set(
+            (await session.execute(
+                select(Flow.id).where(Flow.workspace_id == workspace_id, Flow.id.in_([id for id in flow_ids if id]))
+            )).scalars().all()
+        )
+        if any(flow_id is not None and flow_id not in known for flow_id in flow_ids):
+            raise HTTPException(status_code=422, detail="Unknown flow for this workspace")
+    graph_events = [GraphEvent.model_validate(e.model_dump(exclude={"flow_id", "flow_version"})) for e in payload]
+    rows = await ingest_events(
+        session, workspace_id, graph_events, flow_ids=flow_ids,
+        flow_versions=[event.flow_version for event in payload],
+    )
 
     graph_sink = request.app.state.graph_sink
     try:
@@ -93,12 +109,15 @@ async def funnel(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> FunnelReport:
     _, membership = membership_pair
     return await build_funnel_report(
-        session, membership.workspace_id, cohort=cohort, device=device, since=since
+        session, membership.workspace_id, cohort=cohort, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
     )
 
 

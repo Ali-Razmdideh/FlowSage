@@ -10,6 +10,7 @@ from flowsage_backend.models.billing import (
 )
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.event import Event
+from flowsage_backend.models.flow import Flow, FlowVersion
 from flowsage_backend.models.generated_insight import GeneratedInsight
 from flowsage_backend.models.integration import JiraIntegration, SlackIntegration
 from flowsage_backend.models.persona import Persona, PersonaMemory
@@ -41,6 +42,8 @@ __all__ = [
     "FrictionIssue",
     "RunStatus",
     "Event",
+    "Flow",
+    "FlowVersion",
     "GeneratedInsight",
     "RetrainingJob",
     "RetrainingStatus",
