@@ -243,7 +243,7 @@ export const api = {
       `/graph/nodes/${encodeURIComponent(screen)}${toQueryString(filters)}`,
     ),
 
-  getAlerts: (): Promise<AlertsReport> => request<AlertsReport>("/alerts"),
+  getAlerts: (filters: FunnelFilters = {}): Promise<AlertsReport> => request<AlertsReport>(`/alerts${toQueryString(filters)}`),
 
   exportIssueToSlack: (issueId: string): Promise<SlackExportResult> =>
     request<SlackExportResult>(`/friction-issues/${issueId}/export/slack`, { method: "POST" }),

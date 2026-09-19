@@ -136,18 +136,21 @@ async def check_friction_regression_alerts(
     return alerts
 
 
-async def build_alerts_report(session: AsyncSession, workspace_id: uuid.UUID) -> AlertsReport:
-    events = await query_events(session, workspace_id)
+async def build_alerts_report(
+    session: AsyncSession, workspace_id: uuid.UUID, *, flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
+) -> AlertsReport:
+    events = await query_events(session, workspace_id, flow_id=flow_id, flow_version=flow_version)
     funnel = discover_funnel(events)
     settings = await get_or_create_calibration_settings(session, workspace_id)
     calibration_report = await build_calibration_report(
-        session, workspace_id, funnel, settings.anomaly_threshold
+        session, workspace_id, funnel, settings.anomaly_threshold, flow_id
     )
-    churn_segments = await build_churn_risk_segments(session, workspace_id)
+    churn_segments = await build_churn_risk_segments(session, workspace_id, flow_id=flow_id, flow_version=flow_version)
     return AlertsReport(
         calibration_alerts=check_calibration_anomalies(calibration_report),
         churn_alerts=check_churn_alerts(churn_segments, settings.churn_risk_alert_threshold),
-        friction_regression_alerts=await check_friction_regression_alerts(session, workspace_id),
+        friction_regression_alerts=[] if flow_id is not None else await check_friction_regression_alerts(session, workspace_id),
     )
 
 

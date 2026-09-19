@@ -4,7 +4,8 @@ on schedule, exposed here so it can be tested/fired without waiting a week."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,21 +36,25 @@ class DigestResult(BaseModel):
 
 @router.get("", response_model=AlertsReport)
 async def get_alerts(
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> AlertsReport:
     _, membership = membership_pair
-    return await build_alerts_report(session, membership.workspace_id)
+    return await build_alerts_report(session, membership.workspace_id, flow_id=flow_id, flow_version=flow_version)
 
 
 @router.post("/digest/run", response_model=DigestResult)
 async def run_digest_now(
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
     session: AsyncSession = Depends(get_db_session),
 ) -> DigestResult:
     _, membership = membership_pair
     integration = await get_slack_integration(session, membership.workspace_id)
-    report = await build_alerts_report(session, membership.workspace_id)
+    report = await build_alerts_report(session, membership.workspace_id, flow_id=flow_id, flow_version=flow_version)
     try:
         await post_slack_message(
             integration.webhook_url if integration else None,
