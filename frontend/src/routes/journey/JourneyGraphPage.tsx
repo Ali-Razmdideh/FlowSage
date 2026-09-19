@@ -10,6 +10,7 @@ import type {
   Flow,
   CoverageReport,
   NodeIntelligence,
+  SessionEvidence,
 } from "../../lib/types";
 
 const KIND_LABEL: Record<FrictionKind, string> = {
@@ -32,6 +33,7 @@ export function JourneyGraphPage() {
   const [selectedNode, setSelectedNode] = useState<FrictionNode | null>(null);
   const [nodeIntel, setNodeIntel] = useState<NodeIntelligence | null>(null);
   const [nodeError, setNodeError] = useState<string | null>(null);
+  const [evidence, setEvidence] = useState<SessionEvidence[] | null>(null);
 
   const loadFunnel = useCallback(() => {
     const filters = {
@@ -67,6 +69,7 @@ export function JourneyGraphPage() {
     setSelectedNode(node);
     setNodeIntel(null);
     setNodeError(null);
+    setEvidence(null);
     api
       .getNodeIntelligence(node.screen, {
         ...(cohort && { cohort }),
@@ -76,6 +79,7 @@ export function JourneyGraphPage() {
       .catch((err: unknown) => {
         setNodeError(err instanceof ApiError ? err.message : "Failed to load node intelligence.");
       });
+    api.getNodeSessions(node.screen, { ...(flowId && { flow_id: flowId }) }).then(setEvidence).catch(() => setEvidence([]));
   };
 
   return (
@@ -182,6 +186,7 @@ export function JourneyGraphPage() {
           node={selectedNode}
           intel={nodeIntel}
           error={nodeError}
+          evidence={evidence}
           onClose={() => setSelectedNode(null)}
         />
       ) : null}
@@ -268,11 +273,13 @@ function NodeIntelligenceAside({
   node,
   intel,
   error,
+  evidence,
   onClose,
 }: {
   node: FrictionNode;
   intel: NodeIntelligence | null;
   error: string | null;
+  evidence: SessionEvidence[] | null;
   onClose: () => void;
 }) {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -361,6 +368,7 @@ function NodeIntelligenceAside({
               </ul>
             </div>
           ) : null}
+          {evidence !== null ? <div><p className="text-xs font-label uppercase tracking-wide text-on-surface-variant mb-2">Session evidence</p>{evidence.length === 0 ? <p className="text-sm text-on-surface-variant">No matching sessions.</p> : <ul className="text-xs flex flex-col gap-1">{evidence.slice(0, 5).map((session) => <li key={session.session_id} className="ghost-border rounded p-2"><span className="font-medium">{session.session_id}</span>: {session.events.map((event) => event.event).join(" → ")}</li>)}</ul>}</div> : null}
 
           <div className="flex items-center gap-4">
             <button

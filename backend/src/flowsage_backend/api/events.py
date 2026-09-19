@@ -42,6 +42,7 @@ from flowsage_backend.integrations.slack import (
 from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
 from flowsage_backend.models.user import User
 from flowsage_backend.models.flow import Flow
+from flowsage_backend.models.event import Event
 from flowsage_backend.models.workspace import Membership
 from flowsage_backend.rate_limit import INGEST_RATE_LIMIT, limiter, resolve_signature
 
@@ -66,6 +67,11 @@ class EventIn(BaseModel):
 
 class IngestResult(BaseModel):
     ingested: int
+
+
+class SessionEvidence(BaseModel):
+    session_id: str
+    events: list[EventIn]
 
 
 @events_router.post("", response_model=IngestResult, status_code=201)
@@ -129,6 +135,26 @@ async def coverage(
 ) -> CoverageReport:
     _, membership = membership_pair
     return await build_coverage_report(session, membership.workspace_id, flow_id=flow_id, flow_version=flow_version)
+
+
+@graph_router.get("/nodes/{screen}/sessions", response_model=list[SessionEvidence])
+async def node_sessions(
+    screen: str, flow_id: uuid.UUID | None = Query(default=None), flow_version: int | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[SessionEvidence]:
+    _, membership = membership_pair
+    query = select(Event).where(Event.workspace_id == membership.workspace_id, Event.screen == screen)
+    if flow_id is not None: query = query.where(Event.flow_id == flow_id)
+    if flow_version is not None: query = query.where(Event.flow_version == flow_version)
+    rows = list((await session.execute(query.order_by(Event.session_id, Event.timestamp))).scalars())
+    grouped: dict[str, list[EventIn]] = {}
+    for row in rows:
+        grouped.setdefault(row.session_id, []).append(EventIn(
+            session_id=row.session_id, screen=row.screen, event=row.event, timestamp=row.timestamp,
+            device=row.device, cohort=row.cohort, flow_id=row.flow_id, flow_version=row.flow_version,
+        ))
+    return [SessionEvidence(session_id=session_id, events=events) for session_id, events in grouped.items()]
 
 
 @graph_router.get("/cohorts/compare", response_model=CohortComparisonReport)

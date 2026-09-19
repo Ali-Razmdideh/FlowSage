@@ -12,6 +12,7 @@ import type {
   FunnelFilters,
   FunnelReport,
   CoverageReport,
+  SessionEvidence,
   ImportSampleDataResult,
   JiraConnectPayload,
   JiraExportResult,
@@ -99,6 +100,8 @@ function toQueryString(filters: FunnelFilters): string {
   if (filters.cohort) params.set("cohort", filters.cohort);
   if (filters.device) params.set("device", filters.device);
   if (filters.since) params.set("since", filters.since);
+  if (filters.flow_id) params.set("flow_id", filters.flow_id);
+  if (filters.flow_version !== undefined) params.set("flow_version", String(filters.flow_version));
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }
@@ -208,6 +211,7 @@ export const api = {
   getFunnel: (filters: FunnelFilters = {}): Promise<FunnelReport> =>
     request<FunnelReport>(`/graph/funnel${toQueryString(filters)}`),
   getCoverage: (filters: FunnelFilters = {}): Promise<CoverageReport> => request<CoverageReport>(`/graph/coverage${toQueryString(filters)}`),
+  getNodeSessions: (screen: string, filters: FunnelFilters = {}): Promise<SessionEvidence[]> => request<SessionEvidence[]>(`/graph/nodes/${encodeURIComponent(screen)}/sessions${toQueryString(filters)}`),
 
   simulationStreamUrl: (id: string): string => `${API_BASE}/simulations/${id}/stream`,
 
