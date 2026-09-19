@@ -20,6 +20,8 @@ class Event(BaseModel):
     timestamp: datetime
     device: str = "unknown"
     cohort: str = "unknown"
+    flow_id: str | None = None
+    flow_version: int | None = None
 
 
 class FrictionKind(str, Enum):

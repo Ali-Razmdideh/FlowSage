@@ -48,4 +48,6 @@ class Event(Base):
             timestamp=self.timestamp,
             device=self.device,
             cohort=self.cohort,
+            flow_id=str(self.flow_id) if self.flow_id is not None else None,
+            flow_version=self.flow_version,
         )

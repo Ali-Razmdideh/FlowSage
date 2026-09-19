@@ -87,7 +87,7 @@ async def ingest(
         )
         if any(flow_id is not None and flow_id not in known for flow_id in flow_ids):
             raise HTTPException(status_code=422, detail="Unknown flow for this workspace")
-    graph_events = [GraphEvent.model_validate(e.model_dump(exclude={"flow_id", "flow_version"})) for e in payload]
+    graph_events = [GraphEvent.model_validate(e.model_dump()) for e in payload]
     rows = await ingest_events(
         session, workspace_id, graph_events, flow_ids=flow_ids,
         flow_versions=[event.flow_version for event in payload],

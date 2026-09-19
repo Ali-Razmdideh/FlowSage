@@ -18,9 +18,9 @@ from neo4j import Driver, GraphDatabase, ManagedTransaction
 from flowsage_graph.models import Event
 
 _MERGE_TRANSITION_QUERY = """
-MERGE (a:Screen {name: $from_screen, workspace_id: $workspace_id})
-MERGE (b:Screen {name: $to_screen, workspace_id: $workspace_id})
-MERGE (a)-[t:TRANSITION {session_id: $session_id}]->(b)
+MERGE (a:Screen {name: $from_screen, workspace_id: $workspace_id, flow_id: $flow_id, flow_version: $flow_version})
+MERGE (b:Screen {name: $to_screen, workspace_id: $workspace_id, flow_id: $flow_id, flow_version: $flow_version})
+MERGE (a)-[t:TRANSITION {session_id: $session_id, flow_id: $flow_id, flow_version: $flow_version}]->(b)
 ON CREATE SET
     t.count = 1,
     t.device = $device,
@@ -102,6 +102,8 @@ def _merge_transition_tx(
         cohort=to_event.cohort,
         timestamp=to_event.timestamp.isoformat(),
         workspace_id=workspace_id,
+        flow_id=to_event.flow_id,
+        flow_version=to_event.flow_version,
     )
 
 
@@ -121,7 +123,12 @@ class Neo4jGraphSink:
         self.close()
 
     def ingest(self, events: list[Event], workspace_id: str) -> None:
-        transitions = session_transitions(events)
+        transitions = [
+            (from_event, to_event)
+            for from_event, to_event in session_transitions(events)
+            if (from_event.flow_id, from_event.flow_version)
+            == (to_event.flow_id, to_event.flow_version)
+        ]
         with self._driver.session() as session:
             for from_event, to_event in transitions:
                 session.execute_write(_merge_transition_tx, from_event, to_event, workspace_id)
