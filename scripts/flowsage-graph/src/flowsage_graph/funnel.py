@@ -15,6 +15,7 @@ from flowsage_graph.models import Event, FrictionKind, FrictionNode, FunnelStep
 
 DEFAULT_DROP_OFF_THRESHOLD = 0.5
 DEFAULT_RAGE_LOOP_THRESHOLD = 3
+DEFAULT_RAGE_LOOP_WINDOW_SECONDS = 10
 
 
 def _group_sorted_by_session(events: list[Event]) -> dict[str, list[Event]]:
@@ -99,6 +100,7 @@ def detect_friction(
     *,
     drop_off_threshold: float = DEFAULT_DROP_OFF_THRESHOLD,
     rage_loop_threshold: int = DEFAULT_RAGE_LOOP_THRESHOLD,
+    rage_loop_window_seconds: float = DEFAULT_RAGE_LOOP_WINDOW_SECONDS,
 ) -> list[FrictionNode]:
     by_session = _group_sorted_by_session(events)
     friction: list[FrictionNode] = []
@@ -119,18 +121,25 @@ def detect_friction(
 
     rage_counts: dict[str, int] = defaultdict(int)
     for session_events in by_session.values():
-        run_screen: str | None = None
+        run_key: tuple[str, str] | None = None
+        run_started_at = None
         run_length = 0
         flagged_this_session: set[str] = set()
         for event in session_events:
-            if event.screen == run_screen:
+            key = (event.screen, event.event)
+            within_window = (
+                run_started_at is not None
+                and (event.timestamp - run_started_at).total_seconds() <= rage_loop_window_seconds
+            )
+            if key == run_key and within_window:
                 run_length += 1
             else:
-                run_screen = event.screen
+                run_key = key
+                run_started_at = event.timestamp
                 run_length = 1
-            if run_length >= rage_loop_threshold and run_screen not in flagged_this_session:
-                rage_counts[run_screen] += 1
-                flagged_this_session.add(run_screen)
+            if run_length >= rage_loop_threshold and event.screen not in flagged_this_session:
+                rage_counts[event.screen] += 1
+                flagged_this_session.add(event.screen)
 
     for screen, sessions_affected in rage_counts.items():
         friction.append(
@@ -138,8 +147,8 @@ def detect_friction(
                 screen=screen,
                 kind=FrictionKind.RAGE_LOOP,
                 detail=(
-                    f"{sessions_affected} session(s) repeated {rage_loop_threshold}+ actions "
-                    f"on '{screen}' without progressing."
+                    f"{sessions_affected} session(s) repeated the same action {rage_loop_threshold}+ "
+                    f"times within {rage_loop_window_seconds:g} seconds on '{screen}'."
                 ),
                 sessions_affected=sessions_affected,
             )

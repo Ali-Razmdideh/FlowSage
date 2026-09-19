@@ -75,6 +75,26 @@ def test_detect_friction_flags_rage_loop() -> None:
     assert rage_nodes[0].sessions_affected == 1
 
 
+def test_detect_friction_does_not_treat_distinct_actions_as_rage() -> None:
+    events = [
+        _event("s1", "checkout", 0, "page_view"),
+        _event("s1", "checkout", 1, "focus"),
+        _event("s1", "checkout", 2, "type"),
+    ]
+    friction = detect_friction(events, discover_funnel(events))
+    assert not [node for node in friction if node.kind == FrictionKind.RAGE_LOOP]
+
+
+def test_detect_friction_requires_repetition_within_time_window() -> None:
+    events = [
+        _event("s1", "checkout", 0, "click"),
+        _event("s1", "checkout", 6, "click"),
+        _event("s1", "checkout", 12, "click"),
+    ]
+    friction = detect_friction(events, discover_funnel(events))
+    assert not [node for node in friction if node.kind == FrictionKind.RAGE_LOOP]
+
+
 def test_detect_friction_flags_backtrack() -> None:
     events = [
         _event("s1", "landing", 0),
