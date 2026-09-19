@@ -203,7 +203,11 @@ export interface FunnelFilters {
   cohort?: string;
   device?: string;
   since?: string;
+  flow_id?: string;
+  flow_version?: number;
 }
+
+export interface Flow { id: string; key: string; name: string; version: number; }
 
 export interface ScreenCalibration {
   screen: string;

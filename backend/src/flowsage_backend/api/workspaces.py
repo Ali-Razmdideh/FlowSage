@@ -14,6 +14,7 @@ from flowsage_backend.audit import record_audit_event
 from flowsage_backend.billing import check_within_limits
 from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.models.user import User
+from flowsage_backend.models.flow import Flow, FlowVersion
 from flowsage_backend.models.workspace import Membership, Role, Workspace, WorkspacePrivacy
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -53,6 +54,47 @@ class WorkspaceUpdate(BaseModel):
     privacy: WorkspacePrivacy
     region: str = Field(min_length=1, max_length=64)
     retention_days: int = Field(ge=1, le=3650)
+
+
+class FlowCreate(BaseModel):
+    key: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    name: str = Field(min_length=1, max_length=200)
+
+
+class FlowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    key: str
+    name: str
+    version: int
+
+
+@router.get("/current/flows", response_model=list[FlowOut])
+async def list_flows(
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[FlowOut]:
+    _, membership = membership_pair
+    rows = (await session.execute(
+        select(Flow, FlowVersion.version).join(FlowVersion).where(Flow.workspace_id == membership.workspace_id)
+    )).all()
+    return [FlowOut(id=flow.id, key=flow.key, name=flow.name, version=version) for flow, version in rows]
+
+
+@router.post("/current/flows", response_model=FlowOut, status_code=status.HTTP_201_CREATED)
+async def create_flow(
+    payload: FlowCreate,
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
+    session: AsyncSession = Depends(get_db_session),
+) -> FlowOut:
+    _, membership = membership_pair
+    flow = Flow(workspace_id=membership.workspace_id, key=payload.key, name=payload.name)
+    session.add(flow)
+    await session.flush()
+    version = FlowVersion(flow_id=flow.id, version=1)
+    session.add(version)
+    await session.commit()
+    return FlowOut(id=flow.id, key=flow.key, name=flow.name, version=1)
 
 
 @router.get("", response_model=list[WorkspaceSummaryOut])

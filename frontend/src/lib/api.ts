@@ -273,6 +273,8 @@ export const api = {
 
   getCurrentWorkspace: (): Promise<Workspace> => request<Workspace>("/workspaces/current"),
 
+  getFlows: (): Promise<import("./types").Flow[]> => request<import("./types").Flow[]>("/workspaces/current/flows"),
+
   updateCurrentWorkspace: (payload: WorkspaceUpdatePayload): Promise<Workspace> =>
     request<Workspace>("/workspaces/current", { method: "PATCH", body: JSON.stringify(payload) }),
 

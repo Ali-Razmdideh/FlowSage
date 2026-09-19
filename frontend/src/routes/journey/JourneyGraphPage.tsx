@@ -7,6 +7,7 @@ import type {
   FrictionKind,
   FrictionNode,
   FunnelReport,
+  Flow,
   NodeIntelligence,
 } from "../../lib/types";
 
@@ -19,6 +20,8 @@ const KIND_LABEL: Record<FrictionKind, string> = {
 export function JourneyGraphPage() {
   const [cohort, setCohort] = useState("");
   const [device, setDevice] = useState("");
+  const [flows, setFlows] = useState<Flow[]>([]);
+  const [flowId, setFlowId] = useState("");
   const [report, setReport] = useState<FunnelReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +35,7 @@ export function JourneyGraphPage() {
     const filters = {
       ...(cohort && { cohort }),
       ...(device && { device }),
+      ...(flowId && { flow_id: flowId }),
     };
     api
       .getFunnel(filters)
@@ -39,11 +43,13 @@ export function JourneyGraphPage() {
       .catch((err: unknown) => {
         setError(err instanceof ApiError ? err.message : "Failed to load journey graph.");
       });
-  }, [cohort, device]);
+  }, [cohort, device, flowId]);
 
   useEffect(() => {
     loadFunnel();
   }, [loadFunnel]);
+
+  useEffect(() => { api.getFlows().then(setFlows).catch(() => setFlows([])); }, []);
 
   useEffect(() => {
     const filters = { ...(device && { device }) };
@@ -86,6 +92,10 @@ export function JourneyGraphPage() {
               placeholder="Filter by cohort"
               className="ghost-border rounded-lg px-3 py-2 text-sm"
             />
+            <select value={flowId} onChange={(event) => setFlowId(event.target.value)} className="ghost-border rounded-lg px-3 py-2 text-sm">
+              <option value="">All flows</option>
+              {flows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name} · v{flow.version}</option>)}
+            </select>
             <input
               value={device}
               onChange={(event) => setDevice(event.target.value)}
