@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { AuthContext, type AuthState } from "../../auth/AuthContext";
 import { api } from "../../lib/api";
 import type { SimulationRunDetail } from "../../lib/types";
 import { RunningSimulationPage } from "./RunningSimulationPage";
@@ -91,5 +92,36 @@ describe("RunningSimulationPage export buttons", () => {
     fireEvent.click(jiraButton);
 
     expect(await screen.findByText(/FLOW-42/)).toBeInTheDocument();
+  });
+
+  it("explains export access to viewers without rendering export buttons", async () => {
+    const viewer: AuthState = {
+      user: {
+        id: "viewer-1",
+        email: "viewer@example.com",
+        created_at: "2026-01-01T00:00:00Z",
+        workspace_id: "workspace-1",
+        role: "viewer",
+        workspaces: [{ id: "workspace-1", name: "Research" }],
+      },
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      switchWorkspace: vi.fn(),
+    };
+    vi.mocked(api.getSimulation).mockResolvedValue(RUN);
+
+    render(
+      <MemoryRouter initialEntries={["/predictive/runs/run-1"]}>
+        <AuthContext.Provider value={viewer}>
+          <Routes>
+            <Route path="/predictive/runs/:runId" element={<RunningSimulationPage />} />
+          </Routes>
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Researcher access is required to export insights.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export to Slack" })).not.toBeInTheDocument();
   });
 });

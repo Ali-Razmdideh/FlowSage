@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AuthContext, type AuthState } from "../../auth/AuthContext";
 import { api } from "../../lib/api";
 import type { FunnelReport, NodeIntelligence } from "../../lib/types";
 import { JourneyGraphPage } from "./JourneyGraphPage";
@@ -143,6 +144,50 @@ describe("JourneyGraphPage", () => {
 
     expect(await screen.findByText(/Exported to Slack/)).toBeInTheDocument();
     expect(api.exportNodeToSlack).toHaveBeenCalledWith("checkout");
+  });
+
+  it("explains export access to viewers before they can submit an export", async () => {
+    const viewer: AuthState = {
+      user: {
+        id: "viewer-1",
+        email: "viewer@example.com",
+        created_at: "2026-01-01T00:00:00Z",
+        workspace_id: "workspace-1",
+        role: "viewer",
+        workspaces: [{ id: "workspace-1", name: "Research" }],
+      },
+      loading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      switchWorkspace: vi.fn(),
+    };
+    vi.mocked(api.getFunnel).mockResolvedValue({
+      funnel: [{ screen: "checkout", sessions_entered: 10, sessions_continued: 5, drop_off_rate: 0.5 }],
+      friction_nodes: [
+        { screen: "checkout", kind: "abnormal_drop_off", detail: "High drop-off.", sessions_affected: 5 },
+      ],
+      total_sessions: 10,
+      total_events: 20,
+    });
+    vi.mocked(api.getNodeIntelligence).mockResolvedValue({
+      screen: "checkout",
+      drop_off_rate: 0.5,
+      avg_seconds_on_node: 30,
+      friction_nodes: [],
+      ai_insight: "High drop-off at checkout.",
+      recommendations: [],
+    });
+
+    render(
+      <AuthContext.Provider value={viewer}>
+        <JourneyGraphPage />
+      </AuthContext.Provider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /checkout/ }));
+
+    expect(await screen.findByText("Researcher access is required to export insights.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export to Slack" })).not.toBeInTheDocument();
+    expect(api.exportNodeToSlack).not.toHaveBeenCalled();
   });
 
   it("shows an Import Sample Data button in the empty state and refetches the funnel on success", async () => {

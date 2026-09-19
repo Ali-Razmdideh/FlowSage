@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AuthContext } from "../../auth/AuthContext";
 import { api, ApiError } from "../../lib/api";
 import type { FrictionIssue, RunStatus, SimulationRunDetail, SimulationStep } from "../../lib/types";
 
@@ -17,7 +18,9 @@ interface DoneEventPayload {
 }
 
 export function RunningSimulationPage() {
+  const auth = useContext(AuthContext);
   const { runId } = useParams<{ runId: string }>();
+  const canExport = auth?.user?.role !== "viewer";
   const [run, setRun] = useState<SimulationRunDetail | null>(null);
   const [steps, setSteps] = useState<SimulationStep[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -109,7 +112,7 @@ export function RunningSimulationPage() {
           <h2 className="font-headline text-xl mb-4">Friction Issues</h2>
           <ul className="flex flex-col gap-4">
             {run.issues.map((issue) => (
-              <FrictionIssueCard key={issue.id} issue={issue} />
+              <FrictionIssueCard key={issue.id} issue={issue} canExport={canExport} />
             ))}
           </ul>
         </section>
@@ -125,7 +128,7 @@ const SEVERITY_LABEL: Record<FrictionIssue["severity"], string> = {
   critical: "Critical",
 };
 
-function FrictionIssueCard({ issue }: { issue: FrictionIssue }) {
+function FrictionIssueCard({ issue, canExport }: { issue: FrictionIssue; canExport: boolean }) {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
 
   const handleExport = async (target: "slack" | "jira") => {
@@ -166,22 +169,28 @@ function FrictionIssueCard({ issue }: { issue: FrictionIssue }) {
         <span className="text-on-surface-variant">Suggested fix: </span>
         {issue.suggested_fix}
       </p>
-      <div className="flex items-center gap-4 mt-3">
-        <button
-          type="button"
-          onClick={() => void handleExport("slack")}
-          className="text-sm text-primary hover:underline"
-        >
-          Export to Slack
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleExport("jira")}
-          className="text-sm text-primary hover:underline"
-        >
-          Export to Jira
-        </button>
-      </div>
+      {canExport ? (
+        <div className="flex items-center gap-4 mt-3">
+          <button
+            type="button"
+            onClick={() => void handleExport("slack")}
+            className="text-sm text-primary hover:underline"
+          >
+            Export to Slack
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleExport("jira")}
+            className="text-sm text-primary hover:underline"
+          >
+            Export to Jira
+          </button>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-on-surface-variant">
+          Researcher access is required to export insights.
+        </p>
+      )}
       {exportStatus !== null ? (
         <p className="text-xs text-on-surface-variant mt-2">{exportStatus}</p>
       ) : null}

@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
 import { UsageLimitBanner } from "../../components/UsageLimitBanner";
 import { api, ApiError } from "../../lib/api";
 import type { Persona } from "../../lib/types";
 
 export function PredictiveEnginePage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const canManageSimulations = user?.role === "admin" || user?.role === "researcher";
   const [personas, setPersonas] = useState<Persona[] | null>(null);
   const [personaId, setPersonaId] = useState("");
   const [goal, setGoal] = useState("Complete purchase");
@@ -70,12 +73,14 @@ export function PredictiveEnginePage() {
       <section className="bg-surface-container-lowest rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-headline text-xl">Persona Library</h2>
-          <Link
-            to="/predictive/personas/new"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            + New Persona
-          </Link>
+          {canManageSimulations ? (
+            <Link
+              to="/predictive/personas/new"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              + New Persona
+            </Link>
+          ) : null}
         </div>
         {personas === null ? (
           <p className="text-on-surface-variant text-sm">Loading personas…</p>
@@ -100,7 +105,12 @@ export function PredictiveEnginePage() {
 
       <section className="bg-surface-container-lowest rounded-xl p-6">
         <h2 className="font-headline text-xl mb-4">Run New Simulation</h2>
-        <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
+        {!canManageSimulations ? (
+          <p className="text-sm text-on-surface-variant">
+            Researcher access is required to create personas and run simulations.
+          </p>
+        ) : (
+          <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-on-surface-variant">Persona</span>
             <select
@@ -167,7 +177,8 @@ export function PredictiveEnginePage() {
           >
             {submitting ? "Starting…" : "Run Simulation"}
           </button>
-        </form>
+          </form>
+        )}
       </section>
     </div>
   );

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
+import { AuthContext } from "../../auth/AuthContext";
 import { api, ApiError } from "../../lib/api";
 import { ImportSampleDataButton } from "../../components/ImportSampleDataButton";
 import type {
@@ -20,6 +21,8 @@ const KIND_LABEL: Record<FrictionKind, string> = {
 };
 
 export function JourneyGraphPage() {
+  const auth = useContext(AuthContext);
+  const canExport = auth?.user?.role !== "viewer";
   const [cohort, setCohort] = useState("");
   const [device, setDevice] = useState("");
   const [flows, setFlows] = useState<Flow[]>([]);
@@ -188,6 +191,7 @@ export function JourneyGraphPage() {
           error={nodeError}
           evidence={evidence}
           flowId={flowId}
+          canExport={canExport}
           onClose={() => setSelectedNode(null)}
         />
       ) : null}
@@ -276,6 +280,7 @@ function NodeIntelligenceAside({
   error,
   evidence,
   flowId,
+  canExport,
   onClose,
 }: {
   node: FrictionNode;
@@ -283,6 +288,7 @@ function NodeIntelligenceAside({
   error: string | null;
   evidence: SessionEvidence[] | null;
   flowId: string;
+  canExport: boolean;
   onClose: () => void;
 }) {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -376,22 +382,28 @@ function NodeIntelligenceAside({
           ) : null}
           {evidence !== null ? <div><p className="text-xs font-label uppercase tracking-wide text-on-surface-variant mb-2">Session evidence</p>{evidence.length === 0 ? <p className="text-sm text-on-surface-variant">No matching sessions.</p> : <ul className="text-xs flex flex-col gap-1">{evidence.slice(0, 5).map((session) => <li key={session.session_id} className="ghost-border rounded p-2"><span className="font-medium">{session.session_id}</span>: {session.events.map((event) => event.event).join(" → ")}</li>)}</ul>}</div> : null}
 
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => void handleExport("slack")}
-              className="text-sm text-primary hover:underline"
-            >
-              Export to Slack
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleExport("jira")}
-              className="text-sm text-primary hover:underline"
-            >
-              Export to Jira
-            </button>
-          </div>
+          {canExport ? (
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => void handleExport("slack")}
+                className="text-sm text-primary hover:underline"
+              >
+                Export to Slack
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExport("jira")}
+                className="text-sm text-primary hover:underline"
+              >
+                Export to Jira
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-on-surface-variant">
+              Researcher access is required to export insights.
+            </p>
+          )}
           {exportStatus !== null ? (
             <p className="text-xs text-on-surface-variant">{exportStatus}</p>
           ) : null}
