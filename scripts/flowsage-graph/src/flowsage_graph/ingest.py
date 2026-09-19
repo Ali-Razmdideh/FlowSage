@@ -83,6 +83,7 @@ def session_transitions(events: list[Event]) -> list[tuple[Event, Event]]:
 class GraphSink(Protocol):
     def ingest(self, events: list[Event], workspace_id: str) -> None: ...
     def purge_before(self, workspace_id: str, cutoff: datetime) -> None: ...
+    def delete_workspace(self, workspace_id: str) -> None: ...
 
 
 class NullGraphSink:
@@ -92,6 +93,9 @@ class NullGraphSink:
         return None
 
     def purge_before(self, workspace_id: str, cutoff: datetime) -> None:
+        return None
+
+    def delete_workspace(self, workspace_id: str) -> None:
         return None
 
 
@@ -150,7 +154,14 @@ class Neo4jGraphSink:
                 cutoff=cutoff.isoformat(),
             )
             session.run(
-                "MATCH (s:Screen {workspace_id: $workspace_id}) "
-                "WHERE NOT (s)--() DELETE s",
+                "MATCH (s:Screen {workspace_id: $workspace_id}) " "WHERE NOT (s)--() DELETE s",
+                workspace_id=workspace_id,
+            )
+
+    def delete_workspace(self, workspace_id: str) -> None:
+        """Delete the workspace projection before its source records disappear."""
+        with self._driver.session() as session:
+            session.run(
+                "MATCH (s:Screen {workspace_id: $workspace_id}) DETACH DELETE s",
                 workspace_id=workspace_id,
             )

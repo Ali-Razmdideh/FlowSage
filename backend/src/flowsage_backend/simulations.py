@@ -35,6 +35,19 @@ class SimulationError(Exception):
     """Raised when a run can't be created or found."""
 
 
+async def validate_persona_for_workspace(
+    session: AsyncSession, workspace_id: uuid.UUID, persona_id: uuid.UUID
+) -> Persona:
+    persona = (
+        await session.execute(
+            select(Persona).where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
+        )
+    ).scalar_one_or_none()
+    if persona is None:
+        raise SimulationError(f"No persona with id {persona_id}")
+    return persona
+
+
 def discover_screenshots(directory: Path) -> list[Path]:
     if not directory.is_dir():
         return []
@@ -57,13 +70,7 @@ async def create_run(
     `scheduled_simulation_id` tags a run fired by the scheduled-simulations cron job
     (flowsage_backend.scheduled_simulations.fire_due_scheduled_simulations) so its
     trend/regression queries can find it; a manually-triggered run leaves it None."""
-    persona = (
-        await session.execute(
-            select(Persona).where(Persona.id == persona_id, Persona.workspace_id == workspace_id)
-        )
-    ).scalar_one_or_none()
-    if persona is None:
-        raise SimulationError(f"No persona with id {persona_id}")
+    persona = await validate_persona_for_workspace(session, workspace_id, persona_id)
 
     if not discover_screenshots(screenshots_dir):
         raise SimulationError(f"No screenshots found in {screenshots_dir}")

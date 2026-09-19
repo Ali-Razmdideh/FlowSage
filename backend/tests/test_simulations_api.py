@@ -67,6 +67,27 @@ async def test_create_simulation_rejects_unknown_persona(
         )
 
     assert response.status_code == 422
+    assert not list(Path(app.state.settings.upload_dir).glob("*"))
+
+
+async def test_create_simulation_rejects_oversized_upload_without_staging_files(
+    app: FastAPI, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flowsage_backend import uploads
+
+    workspace_id = await _sim_api_workspace_id(db_session)
+    persona = (await seed_baseline_personas(db_session, workspace_id))[0]
+    monkeypatch.setattr(uploads, "MAX_SIMULATION_UPLOAD_BYTES_PER_FILE", 8)
+
+    async with _authed_client(app, db_session) as client:
+        response = await client.post(
+            "/simulations",
+            data={"persona_id": str(persona.id), "goal": "goal", "flow_name": "flow"},
+            files={"files": ("large.png", b"x" * 9, "image/png")},
+        )
+
+    assert response.status_code == 422
+    assert not list(Path(app.state.settings.upload_dir).glob("*"))
 
 
 async def test_create_simulation_rejects_disallowed_file_type(
@@ -217,7 +238,9 @@ async def test_create_and_get_simulation_via_api_key(
 ) -> None:
     from .conftest import create_api_key_for, login_to_default_workspace
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as setup_client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as setup_client:
         workspace_id = await login_to_default_workspace(
             setup_client, db_session, "sim-apikey@example.com"
         )

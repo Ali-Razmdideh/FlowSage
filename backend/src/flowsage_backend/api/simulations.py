@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import uuid
 from pathlib import Path
 from typing import AsyncIterator
@@ -26,7 +27,8 @@ from flowsage_backend.deps import require_actor, get_current_membership, get_db_
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role
-from flowsage_backend.simulations import IMAGE_SUFFIXES, SimulationError, create_run
+from flowsage_backend.simulations import SimulationError, create_run, validate_persona_for_workspace
+from flowsage_backend.uploads import UploadValidationError, stage_image_uploads
 
 router = APIRouter(prefix="/simulations", tags=["simulations"])
 
@@ -95,22 +97,18 @@ async def create_simulation(
 ) -> SimulationRun:
     workspace_id, user_id = actor
     await check_within_limits(session, workspace_id, "runs")
+    # Check ownership before creating any disk state. create_run checks again
+    # before commit, protecting the database write from races.
+    try:
+        await validate_persona_for_workspace(session, workspace_id, persona_id)
+    except SimulationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
     settings = request.app.state.settings
     run_id = uuid.uuid4()
     screenshots_dir = Path(settings.upload_dir) / str(run_id)
-    screenshots_dir.mkdir(parents=True, exist_ok=True)
-
-    for upload in files:
-        # .name strips any directory components from the client-supplied filename,
-        # so a crafted "../../etc/passwd"-style name can't escape screenshots_dir.
-        filename = Path(upload.filename or "").name
-        if Path(filename).suffix.lower() not in IMAGE_SUFFIXES:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unsupported file type: {filename!r}"
-            )
-        (screenshots_dir / filename).write_bytes(await upload.read())
-
     try:
+        await stage_image_uploads(files, screenshots_dir)
         run = await create_run(
             session,
             workspace_id=workspace_id,
@@ -120,8 +118,12 @@ async def create_simulation(
             goal=goal,
             screenshots_dir=screenshots_dir,
         )
-    except SimulationError as exc:
+    except (SimulationError, UploadValidationError) as exc:
+        shutil.rmtree(screenshots_dir, ignore_errors=True)
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except Exception:
+        shutil.rmtree(screenshots_dir, ignore_errors=True)
+        raise
 
     await request.app.state.arq_pool.enqueue_job("run_simulation_job", str(run.id))
     await record_audit_event(

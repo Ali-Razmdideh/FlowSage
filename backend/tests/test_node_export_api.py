@@ -1,13 +1,16 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+import uuid
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
+from flowsage_backend.models.workspace import Membership, Role
+from flowsage_backend.seed import upsert_user
 
 from .conftest import create_api_key_for, ensure_default_workspace, login_to_default_workspace
 
@@ -26,9 +29,11 @@ def _event(session_id: str, screen: str, minutes: int) -> dict[str, str]:
 
 
 @asynccontextmanager
-async def _authed_client(app: FastAPI, db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
+async def _authed_client(
+    app: FastAPI, db_session: AsyncSession, email: str = "node-export-api@example.com"
+) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await login_to_default_workspace(client, db_session, "node-export-api@example.com")
+        await login_to_default_workspace(client, db_session, email)
         yield client
 
 
@@ -37,6 +42,30 @@ async def test_export_node_to_slack_requires_authentication(app: FastAPI) -> Non
         response = await client.post("/graph/nodes/checkout/export/slack")
 
     assert response.status_code == 401
+
+
+async def test_viewer_cannot_export_node_to_slack_or_jira(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    viewer_email = f"node-export-viewer-{uuid.uuid4().hex[:8]}@example.com"
+    user = await upsert_user(db_session, viewer_email, "hunter2")
+    async with _authed_client(app, db_session, viewer_email) as client:
+        active_workspace_id = (await client.get("/auth/me")).json()["workspace_id"]
+        membership = (
+            await db_session.execute(
+                select(Membership).where(
+                    Membership.user_id == user.id,
+                    Membership.workspace_id == active_workspace_id,
+                )
+            )
+        ).scalar_one()
+        membership.role = Role.VIEWER
+        await db_session.commit()
+        slack = await client.post("/graph/nodes/checkout/export/slack")
+        jira = await client.post("/graph/nodes/checkout/export/jira")
+
+    assert slack.status_code == 403
+    assert jira.status_code == 403
 
 
 async def test_export_node_to_slack_returns_404_for_unknown_screen(

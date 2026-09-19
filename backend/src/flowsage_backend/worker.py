@@ -6,6 +6,7 @@ separately from the API process (`flowsage-backend`/`uvicorn`).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import uuid
@@ -59,7 +60,9 @@ async def _startup(ctx: dict[str, Any]) -> None:
     ctx["session_factory"] = create_session_factory(engine)
     ctx["vision_client"] = AnthropicVisionClient()
     ctx["narrative_client"] = AnthropicNarrativeClient()
-    ctx["graph_sink"] = Neo4jGraphSink(settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password)
+    ctx["graph_sink"] = Neo4jGraphSink(
+        settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password
+    )
 
 
 async def _shutdown(ctx: dict[str, Any]) -> None:
@@ -310,7 +313,9 @@ async def _purge_expired_simulation_screenshots(
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
     runs = (
         await session.execute(
-            select(SimulationRun.screenshots_dir, SimulationRun.finished_at, SimulationRun.created_at).where(
+            select(
+                SimulationRun.screenshots_dir, SimulationRun.finished_at, SimulationRun.created_at
+            ).where(
                 SimulationRun.workspace_id == workspace_id,
                 SimulationRun.status.in_((RunStatus.COMPLETED, RunStatus.FAILED)),
             )

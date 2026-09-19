@@ -5,7 +5,10 @@ from __future__ import annotations
 import uuid
 import asyncio
 import json
+import logging
+import shutil
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
@@ -21,8 +24,10 @@ from flowsage_backend.models.flow import Flow, FlowVersion
 from flowsage_backend.models.workspace import Membership, Role, Workspace, WorkspacePrivacy
 from flowsage_backend.models.event import Event
 from flowsage_backend.models.simulation import SimulationRun
+from flowsage_backend.models.scheduled_simulation import ScheduledSimulation
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceOut(BaseModel):
@@ -65,6 +70,57 @@ class WorkspaceDeleteRequest(BaseModel):
     confirmation: str
 
 
+def _safe_upload_path(upload_root: Path, candidate: Path) -> Path | None:
+    """Only delete stored paths that remain under FlowSage's upload root."""
+    root = upload_root.resolve()
+    resolved = candidate.resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError:
+        logger.warning("Skipping workspace cleanup path outside upload root")
+        return None
+    # A corrupted row must never turn a single-workspace deletion into removal
+    # of every workspace's uploads. Manual runs live directly below the root;
+    # scheduled runs live below ``scheduled/<config-id>/``.
+    if not relative.parts or (len(relative.parts) > 1 and relative.parts[0] != "scheduled"):
+        logger.warning("Skipping workspace cleanup path outside a managed upload namespace")
+        return None
+    return resolved
+
+
+async def _delete_workspace_uploads(
+    session: AsyncSession, workspace_id: uuid.UUID, upload_root: Path
+) -> None:
+    run_dirs = list(
+        (
+            await session.execute(
+                select(SimulationRun.screenshots_dir).where(
+                    SimulationRun.workspace_id == workspace_id
+                )
+            )
+        ).scalars()
+    )
+    scheduled_ids = list(
+        (
+            await session.execute(
+                select(ScheduledSimulation.id).where(
+                    ScheduledSimulation.workspace_id == workspace_id
+                )
+            )
+        ).scalars()
+    )
+    candidates = [Path(directory) for directory in run_dirs]
+    candidates.extend(upload_root / "scheduled" / str(config_id) for config_id in scheduled_ids)
+    # A path may be shared by a scheduled run and its configuration; deleting
+    # each unique location once also makes a retry after a partial cleanup safe.
+    for candidate in sorted(
+        {path for path in candidates}, key=lambda path: len(path.parts), reverse=True
+    ):
+        safe_path = _safe_upload_path(upload_root, candidate)
+        if safe_path is not None and safe_path.exists():
+            await asyncio.to_thread(shutil.rmtree, safe_path)
+
+
 @router.get("/current/export")
 async def export_current_workspace(
     membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
@@ -72,15 +128,46 @@ async def export_current_workspace(
 ) -> Response:
     _, membership = membership_pair
     workspace = await session.get(Workspace, membership.workspace_id)
-    events = list((await session.execute(select(Event).where(Event.workspace_id == membership.workspace_id))).scalars())
-    runs = list((await session.execute(select(SimulationRun).where(SimulationRun.workspace_id == membership.workspace_id))).scalars())
+    events = list(
+        (
+            await session.execute(
+                select(Event).where(Event.workspace_id == membership.workspace_id)
+            )
+        ).scalars()
+    )
+    runs = list(
+        (
+            await session.execute(
+                select(SimulationRun).where(SimulationRun.workspace_id == membership.workspace_id)
+            )
+        ).scalars()
+    )
     payload = {
         "workspace": {"id": str(workspace.id), "name": workspace.name} if workspace else None,
-        "events": [{"session_id": e.session_id, "screen": e.screen, "event": e.event, "timestamp": e.timestamp.isoformat()} for e in events],
-        "simulation_runs": [{"id": str(r.id), "flow_name": r.flow_name, "status": r.status.value} for r in runs],
+        "events": [
+            {
+                "session_id": e.session_id,
+                "screen": e.screen,
+                "event": e.event,
+                "timestamp": e.timestamp.isoformat(),
+            }
+            for e in events
+        ],
+        "simulation_runs": [
+            {"id": str(r.id), "flow_name": r.flow_name, "status": r.status.value} for r in runs
+        ],
     }
-    await record_audit_event(session, membership.workspace_id, actor_user_id=membership.user_id, action="workspace.exported")
-    return Response(json.dumps(payload), media_type="application/json", headers={"Content-Disposition": "attachment; filename=flowsage-workspace-export.json"})
+    await record_audit_event(
+        session,
+        membership.workspace_id,
+        actor_user_id=membership.user_id,
+        action="workspace.exported",
+    )
+    return Response(
+        json.dumps(payload),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=flowsage-workspace-export.json"},
+    )
 
 
 @router.delete("/current", status_code=status.HTTP_204_NO_CONTENT)
@@ -92,17 +179,35 @@ async def delete_current_workspace(
 ) -> Response:
     _, membership = membership_pair
     if payload.confirmation != "DELETE WORKSPACE":
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Confirmation must be DELETE WORKSPACE")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Confirmation must be DELETE WORKSPACE"
+        )
     workspace = await session.get(Workspace, membership.workspace_id)
     if workspace is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
     workspace_id = membership.workspace_id
+    try:
+        # Remove external data first. If either cleanup fails, retain the DB
+        # record so the administrator can retry rather than silently retaining
+        # data they explicitly asked to delete.
+        await asyncio.to_thread(request.app.state.graph_sink.delete_workspace, str(workspace_id))
+    except Exception as exc:
+        logger.exception("Workspace graph cleanup failed")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Workspace cleanup is unavailable; retry later"
+        ) from exc
+    try:
+        await _delete_workspace_uploads(
+            session, workspace_id, Path(request.app.state.settings.upload_dir)
+        )
+    except OSError as exc:
+        logger.exception("Workspace upload cleanup failed")
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, "Workspace file cleanup failed; retry later"
+        ) from exc
+
     await session.delete(workspace)
     await session.commit()
-    try:
-        await asyncio.to_thread(request.app.state.graph_sink.purge_before, str(workspace_id), datetime.max)
-    except Exception:
-        pass
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -125,10 +230,16 @@ async def list_flows(
     session: AsyncSession = Depends(get_db_session),
 ) -> list[FlowOut]:
     _, membership = membership_pair
-    rows = (await session.execute(
-        select(Flow, FlowVersion.version).join(FlowVersion).where(Flow.workspace_id == membership.workspace_id)
-    )).all()
-    return [FlowOut(id=flow.id, key=flow.key, name=flow.name, version=version) for flow, version in rows]
+    rows = (
+        await session.execute(
+            select(Flow, FlowVersion.version)
+            .join(FlowVersion)
+            .where(Flow.workspace_id == membership.workspace_id)
+        )
+    ).all()
+    return [
+        FlowOut(id=flow.id, key=flow.key, name=flow.name, version=version) for flow, version in rows
+    ]
 
 
 @router.post("/current/flows", response_model=FlowOut, status_code=status.HTTP_201_CREATED)

@@ -12,8 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.billing import SubscriptionTier, WorkspaceSubscription
-from flowsage_backend.models.workspace import Membership
-from flowsage_backend.seed import upsert_user
+from flowsage_backend.models.simulation import RunStatus, SimulationRun
+from flowsage_backend.models.workspace import Membership, Workspace
+from flowsage_backend.seed import seed_baseline_personas, upsert_user
 
 
 @asynccontextmanager
@@ -102,6 +103,73 @@ async def test_create_workspace_makes_caller_admin(app: FastAPI, db_session: Asy
         list_response = await client.get("/workspaces")
 
     assert len(list_response.json()) == 2
+
+
+async def test_delete_workspace_removes_its_uploaded_screenshots(
+    app: FastAPI, db_session: AsyncSession, tmp_path
+) -> None:
+    email = f"ws-delete-{uuid.uuid4().hex[:8]}@example.com"
+    user = await upsert_user(db_session, email, "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+    persona = (await seed_baseline_personas(db_session, membership.workspace_id))[0]
+    screenshots_dir = tmp_path / "uploads" / "run-to-delete"
+    screenshots_dir.mkdir(parents=True)
+    (screenshots_dir / "screen.png").write_bytes(b"png")
+    db_session.add(
+        SimulationRun(
+            workspace_id=membership.workspace_id,
+            flow_name="flow",
+            goal="goal",
+            persona_id=persona.id,
+            screenshots_dir=str(screenshots_dir),
+            status=RunStatus.QUEUED,
+        )
+    )
+    await db_session.commit()
+
+    class _GraphSink:
+        def delete_workspace(self, workspace_id: str) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    app.state.graph_sink = _GraphSink()
+    async with _authed_client(app, db_session, email) as client:
+        response = await client.request(
+            "DELETE", "/workspaces/current", json={"confirmation": "DELETE WORKSPACE"}
+        )
+
+    assert response.status_code == 204
+    assert not screenshots_dir.exists()
+
+
+async def test_delete_workspace_keeps_database_record_when_graph_cleanup_fails(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    email = f"ws-delete-fail-{uuid.uuid4().hex[:8]}@example.com"
+    user = await upsert_user(db_session, email, "hunter2")
+    membership = (
+        await db_session.execute(select(Membership).where(Membership.user_id == user.id))
+    ).scalar_one()
+
+    class _FailingGraphSink:
+        def delete_workspace(self, workspace_id: str) -> None:
+            raise RuntimeError("unavailable")
+
+        def close(self) -> None:
+            return None
+
+    app.state.graph_sink = _FailingGraphSink()
+    async with _authed_client(app, db_session, email) as client:
+        response = await client.request(
+            "DELETE", "/workspaces/current", json={"confirmation": "DELETE WORKSPACE"}
+        )
+
+    assert response.status_code == 503
+    assert await db_session.get(Workspace, membership.workspace_id) is not None
 
 
 async def test_add_member_by_email(app: FastAPI, db_session: AsyncSession) -> None:

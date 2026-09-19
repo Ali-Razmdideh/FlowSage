@@ -27,8 +27,18 @@ from flowsage_backend.churn import (
     get_node_intelligence,
     node_insight_input_hash,
 )
-from flowsage_backend.deps import get_current_membership, get_db_session, require_api_key_scope
-from flowsage_backend.events import CoverageReport, build_coverage_report, build_funnel_report, ingest_events
+from flowsage_backend.deps import (
+    get_current_membership,
+    get_db_session,
+    require_api_key_scope,
+    require_role,
+)
+from flowsage_backend.events import (
+    CoverageReport,
+    build_coverage_report,
+    build_funnel_report,
+    ingest_events,
+)
 from flowsage_backend.integrations.jira import (
     JiraDeliveryError,
     JiraNotConfiguredError,
@@ -43,7 +53,7 @@ from flowsage_backend.integrations_store import get_jira_integration, get_slack_
 from flowsage_backend.models.user import User
 from flowsage_backend.models.flow import Flow
 from flowsage_backend.models.event import Event
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 from flowsage_backend.rate_limit import INGEST_RATE_LIMIT, limiter, resolve_signature
 
 logger = logging.getLogger(__name__)
@@ -87,15 +97,25 @@ async def ingest(
     flow_ids = [event.flow_id for event in payload]
     if any(flow_ids):
         known = set(
-            (await session.execute(
-                select(Flow.id).where(Flow.workspace_id == workspace_id, Flow.id.in_([id for id in flow_ids if id]))
-            )).scalars().all()
+            (
+                await session.execute(
+                    select(Flow.id).where(
+                        Flow.workspace_id == workspace_id,
+                        Flow.id.in_([id for id in flow_ids if id]),
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
         if any(flow_id is not None and flow_id not in known for flow_id in flow_ids):
             raise HTTPException(status_code=422, detail="Unknown flow for this workspace")
     graph_events = [GraphEvent.model_validate(e.model_dump()) for e in payload]
     rows = await ingest_events(
-        session, workspace_id, graph_events, flow_ids=flow_ids,
+        session,
+        workspace_id,
+        graph_events,
+        flow_ids=flow_ids,
         flow_versions=[event.flow_version for event in payload],
     )
 
@@ -122,39 +142,66 @@ async def funnel(
 ) -> FunnelReport:
     _, membership = membership_pair
     return await build_funnel_report(
-        session, membership.workspace_id, cohort=cohort, device=device, since=since,
-        flow_id=flow_id, flow_version=flow_version,
+        session,
+        membership.workspace_id,
+        cohort=cohort,
+        device=device,
+        since=since,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )
 
 
 @graph_router.get("/coverage", response_model=CoverageReport)
 async def coverage(
-    flow_id: uuid.UUID | None = Query(default=None), flow_version: int | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> CoverageReport:
     _, membership = membership_pair
-    return await build_coverage_report(session, membership.workspace_id, flow_id=flow_id, flow_version=flow_version)
+    return await build_coverage_report(
+        session, membership.workspace_id, flow_id=flow_id, flow_version=flow_version
+    )
 
 
 @graph_router.get("/nodes/{screen}/sessions", response_model=list[SessionEvidence])
 async def node_sessions(
-    screen: str, flow_id: uuid.UUID | None = Query(default=None), flow_version: int | None = Query(default=None),
+    screen: str,
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[SessionEvidence]:
     _, membership = membership_pair
-    query = select(Event).where(Event.workspace_id == membership.workspace_id, Event.screen == screen)
-    if flow_id is not None: query = query.where(Event.flow_id == flow_id)
-    if flow_version is not None: query = query.where(Event.flow_version == flow_version)
-    rows = list((await session.execute(query.order_by(Event.session_id, Event.timestamp))).scalars())
+    query = select(Event).where(
+        Event.workspace_id == membership.workspace_id, Event.screen == screen
+    )
+    if flow_id is not None:
+        query = query.where(Event.flow_id == flow_id)
+    if flow_version is not None:
+        query = query.where(Event.flow_version == flow_version)
+    rows = list(
+        (await session.execute(query.order_by(Event.session_id, Event.timestamp))).scalars()
+    )
     grouped: dict[str, list[EventIn]] = {}
     for row in rows:
-        grouped.setdefault(row.session_id, []).append(EventIn(
-            session_id=row.session_id, screen=row.screen, event=row.event, timestamp=row.timestamp,
-            device=row.device, cohort=row.cohort, flow_id=row.flow_id, flow_version=row.flow_version,
-        ))
-    return [SessionEvidence(session_id=session_id, events=events) for session_id, events in grouped.items()]
+        grouped.setdefault(row.session_id, []).append(
+            EventIn(
+                session_id=row.session_id,
+                screen=row.screen,
+                event=row.event,
+                timestamp=row.timestamp,
+                device=row.device,
+                cohort=row.cohort,
+                flow_id=row.flow_id,
+                flow_version=row.flow_version,
+            )
+        )
+    return [
+        SessionEvidence(session_id=session_id, events=events)
+        for session_id, events in grouped.items()
+    ]
 
 
 @graph_router.get("/cohorts/compare", response_model=CohortComparisonReport)
@@ -169,8 +216,13 @@ async def cohorts_compare(
 ) -> CohortComparisonReport:
     _, membership = membership_pair
     return await compare_cohorts(
-        session, membership.workspace_id, cohorts, device=device, since=since,
-        flow_id=flow_id, flow_version=flow_version,
+        session,
+        membership.workspace_id,
+        cohorts,
+        device=device,
+        since=since,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )
 
 
@@ -185,8 +237,12 @@ async def churn_risk(
 ) -> list[ChurnRiskSegment]:
     _, membership = membership_pair
     return await build_churn_risk_segments(
-        session, membership.workspace_id, device=device, since=since,
-        flow_id=flow_id, flow_version=flow_version,
+        session,
+        membership.workspace_id,
+        device=device,
+        since=since,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )
 
 
@@ -204,8 +260,14 @@ async def node_intelligence(
 ) -> NodeIntelligence:
     _, membership = membership_pair
     result = await get_node_intelligence(
-        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since,
-        flow_id=flow_id, flow_version=flow_version,
+        session,
+        membership.workspace_id,
+        screen,
+        cohort=cohort,
+        device=device,
+        since=since,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )
     if result is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
@@ -253,13 +315,19 @@ async def export_node_to_slack(
     since: datetime | None = Query(default=None),
     flow_id: uuid.UUID | None = Query(default=None),
     flow_version: int | None = Query(default=None),
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> SlackExportResult:
     _, membership = membership_pair
     intel = await get_node_intelligence(
-        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since,
-        flow_id=flow_id, flow_version=flow_version,
+        session,
+        membership.workspace_id,
+        screen,
+        cohort=cohort,
+        device=device,
+        since=since,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
@@ -283,13 +351,19 @@ async def export_node_to_jira(
     since: datetime | None = Query(default=None),
     flow_id: uuid.UUID | None = Query(default=None),
     flow_version: int | None = Query(default=None),
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> JiraExportResult:
     _, membership = membership_pair
     intel = await get_node_intelligence(
-        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since,
-        flow_id=flow_id, flow_version=flow_version,
+        session,
+        membership.workspace_id,
+        screen,
+        cohort=cohort,
+        device=device,
+        since=since,
+        flow_id=flow_id,
+        flow_version=flow_version,
     )
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")

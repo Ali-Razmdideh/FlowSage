@@ -28,7 +28,7 @@ from flowsage_backend.scheduled_simulations import (
     create_scheduled_simulation,
     stage_screenshots,
 )
-from flowsage_backend.simulations import IMAGE_SUFFIXES
+from flowsage_backend.uploads import UploadValidationError, stage_image_uploads
 
 router = APIRouter(prefix="/scheduled-simulations", tags=["scheduled-simulations"])
 
@@ -257,18 +257,10 @@ async def push_screenshots(
     # files -- a fired run keeps reading its own screenshots_dir forever,
     # untouched by any subsequent push to this config.
     new_dir = Path(settings.upload_dir) / "scheduled" / str(config.id) / uuid.uuid4().hex
-    new_dir.mkdir(parents=True, exist_ok=True)
-
-    for upload in files:
-        # .name strips directory components -- see the identical guard in
-        # api/simulations.py's create_simulation for why this matters.
-        filename = Path(upload.filename or "").name
-        if Path(filename).suffix.lower() not in IMAGE_SUFFIXES:
-            shutil.rmtree(new_dir, ignore_errors=True)
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unsupported file type: {filename!r}"
-            )
-        (new_dir / filename).write_bytes(await upload.read())
+    try:
+        await stage_image_uploads(files, new_dir)
+    except UploadValidationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
     await stage_screenshots(session, config, new_dir)
     # The previous pending set (if any) was never consumed by a fired run --
