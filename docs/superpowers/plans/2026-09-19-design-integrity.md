@@ -261,4 +261,3 @@ git ls-remote origin refs/heads/main
 ```
 
 Expected: remote `main` resolves to the final local commit without force-pushing.
-
