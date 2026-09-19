@@ -125,7 +125,7 @@ def test_build_screen_calibrations_flags_anomaly_above_threshold() -> None:
         FunnelStep(screen="checkout", sessions_entered=10, sessions_continued=1),  # drop 0.9
     ]
 
-    results = build_screen_calibrations(predicted, funnel)
+    results = build_screen_calibrations(predicted, set(predicted), funnel)
 
     by_screen = {r.screen: r for r in results}
     assert by_screen["cart"].anomaly is False
@@ -133,16 +133,38 @@ def test_build_screen_calibrations_flags_anomaly_above_threshold() -> None:
     assert by_screen["checkout"].delta == 0.9 - 0.45
 
 
-def test_build_screen_calibrations_ignores_screens_without_a_prediction() -> None:
+def test_build_screen_calibrations_includes_unpredicted_walked_screens() -> None:
     predicted = {"cart": 0.2}
     funnel = [
         FunnelStep(screen="cart", sessions_entered=10, sessions_continued=8),
         FunnelStep(screen="unrelated_screen", sessions_entered=10, sessions_continued=0),
     ]
 
-    results = build_screen_calibrations(predicted, funnel)
+    results = build_screen_calibrations(predicted, {"cart", "unrelated_screen"}, funnel)
 
-    assert [r.screen for r in results] == ["cart"]
+    by_screen = {r.screen: r for r in results}
+    assert by_screen["unrelated_screen"].predicted_score == 0
+    assert by_screen["unrelated_screen"].anomaly is True
+
+
+def test_build_screen_calibrations_treats_missing_funnel_screen_as_unknown_evidence() -> None:
+    results = build_screen_calibrations({"checkout": 0.7}, {"checkout"}, [])
+
+    assert results[0].has_evidence is False
+    assert results[0].observed_score is None
+    assert results[0].delta is None
+    assert results[0].anomaly is False
+
+
+def test_build_screen_calibrations_requires_ten_entered_sessions() -> None:
+    results = build_screen_calibrations(
+        {"checkout": 0.7},
+        {"checkout"},
+        [FunnelStep(screen="checkout", sessions_entered=9, sessions_continued=0)],
+    )
+
+    assert results[0].has_evidence is False
+    assert results[0].anomaly is False
 
 
 async def _completed_run_with_issue(

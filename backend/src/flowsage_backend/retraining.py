@@ -111,11 +111,14 @@ async def execute_retraining(
 
         latest_run = await latest_completed_run_for_persona(session, job.workspace_id, persona.id)
         predicted = predicted_scores_by_screen(latest_run.issues) if latest_run else {}
+        walked_screens = {step.screen for step in latest_run.steps} if latest_run else set()
 
         events = await query_events(session, job.workspace_id)
         funnel = discover_funnel(events)
         settings = await get_or_create_calibration_settings(session, job.workspace_id)
-        screens = build_screen_calibrations(predicted, funnel, settings.anomaly_threshold)
+        screens = build_screen_calibrations(
+            predicted, walked_screens, funnel, settings.anomaly_threshold
+        )
         anomalies = [s for s in screens if s.anomaly]
 
         job.total_epochs = max(len(anomalies), 1)
@@ -148,8 +151,8 @@ async def execute_retraining(
                             ScreenSignal(
                                 screen=a.screen,
                                 predicted_score=a.predicted_score,
-                                observed_score=a.observed_score,
-                                delta=a.delta,
+                                observed_score=a.observed_score or 0.0,
+                                delta=a.delta or 0.0,
                             )
                             for a in anomalies
                         ],

@@ -57,6 +57,8 @@ _SEVERITY_SCORES: dict[str, float] = {
     "critical": 0.9,
 }
 
+MIN_CALIBRATION_SESSIONS = 10
+
 
 def bucket_severity(severity: str) -> float:
     return _SEVERITY_SCORES.get(severity, 0.0)
@@ -77,8 +79,10 @@ def predicted_scores_by_screen(issues: list[FrictionIssue]) -> dict[str, float]:
 class ScreenCalibration(BaseModel):
     screen: str
     predicted_score: float
-    observed_score: float
-    delta: float
+    observed_score: float | None
+    delta: float | None
+    sessions_entered: int = 0
+    has_evidence: bool = False
     anomaly: bool
 
 
@@ -105,21 +109,30 @@ class CalibrationReport(BaseModel):
 
 def build_screen_calibrations(
     predicted: dict[str, float],
+    walked_screens: set[str],
     funnel: list[FunnelStep],
     anomaly_threshold: float = ANOMALY_THRESHOLD,
 ) -> list[ScreenCalibration]:
-    observed_by_screen = {step.screen: step.drop_off_rate for step in funnel}
-    results = [
-        ScreenCalibration(
-            screen=screen,
-            predicted_score=predicted_score,
-            observed_score=observed_by_screen.get(screen, 0.0),
-            delta=observed_by_screen.get(screen, 0.0) - predicted_score,
-            anomaly=abs(observed_by_screen.get(screen, 0.0) - predicted_score) > anomaly_threshold,
+    observed_by_screen = {step.screen: step for step in funnel}
+    results: list[ScreenCalibration] = []
+    for screen in sorted(set(predicted) | walked_screens):
+        step = observed_by_screen.get(screen)
+        sessions_entered = step.sessions_entered if step is not None else 0
+        has_evidence = step is not None and sessions_entered >= MIN_CALIBRATION_SESSIONS
+        observed_score = step.drop_off_rate if has_evidence and step is not None else None
+        delta = observed_score - predicted.get(screen, 0.0) if observed_score is not None else None
+        results.append(
+            ScreenCalibration(
+                screen=screen,
+                predicted_score=predicted.get(screen, 0.0),
+                observed_score=observed_score,
+                delta=delta,
+                sessions_entered=sessions_entered,
+                has_evidence=has_evidence,
+                anomaly=delta is not None and abs(delta) > anomaly_threshold,
+            )
         )
-        for screen, predicted_score in predicted.items()
-    ]
-    return sorted(results, key=lambda s: s.screen)
+    return results
 
 
 def calibration_input_hash(anomalies: list[ScreenCalibration]) -> str:
@@ -156,7 +169,11 @@ async def latest_completed_runs_by_persona(
         .where(
             SimulationRun.workspace_id == workspace_id, SimulationRun.status == RunStatus.COMPLETED
         )
-        .options(selectinload(SimulationRun.issues), selectinload(SimulationRun.persona))
+        .options(
+            selectinload(SimulationRun.issues),
+            selectinload(SimulationRun.steps),
+            selectinload(SimulationRun.persona),
+        )
         .order_by(SimulationRun.persona_id, SimulationRun.finished_at.desc())
     )
     latest_by_persona: dict[uuid.UUID, SimulationRun] = {}
@@ -175,7 +192,7 @@ async def latest_completed_run_for_persona(
             SimulationRun.persona_id == persona_id,
             SimulationRun.status == RunStatus.COMPLETED,
         )
-        .options(selectinload(SimulationRun.issues))
+        .options(selectinload(SimulationRun.issues), selectinload(SimulationRun.steps))
         .order_by(SimulationRun.finished_at.desc())
         .limit(1)
     )
@@ -195,10 +212,8 @@ async def build_calibration_report(
 
     for run in runs:
         predicted = predicted_scores_by_screen(run.issues)
-        if not predicted:
-            continue
-
-        screens = build_screen_calibrations(predicted, funnel, anomaly_threshold)
+        walked_screens = {step.screen for step in run.steps}
+        screens = build_screen_calibrations(predicted, walked_screens, funnel, anomaly_threshold)
         anomalies = [s for s in screens if s.anomaly]
         if anomalies:
             has_anomaly = True
@@ -221,15 +236,19 @@ async def build_calibration_report(
                 narrative=narrative,
             )
         )
-        mean_abs_delta = sum(abs(s.delta) for s in screens) / len(screens)
-        accuracy_points.append(
-            AccuracyPoint(
-                persona_id=str(run.persona_id),
-                persona_name=run.persona.name,
-                complexity=_complexity(len(screens)),
-                accuracy=max(0.0, 1 - mean_abs_delta),
+        evidence_screens = [screen for screen in screens if screen.has_evidence]
+        if evidence_screens:
+            mean_abs_delta = sum(abs(screen.delta or 0.0) for screen in evidence_screens) / len(
+                evidence_screens
             )
-        )
+            accuracy_points.append(
+                AccuracyPoint(
+                    persona_id=str(run.persona_id),
+                    persona_name=run.persona.name,
+                    complexity=_complexity(len(screens)),
+                    accuracy=max(0.0, 1 - mean_abs_delta),
+                )
+            )
 
     return CalibrationReport(
         personas=personas, accuracy_points=accuracy_points, has_anomaly=has_anomaly
@@ -251,13 +270,13 @@ async def generate_and_cache_calibration_narrative(
         return
 
     predicted = predicted_scores_by_screen(run.issues)
-    if not predicted:
-        return
 
     events = await query_events(session, workspace_id)
     funnel: list[FunnelStep] = discover_funnel(events)
     settings = await get_or_create_calibration_settings(session, workspace_id)
-    screens = build_screen_calibrations(predicted, funnel, settings.anomaly_threshold)
+    screens = build_screen_calibrations(
+        predicted, {step.screen for step in run.steps}, funnel, settings.anomaly_threshold
+    )
     anomalies = [s for s in screens if s.anomaly]
     if not anomalies:
         return
@@ -269,8 +288,8 @@ async def generate_and_cache_calibration_narrative(
                 ScreenSignal(
                     screen=a.screen,
                     predicted_score=a.predicted_score,
-                    observed_score=a.observed_score,
-                    delta=a.delta,
+                    observed_score=a.observed_score or 0.0,
+                    delta=a.delta or 0.0,
                 )
                 for a in anomalies
             ],
