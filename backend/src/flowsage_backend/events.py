@@ -17,6 +17,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.models.event import Event
+from flowsage_backend.models.simulation import SimulationRun, SimulationStep
+from pydantic import BaseModel
+
+
+class CoverageReport(BaseModel):
+    total_events: int
+    total_sessions: int
+    observed_screens: list[str]
+    simulated_screens: list[str]
+    matched_screens: list[str]
+    telemetry_only_screens: list[str]
+    simulation_only_screens: list[str]
+    legacy_events: int
 
 
 async def ingest_events(
@@ -110,4 +123,28 @@ async def build_funnel_report(
         friction_nodes=friction,
         total_sessions=len({e.session_id for e in events}),
         total_events=len(events),
+    )
+
+
+async def build_coverage_report(
+    session: AsyncSession, workspace_id: uuid.UUID, *, flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
+) -> CoverageReport:
+    query = select(Event).where(Event.workspace_id == workspace_id)
+    if flow_id is not None:
+        query = query.where(Event.flow_id == flow_id)
+    if flow_version is not None:
+        query = query.where(Event.flow_version == flow_version)
+    events = list((await session.execute(query)).scalars())
+    runs = select(SimulationRun.id).where(SimulationRun.workspace_id == workspace_id)
+    if flow_id is not None:
+        runs = runs.where(SimulationRun.flow_id == flow_id)
+    simulated = set((await session.execute(select(SimulationStep.screen).where(SimulationStep.run_id.in_(runs)))).scalars())
+    observed = {event.screen for event in events}
+    return CoverageReport(
+        total_events=len(events), total_sessions=len({event.session_id for event in events}),
+        observed_screens=sorted(observed), simulated_screens=sorted(simulated),
+        matched_screens=sorted(observed & simulated), telemetry_only_screens=sorted(observed - simulated),
+        simulation_only_screens=sorted(simulated - observed),
+        legacy_events=sum(event.flow_id is None for event in events),
     )

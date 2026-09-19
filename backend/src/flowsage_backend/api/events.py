@@ -28,7 +28,7 @@ from flowsage_backend.churn import (
     node_insight_input_hash,
 )
 from flowsage_backend.deps import get_current_membership, get_db_session, require_api_key_scope
-from flowsage_backend.events import build_funnel_report, ingest_events
+from flowsage_backend.events import CoverageReport, build_coverage_report, build_funnel_report, ingest_events
 from flowsage_backend.integrations.jira import (
     JiraDeliveryError,
     JiraNotConfiguredError,
@@ -119,6 +119,16 @@ async def funnel(
         session, membership.workspace_id, cohort=cohort, device=device, since=since,
         flow_id=flow_id, flow_version=flow_version,
     )
+
+
+@graph_router.get("/coverage", response_model=CoverageReport)
+async def coverage(
+    flow_id: uuid.UUID | None = Query(default=None), flow_version: int | None = Query(default=None),
+    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    session: AsyncSession = Depends(get_db_session),
+) -> CoverageReport:
+    _, membership = membership_pair
+    return await build_coverage_report(session, membership.workspace_id, flow_id=flow_id, flow_version=flow_version)
 
 
 @graph_router.get("/cohorts/compare", response_model=CohortComparisonReport)

@@ -11,6 +11,7 @@ import type {
   CohortComparisonReport,
   FunnelFilters,
   FunnelReport,
+  CoverageReport,
   ImportSampleDataResult,
   JiraConnectPayload,
   JiraExportResult,
@@ -206,6 +207,7 @@ export const api = {
 
   getFunnel: (filters: FunnelFilters = {}): Promise<FunnelReport> =>
     request<FunnelReport>(`/graph/funnel${toQueryString(filters)}`),
+  getCoverage: (filters: FunnelFilters = {}): Promise<CoverageReport> => request<CoverageReport>(`/graph/coverage${toQueryString(filters)}`),
 
   simulationStreamUrl: (id: string): string => `${API_BASE}/simulations/${id}/stream`,
 

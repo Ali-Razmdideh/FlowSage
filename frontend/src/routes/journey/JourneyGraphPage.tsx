@@ -8,6 +8,7 @@ import type {
   FrictionNode,
   FunnelReport,
   Flow,
+  CoverageReport,
   NodeIntelligence,
 } from "../../lib/types";
 
@@ -23,6 +24,7 @@ export function JourneyGraphPage() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [flowId, setFlowId] = useState("");
   const [report, setReport] = useState<FunnelReport | null>(null);
+  const [coverage, setCoverage] = useState<CoverageReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [churnSegments, setChurnSegments] = useState<ChurnRiskSegment[] | null>(null);
@@ -43,6 +45,7 @@ export function JourneyGraphPage() {
       .catch((err: unknown) => {
         setError(err instanceof ApiError ? err.message : "Failed to load journey graph.");
       });
+    api.getCoverage(filters).then(setCoverage).catch(() => setCoverage(null));
   }, [cohort, device, flowId]);
 
   useEffect(() => {
@@ -106,6 +109,7 @@ export function JourneyGraphPage() {
         </div>
 
         {error !== null ? <p className="text-error text-sm">{error}</p> : null}
+        {coverage !== null ? <section className="bg-surface-container-lowest rounded-xl p-6"><h2 className="font-headline text-xl mb-2">Data quality</h2><p className="text-sm text-on-surface-variant">{coverage.total_events} events · {coverage.total_sessions} sessions · {coverage.matched_screens.length} matched screens</p>{coverage.simulation_only_screens.length > 0 ? <p className="text-sm text-error mt-2">Simulation-only: {coverage.simulation_only_screens.join(", ")}</p> : null}{coverage.telemetry_only_screens.length > 0 ? <p className="text-sm text-on-surface-variant mt-1">Telemetry-only: {coverage.telemetry_only_screens.join(", ")}</p> : null}{coverage.legacy_events > 0 ? <p className="text-xs text-on-surface-variant mt-2">{coverage.legacy_events} legacy events are unassigned to a flow.</p> : null}</section> : null}
 
         {report !== null && report.funnel.length === 0 ? (
           <EmptyState onImported={loadFunnel} />

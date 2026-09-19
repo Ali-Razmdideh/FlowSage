@@ -208,6 +208,7 @@ export interface FunnelFilters {
 }
 
 export interface Flow { id: string; key: string; name: string; version: number; }
+export interface CoverageReport { total_events: number; total_sessions: number; observed_screens: string[]; simulated_screens: string[]; matched_screens: string[]; telemetry_only_screens: string[]; simulation_only_screens: string[]; legacy_events: number; }
 
 export interface ScreenCalibration {
   screen: string;
