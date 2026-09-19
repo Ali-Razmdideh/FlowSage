@@ -27,4 +27,3 @@ The journey view exposes flow/version filters and a data-quality card: event cou
 ## Compatibility and verification
 
 All database columns are nullable at introduction. Existing API payloads remain accepted. Tests cover workspace boundaries, flow/version isolation, legacy events, graph deletion, retention failure isolation, exports, deletion confirmation, and frontend filters/evidence states.
-

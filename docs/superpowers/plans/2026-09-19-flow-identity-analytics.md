@@ -70,4 +70,3 @@
 - [ ] Run migration upgrade/downgrade compatibility checks against a populated fixture.
 - [ ] Run backend, graph, frontend, and existing end-to-end suites.
 - [ ] Review migration and permission diff; fetch, rebase, push normally to `origin/main`.
-
