@@ -291,10 +291,13 @@ function NodeIntelligenceAside({
     setExportStatus(null);
     try {
       if (target === "slack") {
-        await api.exportNodeToSlack(node.screen, flowId ? { flow_id: flowId } : {});
+        if (flowId) await api.exportNodeToSlack(node.screen, { flow_id: flowId });
+        else await api.exportNodeToSlack(node.screen);
         setExportStatus("Exported to Slack.");
       } else {
-        const result = await api.exportNodeToJira(node.screen, flowId ? { flow_id: flowId } : {});
+        const result = flowId
+          ? await api.exportNodeToJira(node.screen, { flow_id: flowId })
+          : await api.exportNodeToJira(node.screen);
         setExportStatus(`Created Jira issue ${result.issue_key}.`);
       }
     } catch (err) {
