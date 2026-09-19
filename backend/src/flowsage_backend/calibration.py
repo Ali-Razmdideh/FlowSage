@@ -161,14 +161,16 @@ def _complexity(screen_count: int) -> float:
 
 
 async def latest_completed_runs_by_persona(
-    session: AsyncSession, workspace_id: uuid.UUID
+    session: AsyncSession, workspace_id: uuid.UUID, flow_id: uuid.UUID | None = None
 ) -> list[SimulationRun]:
     """One row per persona: their most recent COMPLETED run, if any."""
+    query = select(SimulationRun).where(
+        SimulationRun.workspace_id == workspace_id, SimulationRun.status == RunStatus.COMPLETED
+    )
+    if flow_id is not None:
+        query = query.where(SimulationRun.flow_id == flow_id)
     result = await session.execute(
-        select(SimulationRun)
-        .where(
-            SimulationRun.workspace_id == workspace_id, SimulationRun.status == RunStatus.COMPLETED
-        )
+        query
         .options(
             selectinload(SimulationRun.issues),
             selectinload(SimulationRun.steps),
@@ -204,8 +206,9 @@ async def build_calibration_report(
     workspace_id: uuid.UUID,
     funnel: list[FunnelStep],
     anomaly_threshold: float = ANOMALY_THRESHOLD,
+    flow_id: uuid.UUID | None = None,
 ) -> CalibrationReport:
-    runs = await latest_completed_runs_by_persona(session, workspace_id)
+    runs = await latest_completed_runs_by_persona(session, workspace_id, flow_id)
     personas: list[PersonaCalibration] = []
     accuracy_points: list[AccuracyPoint] = []
     has_anomaly = False

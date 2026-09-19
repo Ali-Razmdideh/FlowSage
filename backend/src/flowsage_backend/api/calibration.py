@@ -9,7 +9,7 @@ import logging
 import uuid
 from typing import AsyncIterator
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from flowsage_graph.funnel import discover_funnel
 from pydantic import BaseModel
@@ -66,15 +66,16 @@ class RetrainingJobOut(BaseModel):
 @router.get("/report", response_model=CalibrationReport)
 async def get_calibration_report(
     request: Request,
+    flow_id: uuid.UUID | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> CalibrationReport:
     _, membership = membership_pair
-    events = await query_events(session, membership.workspace_id)
+    events = await query_events(session, membership.workspace_id, flow_id=flow_id)
     funnel = discover_funnel(events)
     settings = await get_or_create_calibration_settings(session, membership.workspace_id)
     report = await build_calibration_report(
-        session, membership.workspace_id, funnel, settings.anomaly_threshold
+        session, membership.workspace_id, funnel, settings.anomaly_threshold, flow_id
     )
 
     # Hoisted out of the loop: no GeneratedInsight row is committed until an
