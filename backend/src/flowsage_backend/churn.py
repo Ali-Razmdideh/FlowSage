@@ -139,13 +139,16 @@ async def compare_cohorts(
     *,
     device: str | None = None,
     since: datetime | None = None,
+    flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
 ) -> CohortComparisonReport:
     if not cohorts:
         cohorts = await distinct_cohorts(session, workspace_id, device=device, since=since)
 
     reports = {
         cohort: await build_funnel_report(
-            session, workspace_id, cohort=cohort, device=device, since=since
+            session, workspace_id, cohort=cohort, device=device, since=since,
+            flow_id=flow_id, flow_version=flow_version,
         )
         for cohort in cohorts
     }
@@ -183,13 +186,16 @@ async def build_churn_risk_segments(
     *,
     device: str | None = None,
     since: datetime | None = None,
+    flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
 ) -> list[ChurnRiskSegment]:
     cohorts = await distinct_cohorts(session, workspace_id, device=device, since=since)
     segments = [
         score_churn_risk(
             cohort,
             await build_funnel_report(
-                session, workspace_id, cohort=cohort, device=device, since=since
+                session, workspace_id, cohort=cohort, device=device, since=since,
+                flow_id=flow_id, flow_version=flow_version,
             ),
         )
         for cohort in cohorts
@@ -334,8 +340,13 @@ async def get_node_intelligence(
     cohort: str | None = None,
     device: str | None = None,
     since: datetime | None = None,
+    flow_id: uuid.UUID | None = None,
+    flow_version: int | None = None,
 ) -> NodeIntelligence | None:
-    events = await query_events(session, workspace_id, cohort=cohort, device=device, since=since)
+    events = await query_events(
+        session, workspace_id, cohort=cohort, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
+    )
     funnel = discover_funnel(events)
     if screen not in {step.screen for step in funnel}:
         return None

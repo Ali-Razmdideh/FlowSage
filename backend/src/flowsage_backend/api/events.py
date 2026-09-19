@@ -126,12 +126,15 @@ async def cohorts_compare(
     cohorts: list[str] = Query(default=[]),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> CohortComparisonReport:
     _, membership = membership_pair
     return await compare_cohorts(
-        session, membership.workspace_id, cohorts, device=device, since=since
+        session, membership.workspace_id, cohorts, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
     )
 
 
@@ -139,12 +142,15 @@ async def cohorts_compare(
 async def churn_risk(
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ChurnRiskSegment]:
     _, membership = membership_pair
     return await build_churn_risk_segments(
-        session, membership.workspace_id, device=device, since=since
+        session, membership.workspace_id, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
     )
 
 
@@ -155,12 +161,15 @@ async def node_intelligence(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> NodeIntelligence:
     _, membership = membership_pair
     result = await get_node_intelligence(
-        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since
+        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
     )
     if result is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")

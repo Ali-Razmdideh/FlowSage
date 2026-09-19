@@ -107,8 +107,10 @@ def _merge_transition_tx(
         cohort=to_event.cohort,
         timestamp=to_event.timestamp.isoformat(),
         workspace_id=workspace_id,
-        flow_id=to_event.flow_id,
-        flow_version=to_event.flow_version,
+        # Neo4j MERGE keys cannot contain null. A stable legacy marker keeps
+        # pre-migration events readable without mixing them with named flows.
+        flow_id=to_event.flow_id or "__legacy__",
+        flow_version=to_event.flow_version if to_event.flow_version is not None else 0,
     )
 
 
