@@ -18,6 +18,7 @@ from arq import cron
 from arq.connections import ArqRedis, RedisSettings
 from flowsage_predict.narrative import AnthropicNarrativeClient, NarrativeClient
 from flowsage_predict.vision import AnthropicVisionClient, VisionClient
+from flowsage_graph.ingest import Neo4jGraphSink
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,9 +59,11 @@ async def _startup(ctx: dict[str, Any]) -> None:
     ctx["session_factory"] = create_session_factory(engine)
     ctx["vision_client"] = AnthropicVisionClient()
     ctx["narrative_client"] = AnthropicNarrativeClient()
+    ctx["graph_sink"] = Neo4jGraphSink(settings.neo4j_uri, settings.neo4j_user, settings.neo4j_password)
 
 
 async def _shutdown(ctx: dict[str, Any]) -> None:
+    await asyncio.to_thread(ctx["graph_sink"].close)
     await ctx["engine"].dispose()
 
 
@@ -219,6 +222,11 @@ async def run_retention_purge_job(ctx: dict[str, Any]) -> None:
         try:
             async with session_factory() as session:
                 await _purge_workspace_retention(session, workspace_id, retention_days)
+            await asyncio.to_thread(
+                ctx["graph_sink"].purge_before,
+                str(workspace_id),
+                datetime.now(timezone.utc) - timedelta(days=retention_days),
+            )
             async with session_factory() as session:
                 await _purge_stale_scheduled_screenshots(
                     session, workspace_id, retention_days, upload_dir

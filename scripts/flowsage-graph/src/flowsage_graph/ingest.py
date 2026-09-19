@@ -12,6 +12,7 @@ import csv
 import json
 from pathlib import Path
 from typing import Protocol
+from datetime import datetime
 
 from neo4j import Driver, GraphDatabase, ManagedTransaction
 
@@ -81,12 +82,16 @@ def session_transitions(events: list[Event]) -> list[tuple[Event, Event]]:
 
 class GraphSink(Protocol):
     def ingest(self, events: list[Event], workspace_id: str) -> None: ...
+    def purge_before(self, workspace_id: str, cutoff: datetime) -> None: ...
 
 
 class NullGraphSink:
     """No-op sink used when Neo4j ingestion is skipped or unreachable."""
 
     def ingest(self, events: list[Event], workspace_id: str) -> None:
+        return None
+
+    def purge_before(self, workspace_id: str, cutoff: datetime) -> None:
         return None
 
 
@@ -132,3 +137,18 @@ class Neo4jGraphSink:
         with self._driver.session() as session:
             for from_event, to_event in transitions:
                 session.execute_write(_merge_transition_tx, from_event, to_event, workspace_id)
+
+    def purge_before(self, workspace_id: str, cutoff: datetime) -> None:
+        """Remove expired transition projections; orphaned screens follow."""
+        with self._driver.session() as session:
+            session.run(
+                "MATCH ()-[t:TRANSITION {workspace_id: $workspace_id}]-() "
+                "WHERE t.last_seen < $cutoff DELETE t",
+                workspace_id=workspace_id,
+                cutoff=cutoff.isoformat(),
+            )
+            session.run(
+                "MATCH (s:Screen {workspace_id: $workspace_id}) "
+                "WHERE NOT (s)--() DELETE s",
+                workspace_id=workspace_id,
+            )
