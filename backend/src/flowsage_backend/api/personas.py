@@ -17,10 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from flowsage_backend.audit import record_audit_event
-from flowsage_backend.deps import get_current_actor, get_current_membership, get_db_session
+from flowsage_backend.deps import (
+    require_actor,
+    get_current_membership,
+    get_db_session,
+    require_role,
+)
 from flowsage_backend.models.persona import Persona
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 
 router = APIRouter(prefix="/personas", tags=["personas"])
 
@@ -102,7 +107,7 @@ async def _get_persona_or_404(
 
 @router.get("", response_model=list[PersonaOut])
 async def list_personas(
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(require_actor("personas:read")),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[Persona]:
     workspace_id, _ = actor
@@ -125,7 +130,7 @@ async def get_persona(
 @router.post("", response_model=PersonaOut, status_code=status.HTTP_201_CREATED)
 async def create_persona(
     payload: PersonaCreate,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
     _, membership = membership_pair
@@ -175,7 +180,7 @@ async def create_persona(
 async def update_persona(
     persona_id: uuid.UUID,
     payload: PersonaUpdate,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
     _, membership = membership_pair
@@ -198,7 +203,7 @@ async def update_persona(
 @router.post("/{persona_id}/reset", response_model=PersonaOut)
 async def reset_persona(
     persona_id: uuid.UUID,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> Persona:
     """Baseline personas only -- re-reads the shipped YAML definition
@@ -236,7 +241,7 @@ async def reset_persona(
 @router.delete("/{persona_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_persona(
     persona_id: uuid.UUID,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> None:
     _, membership = membership_pair

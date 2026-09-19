@@ -1,8 +1,8 @@
 """Public, API-key-authenticated read endpoints for external integrations
-(`/v1/insights/...`). Reuses the same `require_workspace_api_key` dependency
+(`/v1/insights/...`). Reuses the same `require_api_key_scope` dependency
 `POST /v1/events` already uses -- no new auth mechanism. The `APIKeyHeader`
 security scheme below is purely additive documentation: it makes Swagger UI
-show an Authorize control for this router, but `require_workspace_api_key`
+show an Authorize control for this router, but `require_api_key_scope`
 still independently reads and validates the header itself."""
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from flowsage_graph.models import FunnelReport
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend.deps import get_db_session, require_workspace_api_key
+from flowsage_backend.deps import get_db_session, require_api_key_scope
 from flowsage_backend.events import build_funnel_report
 from flowsage_backend.insights import list_friction_issues
 
@@ -54,7 +54,7 @@ async def insights_funnel(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
-    workspace_id: uuid.UUID = Depends(require_workspace_api_key),
+    workspace_id: uuid.UUID = Depends(require_api_key_scope("insights:read")),
     session: AsyncSession = Depends(get_db_session),
 ) -> FunnelReport:
     return await build_funnel_report(
@@ -69,7 +69,7 @@ async def insights_friction_issues(
     since: datetime | None = Query(default=None),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
-    workspace_id: uuid.UUID = Depends(require_workspace_api_key),
+    workspace_id: uuid.UUID = Depends(require_api_key_scope("insights:read")),
     session: AsyncSession = Depends(get_db_session),
 ) -> FrictionIssuePageOut:
     try:

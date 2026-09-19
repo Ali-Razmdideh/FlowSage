@@ -5,7 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from flowsage_backend.deps import get_current_actor
+from flowsage_backend.deps import require_actor
 from flowsage_backend.models.workspace import Workspace
 
 from .conftest import create_api_key_for, create_workspace_and_admin, login_to_default_workspace
@@ -15,7 +15,7 @@ _test_router = APIRouter()
 
 @_test_router.get("/_test/actor")
 async def _actor_probe(
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(require_actor("personas:read")),
 ) -> dict[str, str | None]:
     workspace_id, user_id = actor
     return {"workspace_id": str(workspace_id), "user_id": str(user_id) if user_id else None}

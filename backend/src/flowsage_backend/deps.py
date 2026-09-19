@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from flowsage_backend.models.api_key import ApiKey
+from flowsage_backend.models.api_key import ApiKey, ApiKeyScope
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace
 from flowsage_backend.security import decode_access_token, hash_api_key
@@ -87,7 +87,9 @@ def require_role(
 
 
 async def require_workspace_api_key(
-    request: Request, session: AsyncSession = Depends(get_db_session)
+    request: Request,
+    session: AsyncSession = Depends(get_db_session),
+    required_scope: ApiKeyScope = "events:write",
 ) -> uuid.UUID:
     provided = request.headers.get("X-API-Key")
     if provided is None:
@@ -102,24 +104,42 @@ async def require_workspace_api_key(
     if workspace is None or workspace.archived:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This workspace has been archived")
 
+    if required_scope not in api_key.scopes:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient API key scope")
+
     api_key.last_used_at = datetime.now(timezone.utc)
     await session.commit()
     return api_key.workspace_id
 
 
-async def get_current_actor(
-    request: Request, session: AsyncSession = Depends(get_db_session)
-) -> tuple[uuid.UUID, uuid.UUID | None]:
-    """Resolves the acting workspace (plus the user, if session-authenticated) from
-    either the browser's session cookie or an `X-API-Key` header. Lets a
-    non-browser client (the Figma plugin) call routes that were previously
-    cookie-only, without weakening the existing cookie-based auth those routes
-    already had -- presence of the `X-API-Key` header decides which check runs;
-    an invalid key still 401s rather than silently falling through to the
-    cookie check."""
-    if request.headers.get("X-API-Key") is not None:
-        workspace_id = await require_workspace_api_key(request, session)
-        return workspace_id, None
+def require_api_key_scope(scope: ApiKeyScope) -> Callable[..., Coroutine[Any, Any, uuid.UUID]]:
+    async def dependency(
+        request: Request, session: AsyncSession = Depends(get_db_session)
+    ) -> uuid.UUID:
+        return await require_workspace_api_key(request, session, scope)
 
-    _, membership = await get_current_membership(request, session)
-    return membership.workspace_id, membership.user_id
+    return dependency
+
+
+def require_actor(
+    scope: ApiKeyScope,
+    min_role: Role = Role.VIEWER,
+) -> Callable[..., Coroutine[Any, Any, tuple[uuid.UUID, uuid.UUID | None]]]:
+    """Authorize either a scoped key or a membership before route side effects.
+
+    Header presence selects key authentication; an invalid key never falls back
+    to browser credentials. Read and write scopes are deliberately independent.
+    """
+
+    async def dependency(
+        request: Request,
+        session: AsyncSession = Depends(get_db_session),
+    ) -> tuple[uuid.UUID, uuid.UUID | None]:
+        if request.headers.get("X-API-Key") is not None:
+            return await require_workspace_api_key(request, session, scope), None
+        _, membership = await get_current_membership(request, session)
+        if membership.role.ordinal() < min_role.ordinal():
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient role for this action")
+        return membership.workspace_id, membership.user_id
+
+    return dependency

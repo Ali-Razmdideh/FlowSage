@@ -17,7 +17,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.audit import record_audit_event
-from flowsage_backend.deps import get_current_actor, get_db_session
+from flowsage_backend.models.workspace import Role
+from flowsage_backend.deps import require_actor, get_db_session
 from flowsage_backend.models.scheduled_simulation import ScheduledSimulation, ScheduleInterval
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.scheduled_simulations import (
@@ -97,7 +98,9 @@ async def _get_config(
 @router.post("", response_model=ScheduledSimulationOut, status_code=status.HTTP_201_CREATED)
 async def create_scheduled_simulation_endpoint(
     payload: ScheduledSimulationCreate,
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(
+        require_actor("schedules:write", Role.RESEARCHER)
+    ),
     session: AsyncSession = Depends(get_db_session),
 ) -> ScheduledSimulationOut:
     workspace_id, user_id = actor
@@ -128,7 +131,7 @@ async def create_scheduled_simulation_endpoint(
 
 @router.get("", response_model=list[ScheduledSimulationOut])
 async def list_scheduled_simulations(
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(require_actor("schedules:read")),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[ScheduledSimulationOut]:
     workspace_id, _ = actor
@@ -142,7 +145,9 @@ async def list_scheduled_simulations(
 async def update_scheduled_simulation(
     config_id: uuid.UUID,
     payload: ScheduledSimulationUpdate,
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(
+        require_actor("schedules:write", Role.RESEARCHER)
+    ),
     session: AsyncSession = Depends(get_db_session),
 ) -> ScheduledSimulationOut:
     workspace_id, user_id = actor
@@ -176,7 +181,9 @@ async def update_scheduled_simulation(
 async def delete_scheduled_simulation(
     request: Request,
     config_id: uuid.UUID,
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(
+        require_actor("schedules:write", Role.RESEARCHER)
+    ),
     session: AsyncSession = Depends(get_db_session),
 ) -> None:
     workspace_id, user_id = actor
@@ -234,7 +241,9 @@ async def push_screenshots(
     request: Request,
     config_id: uuid.UUID,
     files: list[UploadFile] = File(...),
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(
+        require_actor("schedules:write", Role.RESEARCHER)
+    ),
     session: AsyncSession = Depends(get_db_session),
 ) -> ScheduledSimulationOut:
     workspace_id, user_id = actor
@@ -283,7 +292,7 @@ async def push_screenshots(
 @router.get("/{config_id}/trend", response_model=list[TrendPoint])
 async def get_trend(
     config_id: uuid.UUID,
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(require_actor("schedules:read")),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[TrendPoint]:
     workspace_id, _ = actor

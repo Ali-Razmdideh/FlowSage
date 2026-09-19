@@ -22,10 +22,10 @@ from sqlalchemy.orm import selectinload
 
 from flowsage_backend.audit import record_audit_event
 from flowsage_backend.billing import check_within_limits
-from flowsage_backend.deps import get_current_actor, get_current_membership, get_db_session
+from flowsage_backend.deps import require_actor, get_current_membership, get_db_session
 from flowsage_backend.models.simulation import RunStatus, SimulationRun
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 from flowsage_backend.simulations import IMAGE_SUFFIXES, SimulationError, create_run
 
 router = APIRouter(prefix="/simulations", tags=["simulations"])
@@ -88,7 +88,9 @@ async def create_simulation(
     goal: str = Form(...),
     flow_name: str = Form(...),
     files: list[UploadFile] = File(...),
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(
+        require_actor("simulations:write", Role.RESEARCHER)
+    ),
     session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
     workspace_id, user_id = actor
@@ -137,7 +139,7 @@ async def create_simulation(
 @router.get("/{run_id}", response_model=SimulationRunDetailOut)
 async def get_simulation(
     run_id: uuid.UUID,
-    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(get_current_actor),
+    actor: tuple[uuid.UUID, uuid.UUID | None] = Depends(require_actor("simulations:read")),
     session: AsyncSession = Depends(get_db_session),
 ) -> SimulationRun:
     workspace_id, _ = actor

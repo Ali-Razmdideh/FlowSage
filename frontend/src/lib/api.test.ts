@@ -20,6 +20,16 @@ afterEach(() => {
 });
 
 describe("api client", () => {
+  it("sends only the explicitly selected API-key scopes", async () => {
+    mockFetchOnce({ json: async () => ({ id: "key-1", scopes: ["insights:read"] }) });
+    await api.createApiKey("Reporting", ["insights:read"]);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toMatch(/\/settings\/integrations\/api-keys$/);
+    expect(JSON.parse(init?.body as string)).toEqual({
+      name: "Reporting", scopes: ["insights:read"],
+    });
+  });
+
   it("sends credentials and parses a successful JSON response", async () => {
     mockFetchOnce({ json: async () => ({ id: "u1", email: "a@b.com", created_at: "now" }) });
 

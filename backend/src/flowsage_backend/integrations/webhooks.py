@@ -12,6 +12,9 @@ import json
 
 import httpx
 
+from flowsage_backend.outbound_http import outbound_client
+from flowsage_backend.url_safety import UnsafeUrlError, validate_outbound_url
+
 
 async def deliver_webhook(
     url: str,
@@ -25,7 +28,8 @@ async def deliver_webhook(
     signature = "sha256=" + hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
 
     try:
-        async with httpx.AsyncClient(transport=transport) as client:
+        validate_outbound_url(url)
+        async with outbound_client(transport=transport) as client:
             response = await client.post(
                 url,
                 content=body,
@@ -34,7 +38,7 @@ async def deliver_webhook(
                     "X-FlowSage-Signature": signature,
                 },
             )
-    except httpx.HTTPError:
+    except (httpx.HTTPError, UnsafeUrlError):
         return None, False
 
     success = 200 <= response.status_code < 300

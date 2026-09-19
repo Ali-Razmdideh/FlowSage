@@ -2,6 +2,7 @@ import type {
   AlertsReport,
   ApiKey,
   ApiKeyCreated,
+  ApiKeyScope,
   AuditLogPage,
   CalibrationReport,
   CalibrationSettings,
@@ -319,10 +320,10 @@ export const api = {
 
   getApiKeys: (): Promise<ApiKey[]> => request<ApiKey[]>("/settings/integrations/api-keys"),
 
-  createApiKey: (name: string): Promise<ApiKeyCreated> =>
+  createApiKey: (name: string, scopes: ApiKeyScope[] = ["events:write"]): Promise<ApiKeyCreated> =>
     request<ApiKeyCreated>("/settings/integrations/api-keys", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, scopes }),
     }),
 
   revokeApiKey: (id: string): Promise<void> =>

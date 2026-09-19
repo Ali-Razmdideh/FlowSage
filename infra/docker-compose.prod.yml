@@ -18,6 +18,14 @@ services:
 
   backend:
     ports: !reset []
+    environment: &production_security
+      ENVIRONMENT: production
+      COOKIE_SECURE: "true"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set for production}"
+      SECRET_ENCRYPTION_KEY: "${SECRET_ENCRYPTION_KEY:?SECRET_ENCRYPTION_KEY must be set for production}"
+
+  worker:
+    environment: *production_security
 
   frontend:
     # Loopback-only, for on-box debugging -- Caddy reaches `frontend` over the

@@ -43,6 +43,16 @@ def test_placeholder_encryption_key_rejected_outside_dev(monkeypatch: pytest.Mon
         Settings()
 
 
+@pytest.mark.parametrize("field", ["jwt_secret", "secret_encryption_key"])
+def test_any_development_secret_is_rejected_outside_dev(field: str) -> None:
+    from flowsage_backend.config import _PLACEHOLDER_JWT_SECRET
+
+    values = {"jwt_secret": "j" * 32, "secret_encryption_key": "e" * 32}
+    values[field] = _PLACEHOLDER_JWT_SECRET
+    with pytest.raises(ValueError, match=field.upper()):
+        Settings(environment="production", **values)
+
+
 def test_empty_string_env_var_treated_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     """docker-compose's `${STRIPE_SECRET_KEY:-}` interpolation passes an actual
     empty string, not an unset variable, whenever the host has no override. If
@@ -53,3 +63,16 @@ def test_empty_string_env_var_treated_as_unset(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("STRIPE_SECRET_KEY", "")
     settings = Settings()
     assert settings.stripe_secret_key is None
+
+
+@pytest.mark.parametrize("field", ["jwt_secret", "secret_encryption_key"])
+@pytest.mark.parametrize("value", ["", "short", " " * 32])
+def test_production_rejects_weak_secrets(field: str, value: str) -> None:
+    values = {"jwt_secret": "j" * 32, "secret_encryption_key": "e" * 32}
+    values[field] = value
+    with pytest.raises(ValueError, match=field.upper()):
+        Settings(environment="production", **values)
+
+
+def test_secret_minimum_is_measured_in_utf8_bytes() -> None:
+    Settings(environment="production", jwt_secret="é" * 16, secret_encryption_key="é" * 16)

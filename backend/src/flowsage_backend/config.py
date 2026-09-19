@@ -65,9 +65,10 @@ class Settings(BaseSettings):
     def _reject_placeholder_secret_outside_dev(self) -> "Settings":
         if self.environment == "development":
             return self
+        development_secrets = {_PLACEHOLDER_JWT_SECRET, _PLACEHOLDER_ENCRYPTION_KEY}
         placeholders = {
-            "JWT_SECRET": self.jwt_secret == _PLACEHOLDER_JWT_SECRET,
-            "SECRET_ENCRYPTION_KEY": self.secret_encryption_key == _PLACEHOLDER_ENCRYPTION_KEY,
+            "JWT_SECRET": self.jwt_secret in development_secrets,
+            "SECRET_ENCRYPTION_KEY": self.secret_encryption_key in development_secrets,
         }
         still_placeholder = [name for name, is_default in placeholders.items() if is_default]
         if still_placeholder:
@@ -76,6 +77,12 @@ class Settings(BaseSettings):
                 f"ENVIRONMENT is {self.environment!r} -- set real secrets "
                 "(e.g. `openssl rand -hex 32`)."
             )
+        for name, value in (
+            ("JWT_SECRET", self.jwt_secret),
+            ("SECRET_ENCRYPTION_KEY", self.secret_encryption_key),
+        ):
+            if len(value.strip().encode("utf-8")) < 32:
+                raise ValueError(f"{name} must contain at least 32 bytes outside development.")
         return self
 
 

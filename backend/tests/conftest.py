@@ -30,7 +30,7 @@ from testcontainers.redis import RedisContainer
 from flowsage_backend.config import Settings
 from flowsage_backend.main import create_app
 from flowsage_backend.models import Base
-from flowsage_backend.models.api_key import ApiKey
+from flowsage_backend.models.api_key import ALL_API_KEY_SCOPES, ApiKey
 from flowsage_backend.models.billing import SubscriptionTier, WorkspaceSubscription
 from flowsage_backend.models.user import User
 from flowsage_backend.models.workspace import Membership, Role, Workspace
@@ -146,6 +146,7 @@ async def create_api_key_for(
             name=name,
             key_prefix=raw_key[:12],
             key_hash=hash_api_key(raw_key),
+            scopes=list(ALL_API_KEY_SCOPES),
         )
     )
     await session.commit()

@@ -22,11 +22,11 @@ from flowsage_backend.calibration import (
     build_calibration_report,
     calibration_input_hash,
 )
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.events import query_events
 from flowsage_backend.models.calibration import RetrainingJob, RetrainingStatus
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 from flowsage_backend.retraining import RetrainingError, create_retraining_job
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 
@@ -119,7 +119,7 @@ async def get_calibration_report(
 async def start_retraining(
     payload: RetrainRequest,
     request: Request,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> RetrainingJobOut:
     _, membership = membership_pair

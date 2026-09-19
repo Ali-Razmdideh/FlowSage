@@ -59,6 +59,11 @@ export function DocsPage() {
                 .
               </li>
             </ol>
+            <p className="mt-3 text-sm text-on-surface-variant">
+              New keys can ingest events by default. Select Read insights for the Insights API.
+              Figma needs Read personas, Read simulations, and Run simulations. Read and write
+              permissions are independent; existing keys retain their previous permissions.
+            </p>
           </section>
 
           <section id="events">

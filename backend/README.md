@@ -33,6 +33,43 @@ Two auth mechanisms, both resolved by a single dependency (`deps.get_current_act
 - **Session cookie** — login sets a JWT in an httpOnly cookie (`POST /auth/login`), scoped to the active workspace. Used by the web app.
 - **`X-API-Key` header** — a per-workspace key minted at `/settings/integrations` (or the `create-api-key` CLI command). Used by `POST /v1/events`, `/v1/insights/*`, the Figma plugin, and any external ingestion.
 
+API keys have explicit, independent scopes. Newly created keys default to
+`events:write`; keys that existed before the scopes migration retain all previously
+available capabilities. Invalid/revoked keys return 401; valid keys without the
+required scope return 403. Key creation accepts a nonempty `scopes` array and key
+creation/list responses include that array.
+
+| Scope | Allows |
+|---|---|
+| `events:write` | Ingest events |
+| `insights:read` | Read `/v1/insights/*` |
+| `personas:read` | List personas for external clients |
+| `simulations:read` | Read simulation results |
+| `simulations:write` | Create simulation runs |
+| `schedules:read` | Read scheduled simulations and their trends |
+| `schedules:write` | Create/update/delete schedules and upload screenshots |
+
+The Figma plugin needs `personas:read`, `simulations:read`, and
+`simulations:write`. Write scopes do not imply read scopes. Workspace Admins
+choose permissions when minting a key. Browser mutations for research, simulations,
+sample imports, retraining, and exports require Researcher or Admin; calibration
+settings and manual digests require Admin. Viewer access remains read-only for
+these operations.
+
+CLI example (repeat `--scope` for each permission):
+
+```bash
+uv run flowsage-backend create-api-key my-workspace figma \
+  --scope personas:read --scope simulations:read --scope simulations:write
+```
+
+Outbound Slack, Jira, and custom-webhook calls only connect to public HTTPS
+destinations. DNS is checked at connection time, redirects and environment proxies
+are disabled, and private/internal destinations are rejected even for integrations
+saved before the security update. See [the deployment runbook](../infra/DEPLOY.md)
+before upgrading an existing installation: encrypted credentials must be rotated
+to the configured production key while API and worker processes are stopped.
+
 Passwords are hashed with Argon2id. `JWT_SECRET`/`SECRET_ENCRYPTION_KEY` must be overridden via env var outside local dev — `Settings` refuses to start with the placeholder values if `ENVIRONMENT != development`. CORS is enabled with `allow_credentials=False` so cookie-authenticated routes stay same-origin-only while API-key routes remain reachable from a null-origin client like the Figma plugin's UI iframe.
 
 ## Route map

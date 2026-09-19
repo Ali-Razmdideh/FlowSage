@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../lib/api";
-import type { ApiKey, ApiKeyCreated, JiraStatus, SlackStatus, Webhook, WebhookCreated } from "../../lib/types";
+import type { ApiKey, ApiKeyCreated, ApiKeyScope, JiraStatus, SlackStatus, Webhook, WebhookCreated } from "../../lib/types";
+
+const KEY_PERMISSIONS: { scope: ApiKeyScope; label: string }[] = [
+  { scope: "events:write", label: "Ingest events" },
+  { scope: "insights:read", label: "Read insights" },
+  { scope: "personas:read", label: "Read personas" },
+  { scope: "simulations:read", label: "Read simulations" },
+  { scope: "simulations:write", label: "Run simulations" },
+  { scope: "schedules:read", label: "Read schedules" },
+  { scope: "schedules:write", label: "Manage schedules" },
+];
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -244,6 +254,7 @@ function ApiKeysSection() {
   const [keys, setKeys] = useState<ApiKey[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [scopes, setScopes] = useState<ApiKeyScope[]>(["events:write"]);
   const [revealed, setRevealed] = useState<ApiKeyCreated | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -259,10 +270,11 @@ function ApiKeysSection() {
   async function handleCreate() {
     setError(null);
     try {
-      const created = await api.createApiKey(name);
+      const created = await api.createApiKey(name, scopes);
       setRevealed(created);
       setCreating(false);
       setName("");
+      setScopes(["events:write"]);
       load();
     } catch (err) {
       setError(errorMessage(err, "Failed to create API key."));
@@ -327,11 +339,32 @@ function ApiKeysSection() {
               className="ghost-border rounded-lg px-3 py-2 bg-transparent"
             />
           </label>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium mb-2">Permissions</legend>
+            <p className="text-sm text-on-surface-variant">
+              Select only what this key needs. Figma requires Read personas, Read simulations,
+              and Run simulations. Read and write permissions are independent.
+            </p>
+            {KEY_PERMISSIONS.map(({ scope, label }) => (
+              <label key={scope} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={scopes.includes(scope)}
+                  onChange={(event) =>
+                    setScopes((current) => event.target.checked
+                      ? [...current, scope]
+                      : current.filter((value) => value !== scope))
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => void handleCreate()}
-              disabled={name.length === 0}
+              disabled={name.trim().length === 0 || scopes.length === 0}
               className="rounded-lg bg-primary py-2 px-4 text-on-primary font-medium disabled:opacity-50"
             >
               Generate
@@ -352,6 +385,7 @@ function ApiKeysSection() {
           <tr>
             <th className="px-6 py-3 font-medium">Name</th>
             <th className="px-6 py-3 font-medium">Prefix</th>
+            <th className="px-6 py-3 font-medium">Permissions</th>
             <th className="px-6 py-3 font-medium">Created</th>
             <th className="px-6 py-3 font-medium">Last used</th>
             <th className="px-6 py-3 font-medium"></th>
@@ -362,6 +396,10 @@ function ApiKeysSection() {
             <tr key={key.id} className="border-b border-outline-variant last:border-0">
               <td className="px-6 py-3">{key.name}</td>
               <td className="px-6 py-3 font-mono text-xs">{key.key_prefix}…</td>
+              <td className="px-6 py-3 text-on-surface-variant">
+                {KEY_PERMISSIONS.filter(({ scope }) => key.scopes.includes(scope))
+                  .map(({ label }) => label).join(", ")}
+              </td>
               <td className="px-6 py-3 text-on-surface-variant">
                 {new Date(key.created_at).toLocaleDateString()}
               </td>

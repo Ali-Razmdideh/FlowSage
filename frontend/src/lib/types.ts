@@ -329,6 +329,15 @@ export interface JiraConnectPayload {
   project_key: string;
 }
 
+export type ApiKeyScope =
+  | "events:write"
+  | "insights:read"
+  | "personas:read"
+  | "simulations:read"
+  | "simulations:write"
+  | "schedules:read"
+  | "schedules:write";
+
 export interface ApiKey {
   id: string;
   name: string;
@@ -336,12 +345,14 @@ export interface ApiKey {
   created_at: string;
   last_used_at: string | null;
   revoked: boolean;
+  scopes: ApiKeyScope[];
 }
 
 export interface ApiKeyCreated {
   id: string;
   name: string;
   key: string;
+  scopes: ApiKeyScope[];
   key_prefix: string;
   created_at: string;
 }

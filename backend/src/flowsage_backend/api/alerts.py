@@ -14,7 +14,7 @@ from flowsage_backend.alerts import (
     build_digest_blocks,
     build_digest_text,
 )
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.integrations.slack import (
     SlackDeliveryError,
     SlackNotConfiguredError,
@@ -22,7 +22,7 @@ from flowsage_backend.integrations.slack import (
 )
 from flowsage_backend.integrations_store import get_slack_integration
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 
 router = APIRouter(
     prefix="/alerts", tags=["alerts"], dependencies=[Depends(get_current_membership)]
@@ -44,7 +44,7 @@ async def get_alerts(
 
 @router.post("/digest/run", response_model=DigestResult)
 async def run_digest_now(
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
     session: AsyncSession = Depends(get_db_session),
 ) -> DigestResult:
     _, membership = membership_pair

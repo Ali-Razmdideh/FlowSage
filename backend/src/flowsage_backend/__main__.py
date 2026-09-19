@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.config import get_settings
 from flowsage_backend.db import create_engine, create_session_factory
-from flowsage_backend.models.api_key import ApiKey
+from flowsage_backend.key_rotation import run_key_rotation
+from flowsage_backend.models.api_key import ALL_API_KEY_SCOPES, ApiKey
 from flowsage_backend.models.workspace import Membership, Workspace
 from flowsage_backend.security import generate_api_key, hash_api_key
 from flowsage_backend.seed import seed_baseline_personas, upsert_user
@@ -54,7 +55,7 @@ async def _seed_personas() -> None:
     print(f"{len(personas)} baseline persona(s) ready: {', '.join(p.slug for p in personas)}")
 
 
-async def _create_api_key(workspace_slug: str, name: str) -> None:
+async def _create_api_key(workspace_slug: str, name: str, scopes: list[str] | None = None) -> None:
     settings = get_settings()
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
@@ -70,6 +71,7 @@ async def _create_api_key(workspace_slug: str, name: str) -> None:
                 name=name,
                 key_prefix=raw_key[:12],
                 key_hash=hash_api_key(raw_key),
+                scopes=list(dict.fromkeys(scopes or ["events:write"])),
             )
         )
         await session.commit()
@@ -101,8 +103,24 @@ def main() -> None:
     )
     create_api_key_parser.add_argument("workspace_slug")
     create_api_key_parser.add_argument("name")
+    create_api_key_parser.add_argument(
+        "--scope",
+        action="append",
+        choices=ALL_API_KEY_SCOPES,
+        dest="scopes",
+        help="Grant a scope (repeatable; defaults to events:write)",
+    )
+
+    rotation_parser = subparsers.add_parser(
+        "rotate-encryption-key", help="Rotate stored secrets using old/new environment keys"
+    )
+    rotation_parser.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args()
+
+    if args.command == "rotate-encryption-key":
+        asyncio.run(run_key_rotation(dry_run=args.dry_run))
+        return
 
     if args.command == "create-user":
         asyncio.run(_create_user(args.email, args.password))
@@ -113,7 +131,7 @@ def main() -> None:
         return
 
     if args.command == "create-api-key":
-        asyncio.run(_create_api_key(args.workspace_slug, args.name))
+        asyncio.run(_create_api_key(args.workspace_slug, args.name, args.scopes))
         return
 
     _serve()

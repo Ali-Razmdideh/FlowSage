@@ -21,6 +21,11 @@ friction findings placed back on the canvas as annotation cards next to each fra
 
 ## Using it
 
+Create a key in FlowSage Settings → Integrations with **Read personas**
+(`personas:read`), **Read simulations** (`simulations:read`), and **Run simulations**
+(`simulations:write`). New keys default to event ingestion only, which is not enough
+for the plugin. Existing keys retain their previous capabilities after upgrading.
+
 1. Select one or more frames on the canvas — selection order becomes walkthrough order.
 2. Pick a persona, enter a goal and a flow name.
 3. Click **Run & Annotate**. The plugin exports the selected frames, uploads them to

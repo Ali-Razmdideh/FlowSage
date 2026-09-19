@@ -26,7 +26,7 @@ from flowsage_backend.churn import (
     get_node_intelligence,
     node_insight_input_hash,
 )
-from flowsage_backend.deps import get_current_membership, get_db_session, require_workspace_api_key
+from flowsage_backend.deps import get_current_membership, get_db_session, require_api_key_scope
 from flowsage_backend.events import build_funnel_report, ingest_events
 from flowsage_backend.integrations.jira import (
     JiraDeliveryError,
@@ -70,7 +70,7 @@ class IngestResult(BaseModel):
 async def ingest(
     payload: list[EventIn],
     request: Request,
-    workspace_id: uuid.UUID = Depends(require_workspace_api_key),
+    workspace_id: uuid.UUID = Depends(require_api_key_scope("events:write")),
     session: AsyncSession = Depends(get_db_session),
 ) -> IngestResult:
     await check_within_limits(session, workspace_id, "events")

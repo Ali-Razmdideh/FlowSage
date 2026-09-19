@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import httpx
 
+from flowsage_backend.outbound_http import outbound_client
+from flowsage_backend.url_safety import UnsafeUrlError, validate_outbound_url
+
 
 class JiraNotConfiguredError(Exception):
     """Raised when base_url/email/api_token/project_key aren't all set."""
@@ -45,15 +48,17 @@ async def create_jira_issue(
         }
     }
 
-    async with httpx.AsyncClient(
-        transport=transport, auth=httpx.BasicAuth(email, api_token)
-    ) as client:
-        response = await client.post(f"{base_url}/rest/api/3/issue", json=payload)
+    try:
+        validate_outbound_url(base_url)
+        async with outbound_client(
+            transport=transport, auth=httpx.BasicAuth(email, api_token)
+        ) as client:
+            response = await client.post(f"{base_url.rstrip('/')}/rest/api/3/issue", json=payload)
+    except (httpx.HTTPError, UnsafeUrlError):
+        raise JiraDeliveryError("Jira delivery failed") from None
 
     if response.status_code != 201:
-        raise JiraDeliveryError(
-            f"Jira issue creation returned {response.status_code}: {response.text}"
-        )
+        raise JiraDeliveryError(f"Jira issue creation returned {response.status_code}")
 
     key = response.json()["key"]
     assert isinstance(key, str)

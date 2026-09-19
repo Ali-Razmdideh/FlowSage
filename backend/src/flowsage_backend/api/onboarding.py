@@ -10,9 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.audit import record_audit_event
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 from flowsage_backend.onboarding import (
     ImportSampleDataResult,
     OnboardingStatus,
@@ -42,7 +42,7 @@ async def onboarding_status(
 )
 async def import_sample_data_endpoint(
     request: Request,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.RESEARCHER)),
     session: AsyncSession = Depends(get_db_session),
 ) -> ImportSampleDataResult:
     _, membership = membership_pair

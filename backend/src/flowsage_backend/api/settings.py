@@ -8,10 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from flowsage_backend.audit import record_audit_event
-from flowsage_backend.deps import get_current_membership, get_db_session
+from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.models.settings import CalibrationSettings, DigestFrequency
 from flowsage_backend.models.user import User
-from flowsage_backend.models.workspace import Membership
+from flowsage_backend.models.workspace import Membership, Role
 from flowsage_backend.settings_store import get_or_create_calibration_settings
 
 router = APIRouter(
@@ -49,7 +49,7 @@ async def get_model_calibration_settings(
 @router.patch("", response_model=CalibrationSettingsOut)
 async def update_model_calibration_settings(
     payload: CalibrationSettingsUpdate,
-    membership_pair: tuple[User, Membership] = Depends(get_current_membership),
+    membership_pair: tuple[User, Membership] = Depends(require_role(Role.ADMIN)),
     session: AsyncSession = Depends(get_db_session),
 ) -> CalibrationSettings:
     _, membership = membership_pair

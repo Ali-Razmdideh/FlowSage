@@ -15,7 +15,7 @@ from flowsage_backend.audit import record_audit_event
 from flowsage_backend.deps import get_current_membership, get_db_session, require_role
 from flowsage_backend.integrations.webhooks import deliver_webhook
 from flowsage_backend.integrations_store import get_jira_integration, get_slack_integration
-from flowsage_backend.models.api_key import ApiKey
+from flowsage_backend.models.api_key import ApiKey, ApiKeyScope
 from flowsage_backend.models.integration import JiraIntegration, SlackIntegration
 from flowsage_backend.models.user import User
 from flowsage_backend.models.webhook import Webhook, WebhookDelivery
@@ -59,6 +59,7 @@ class JiraConnectIn(BaseModel):
 
 
 class ApiKeyListOut(BaseModel):
+    scopes: list[str]
     id: uuid.UUID
     name: str
     key_prefix: str
@@ -68,10 +69,12 @@ class ApiKeyListOut(BaseModel):
 
 
 class ApiKeyCreateIn(BaseModel):
+    scopes: list[ApiKeyScope] = Field(default=["events:write"], min_length=1)
     name: str = Field(min_length=1, max_length=200)
 
 
 class ApiKeyCreateOut(BaseModel):
+    scopes: list[str]
     id: uuid.UUID
     name: str
     key: str
@@ -262,6 +265,7 @@ async def list_api_keys(
     )
     return [
         ApiKeyListOut(
+            scopes=k.scopes,
             id=k.id,
             name=k.name,
             key_prefix=k.key_prefix,
@@ -286,6 +290,7 @@ async def create_api_key(
         name=payload.name,
         key_prefix=raw_key[:12],
         key_hash=hash_api_key(raw_key),
+        scopes=list(dict.fromkeys(payload.scopes)),
     )
     session.add(key)
     await session.commit()
@@ -300,7 +305,12 @@ async def create_api_key(
         extra_data={"name": key.name, "key_prefix": key.key_prefix},
     )
     return ApiKeyCreateOut(
-        id=key.id, name=key.name, key=raw_key, key_prefix=key.key_prefix, created_at=key.created_at
+        scopes=key.scopes,
+        id=key.id,
+        name=key.name,
+        key=raw_key,
+        key_prefix=key.key_prefix,
+        created_at=key.created_at,
     )
 
 
