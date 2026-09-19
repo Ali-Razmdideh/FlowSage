@@ -251,15 +251,15 @@ export const api = {
   exportIssueToJira: (issueId: string): Promise<JiraExportResult> =>
     request<JiraExportResult>(`/friction-issues/${issueId}/export/jira`, { method: "POST" }),
 
-  exportNodeToSlack: (screen: string): Promise<SlackExportResult> =>
+  exportNodeToSlack: (screen: string, filters: FunnelFilters = {}): Promise<SlackExportResult> =>
     request<SlackExportResult>(
-      `/graph/nodes/${encodeURIComponent(screen)}/export/slack`,
+      `/graph/nodes/${encodeURIComponent(screen)}/export/slack${toQueryString(filters)}`,
       { method: "POST" },
     ),
 
-  exportNodeToJira: (screen: string): Promise<JiraExportResult> =>
+  exportNodeToJira: (screen: string, filters: FunnelFilters = {}): Promise<JiraExportResult> =>
     request<JiraExportResult>(
-      `/graph/nodes/${encodeURIComponent(screen)}/export/jira`,
+      `/graph/nodes/${encodeURIComponent(screen)}/export/jira${toQueryString(filters)}`,
       { method: "POST" },
     ),
 

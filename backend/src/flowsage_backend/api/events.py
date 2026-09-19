@@ -251,12 +251,15 @@ async def export_node_to_slack(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> SlackExportResult:
     _, membership = membership_pair
     intel = await get_node_intelligence(
-        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since
+        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
     )
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")
@@ -278,12 +281,15 @@ async def export_node_to_jira(
     cohort: str | None = Query(default=None),
     device: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
+    flow_id: uuid.UUID | None = Query(default=None),
+    flow_version: int | None = Query(default=None),
     membership_pair: tuple[User, Membership] = Depends(get_current_membership),
     session: AsyncSession = Depends(get_db_session),
 ) -> JiraExportResult:
     _, membership = membership_pair
     intel = await get_node_intelligence(
-        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since
+        session, membership.workspace_id, screen, cohort=cohort, device=device, since=since,
+        flow_id=flow_id, flow_version=flow_version,
     )
     if intel is None:
         raise HTTPException(status_code=404, detail=f"No funnel data for screen '{screen}'")

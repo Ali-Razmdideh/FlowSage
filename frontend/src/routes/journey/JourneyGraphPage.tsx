@@ -187,6 +187,7 @@ export function JourneyGraphPage() {
           intel={nodeIntel}
           error={nodeError}
           evidence={evidence}
+          flowId={flowId}
           onClose={() => setSelectedNode(null)}
         />
       ) : null}
@@ -274,12 +275,14 @@ function NodeIntelligenceAside({
   intel,
   error,
   evidence,
+  flowId,
   onClose,
 }: {
   node: FrictionNode;
   intel: NodeIntelligence | null;
   error: string | null;
   evidence: SessionEvidence[] | null;
+  flowId: string;
   onClose: () => void;
 }) {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
@@ -288,10 +291,10 @@ function NodeIntelligenceAside({
     setExportStatus(null);
     try {
       if (target === "slack") {
-        await api.exportNodeToSlack(node.screen);
+        await api.exportNodeToSlack(node.screen, flowId ? { flow_id: flowId } : {});
         setExportStatus("Exported to Slack.");
       } else {
-        const result = await api.exportNodeToJira(node.screen);
+        const result = await api.exportNodeToJira(node.screen, flowId ? { flow_id: flowId } : {});
         setExportStatus(`Created Jira issue ${result.issue_key}.`);
       }
     } catch (err) {
